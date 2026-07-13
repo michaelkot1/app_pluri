@@ -49,9 +49,9 @@ Tasks are generated **incrementally, one milestone at a time** (see `[PLAN.md](P
 
 ### WorkoutX integration (do first — highest unknown, PLAN §3 risk)
 
-- [ ] **M1-01** API spike: hit WorkoutX endpoints with the real key; document (in a comment or `Core/Networking/WorkoutX/README`) the actual response shapes for exercise list, equipment, muscles, media/video URLs, rate limits.
-- [ ] **M1-02** `WorkoutXClient` (protocol + live implementation): fetch exercise catalog with typed `Exercise` model (id, name, equipment, target muscle, secondary muscles, instructions, image/animation URL, video URL).
-- [ ] **M1-03** SwiftData cache for the exercise catalog with staleness-based refresh; mock client for previews/tests.
+- [x] **M1-01** API spike: hit WorkoutX endpoints with the real key; document (in a comment or `Core/Networking/WorkoutX/README`) the actual response shapes for exercise list, equipment, muscles, media/video URLs, rate limits.
+- [x] **M1-02** `WorkoutXClient` (protocol + live implementation): fetch exercise catalog with typed `Exercise` model (id, name, equipment, target muscle, secondary muscles, instructions, image/animation URL, video URL).
+- [x] **M1-03** SwiftData cache for the exercise catalog with staleness-based refresh; mock client for previews/tests.
 
 ### Onboarding flow
 
@@ -86,7 +86,8 @@ Tasks for M2 (Auth, Paywall & Accounts) will be generated when M1 is near comple
 
 ## Backlog / surfaced items
 
-- Decide the fate of the legacy Supabase prototype tables (`workout_plans`, `plan_days`, `plan_day_exercises`, `user_equipment`, plus the 3 seeded profile rows). Dropping them is destructive → owner approval required (AGENTS §6). The seeded `exercises` catalog (1,327 rows) may be reusable for M1's WorkoutX cache — evaluate during M1-01.
+- Decide the fate of the legacy Supabase prototype tables (`workout_plans`, `plan_days`, `plan_day_exercises`, `user_equipment`, plus the 3 seeded profile rows). Dropping them is destructive → owner approval required (AGENTS §6). The seeded `exercises` catalog (1,327 rows) is confirmed reusable as an offline/fallback seed for the WorkoutX cache (M1-01: it's a 1:1 snapshot of the live API's fields, right down to a `synced_at` column) — not wired up in M1-03, since that was scoped to evaluation only.
+- No test target exists yet; M1-03's cache-staleness logic was deliberately written as a pure `nonisolated static func` (`ExerciseCatalogStore.isStale`) so it's trivially testable once a Swift Testing target is added — creating that target by hand-editing the synchronized-group `project.pbxproj` was judged too risky to do as a drive-by part of M1-01/02/03. Consider adding the test target as its own task before or alongside M1-17.
 - Consider renaming the Xcode target/product from `pluri_fable_xcode` to `Pluri` (display name already "Pluri"; bundle id `com.codewithmikey.pluri-fable-xcode`). Do it before M2 auth/StoreKit setup, since the bundle id feeds App Store Connect.
 - Security advisor flags: `public.rls_auto_enable()` (SECURITY DEFINER, pre-existing) is executable by anon/authenticated — revoke EXECUTE or move it; leaked-password protection is disabled in Auth settings.
 - Supabase Auth leaked-password protection and the M0-11 key rotation both need the owner in the dashboard — bundle them into one session.

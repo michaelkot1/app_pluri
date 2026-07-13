@@ -362,6 +362,8 @@ Choices made while structuring this spec (flag if wrong):
 8. **Outdoor Run in v1:** entry point exists but is a stub — full run tracking isn't specced for v1.
 9. **Schema v1 applied non-destructively (M0):** the Supabase project pre-dated M0 with prototype tables (`workout_plans`, `plan_days`, `plan_day_exercises`, `user_equipment`, `exercises`). PLAN §1.3 tables (`plans`, `plan_workouts`, `workout_exercises`, `workout_sessions`, `set_logs`) were added alongside and `profiles` extended in place; legacy tables untouched pending owner approval (see TASKS backlog).
 10. **iOS minimum:** the Xcode project targets the current iOS SDK generation (created on Xcode 26); PLAN §1.2's "iOS 17 minimum" is superseded by the project's setting.
+11. **WorkoutX has no video URL (M1-01):** §8's "image/animation ↔ video toggle" assumed WorkoutX exposes a video per exercise. The real API only returns an animated GIF (`gifUrl`); no video field or endpoint exists (confirmed by trying several plausible endpoint shapes — see `Core/Networking/WorkoutX/README.md`). Interim decision: the `Exercise` domain model keeps an optional `videoURL` for a future provider/tier to fill in; until then, the toggle in §8 has only one state (image/animation) and the video option should be hidden rather than shown-and-broken. Revisit when a video source is identified.
+12. **Exercise catalog staleness window (M1-03):** the SwiftData cache refreshes from WorkoutX after 7 days (or immediately if empty), not on every launch — WorkoutX's free-tier quota is 500 requests/month and the catalog itself rarely changes.
 
 ## 15. Open Questions
 
