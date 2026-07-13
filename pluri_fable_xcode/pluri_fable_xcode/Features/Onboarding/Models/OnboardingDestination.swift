@@ -18,21 +18,21 @@ enum OnboardingDestination: Int, CaseIterable, Hashable, Sendable {
     case q11AboutYou
     case q12CaloriesAllergies
     case q13StartDate
-    case planGenerationStub
+    case planGeneration
 
     /// Name entry (step 1) through Q13 (step 14) — SPEC §3.1's "14 steps".
     static let totalProgressSteps = 14
 
     /// 1-based position in the full flow (name = 1, Q1 = 2, ... Q13 = 14).
-    /// `nil` for the stub screen, which shows no progress bar.
+    /// `nil` for the plan-generation screen, which shows no progress bar.
     var stepNumber: Int? {
-        self == .planGenerationStub ? nil : rawValue + 1
+        self == .planGeneration ? nil : rawValue + 1
     }
 
     /// SPEC §3.1: the progress bar is hidden on name entry, appears at Q1
     /// already showing name's completed step, and fills forward from there.
     var showsProgressBar: Bool {
-        self != .name && self != .planGenerationStub
+        self != .name && self != .planGeneration
     }
 
     var progress: Double? {

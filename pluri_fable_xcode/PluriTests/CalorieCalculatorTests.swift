@@ -1,17 +1,13 @@
 import Testing
+@testable import pluri_fable_xcode
 
-// NOTE: This project has no Swift Testing unit-test target yet (see
-// TASKS.md M0/M1 backlog — adding one requires hand-editing the
-// synchronized-group `project.pbxproj`, judged too risky to do as a
-// drive-by part of M1-14). This file lives outside the app target's
-// synchronized root folder (`pluri_fable_xcode/pluri_fable_xcode/`) so it
-// is NOT compiled into the app, and is kept here ready to drop into a real
-// test target once one is added (see TASKS.md backlog item).
+// This suite compiles into the `PluriTests` unit-test target (added in M1-17,
+// hosted on the app so `@testable import` can reach the app's internal types).
 //
 // `CalorieCalculator` (Features/Onboarding/Models/CalorieCalculator.swift)
-// is written as a pure, `nonisolated` enum with static functions
-// specifically so it needs no test-target scaffolding beyond importing the
-// app module — these are ordinary Swift Testing `@Test` functions.
+// is written as a pure enum with static functions specifically so it needs no
+// test-target scaffolding beyond importing the app module — these are ordinary
+// Swift Testing `@Test` functions.
 
 @Suite("CalorieCalculator")
 struct CalorieCalculatorTests {

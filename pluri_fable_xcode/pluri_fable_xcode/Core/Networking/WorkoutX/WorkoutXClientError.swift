@@ -1,7 +1,7 @@
 import Foundation
 
 /// Typed errors surfaced by `WorkoutXClient` implementations.
-enum WorkoutXClientError: Error, LocalizedError, Sendable {
+enum WorkoutXClientError: Error, LocalizedError, Equatable, Sendable {
     case invalidRequest
     case invalidResponse
     case unauthorized

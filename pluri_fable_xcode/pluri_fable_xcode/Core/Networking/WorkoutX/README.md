@@ -96,6 +96,18 @@ Fields actually observed across a 50-item sample (superset): `id`, `name`,
 - Response envelope always reports `total` (total catalog size, 1327) and
   `count` (size of `data` in this response) alongside `data`.
 - No `next`/cursor links — pagination is purely offset-based.
+- **⚠️ Behavior change observed 2026-07-13 (root cause of the M1-18 device
+  bug):** the free plan now caps every response at **10 rows** regardless of
+  the requested `limit` (verified with `limit=2/10/11/25/50/100` and with no
+  `limit` at all — `count` never exceeds 10). The M1-01 note above about the
+  full unpaginated set being returned no longer holds. Consequence: a full
+  catalog fetch needs ⌈1327 ÷ 10⌉ = 133 requests, which slams into the
+  30-requests/window burst limit (429) before finishing and burns ~a quarter
+  of the monthly quota per attempt. **The app therefore no longer fetches the
+  catalog from this API** — catalog reads come from the Supabase-seeded
+  `exercises` snapshot via `SupabaseExerciseCatalogClient` (SPEC §14 #25).
+  `LiveWorkoutXClient` remains for single-exercise lookups and a future
+  paid-tier/full-fetch path.
 
 ## Rate limits (from response headers)
 

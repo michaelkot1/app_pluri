@@ -10,10 +10,21 @@
 		70E38E603004B00000BC4AE7 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 70E38E5F3004B00000BC4AE7 /* Supabase */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		AA000000000000000000000B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 70E38E383004A92200BC4AE7 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 70E38E3F3004A92200BC4AE7;
+			remoteInfo = pluri_fable_xcode;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		70E38E403004A92200BC4AE7 /* pluri_fable_xcode.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = pluri_fable_xcode.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		70E38E503004B00000BC4AE7 /* Shared.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Shared.xcconfig; sourceTree = "<group>"; };
 		70E38E513004B00000BC4AE7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AA0000000000000000000005 /* PluriTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PluriTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -45,6 +56,11 @@
 			path = pluri_fable_xcode;
 			sourceTree = "<group>";
 		};
+		AA0000000000000000000006 /* PluriTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PluriTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -56,6 +72,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AA0000000000000000000008 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -64,6 +87,7 @@
 			children = (
 				70E38E523004B00000BC4AE7 /* Config */,
 				70E38E423004A92200BC4AE7 /* pluri_fable_xcode */,
+				AA0000000000000000000006 /* PluriTests */,
 				70E38E413004A92200BC4AE7 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -72,6 +96,7 @@
 			isa = PBXGroup;
 			children = (
 				70E38E403004A92200BC4AE7 /* pluri_fable_xcode.app */,
+				AA0000000000000000000005 /* PluriTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -112,6 +137,29 @@
 			productReference = 70E38E403004A92200BC4AE7 /* pluri_fable_xcode.app */;
 			productType = "com.apple.product-type.application";
 		};
+		AA0000000000000000000001 /* PluriTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000000000000000000004 /* Build configuration list for PBXNativeTarget "PluriTests" */;
+			buildPhases = (
+				AA0000000000000000000007 /* Sources */,
+				AA0000000000000000000008 /* Frameworks */,
+				AA0000000000000000000009 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AA000000000000000000000A /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				AA0000000000000000000006 /* PluriTests */,
+			);
+			name = PluriTests;
+			packageProductDependencies = (
+			);
+			productName = PluriTests;
+			productReference = AA0000000000000000000005 /* PluriTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -124,6 +172,10 @@
 				TargetAttributes = {
 					70E38E3F3004A92200BC4AE7 = {
 						CreatedOnToolsVersion = 26.5;
+					};
+					AA0000000000000000000001 = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = 70E38E3F3004A92200BC4AE7;
 					};
 				};
 			};
@@ -145,12 +197,20 @@
 			projectRoot = "";
 			targets = (
 				70E38E3F3004A92200BC4AE7 /* pluri_fable_xcode */,
+				AA0000000000000000000001 /* PluriTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		70E38E3E3004A92200BC4AE7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0000000000000000000009 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -189,7 +249,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AA0000000000000000000007 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AA000000000000000000000A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 70E38E3F3004A92200BC4AE7 /* pluri_fable_xcode */;
+			targetProxy = AA000000000000000000000B /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		70E38E493004A92400BC4AE7 /* Debug */ = {
@@ -383,6 +458,50 @@
 			};
 			name = Release;
 		};
+		AA0000000000000000000002 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Y8SDGALAMG;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.codewithmikey.pluri-fable-xcode.PluriTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/pluri_fable_xcode.app/pluri_fable_xcode";
+			};
+			name = Debug;
+		};
+		AA0000000000000000000003 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Y8SDGALAMG;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.codewithmikey.pluri-fable-xcode.PluriTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/pluri_fable_xcode.app/pluri_fable_xcode";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -400,6 +519,15 @@
 			buildConfigurations = (
 				70E38E4C3004A92400BC4AE7 /* Debug */,
 				70E38E4D3004A92400BC4AE7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA0000000000000000000004 /* Build configuration list for PBXNativeTarget "PluriTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000002 /* Debug */,
+				AA0000000000000000000003 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

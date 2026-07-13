@@ -51,8 +51,8 @@ struct OnboardingRootView: View {
             Q12CaloriesAllergiesView(answers: answers, progress: destination.progress) { router.advance(from: destination) }
         case .q13StartDate:
             Q13StartDateView(answers: answers, progress: destination.progress) { router.advance(from: destination) }
-        case .planGenerationStub:
-            PlanGenerationStubView(answers: answers)
+        case .planGeneration:
+            PlanGeneratingView(answers: answers)
         }
     }
 }
