@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>SUPABASE_URL</key>
+	<string>$(PLURI_SUPABASE_URL)</string>
+	<key>SUPABASE_PUBLISHABLE_KEY</key>
+	<string>$(PLURI_SUPABASE_PUBLISHABLE_KEY)</string>
+	<key>WORKOUTX_API_KEY</key>
+	<string>$(PLURI_WORKOUTX_API_KEY)</string>
+	<key>WORKOUTX_ENDPOINT</key>
+	<string>$(PLURI_WORKOUTX_ENDPOINT)</string>
+	<key>NUTRITION_API_KEY</key>
+	<string>$(PLURI_NUTRITION_API_KEY)</string>
+</dict>
+</plist>

@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+Secrets.xcconfig
 *.pem
 *.p8
 *.p12

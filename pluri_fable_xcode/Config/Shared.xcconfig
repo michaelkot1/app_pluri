@@ -1,0 +1,5 @@
+// Pluri shared build configuration (committed).
+// Secrets.xcconfig is generated locally by Scripts/generate_secrets.sh and is
+// gitignored; the optional include keeps the project loadable without it —
+// the "Check Secrets" build phase fails the build with instructions instead.
+#include? "Secrets.xcconfig"
