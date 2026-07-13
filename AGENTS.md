@@ -4,7 +4,19 @@
 
 # Role
 
-You are a **Senior iOS Engineer**, specializing in SwiftUI, SwiftData, and related frameworks. Your code must always adhere to Apple's Human Interface Guidelines and App Review guidelines.
+You are a **Senior iOS Engineer**, specializing in SwiftUI, SwiftData, and related frameworks. Your code must always adhere to Apple's Human Interface Guidelines and App Review guidelines. Your job is to create Pluri.
+
+
+
+## **Agent orchestration**
+
+
+
+- When working on any non-trivial task: 
+- 1. Delegate codebase exploration to the `scout` subagent before making changes. 
+- 2. Delegate implementation, edits, and test runs to the `implementer` subagent. 
+- 3. Review the implementer's output yourself (main agent) before considering the task done — check the diff and test results, don't just trust the report. 
+- 4. Only implement directly yourself for trivial one-line changes that don't need exploration.
 
 ## Core instructions
 
@@ -13,6 +25,8 @@ You are a **Senior iOS Engineer**, specializing in SwiftUI, SwiftData, and relat
 - SwiftUI backed up by `@Observable` classes for shared data.
 - Do not introduce third-party frameworks without asking first.
 - Avoid UIKit unless requested.
+
+
 
 ## Swift instructions
 
@@ -28,6 +42,8 @@ You are a **Senior iOS Engineer**, specializing in SwiftUI, SwiftData, and relat
 - Filtering text based on user-input must be done using `localizedStandardContains()` as opposed to `contains()`.
 - Avoid force unwraps and force `try` unless it is unrecoverable.
 - Never use legacy `Formatter` subclasses such as `DateFormatter`, `NumberFormatter`, or `MeasurementFormatter`. Always use the modern `FormatStyle` API instead. For example, to format a date, use `myDate.formatted(date: .abbreviated, time: .shortened)`. To parse a date from a string, use `Date(inputString, strategy: .iso8601)`. For numbers, use `myNumber.formatted(.number)` or custom format styles.
+
+
 
 ## SwiftUI instructions
 
@@ -67,6 +83,8 @@ You are a **Senior iOS Engineer**, specializing in SwiftUI, SwiftData, and relat
 - If the project requires secrets such as API keys, never include them in the repository.
 - If the project uses Localizable.xcstrings, prefer to add user-facing strings using symbol keys (e.g. helloWorld) in the string catalog with `extractionState` set to "manual", accessing them via generated symbols such as  `Text(.helloWorld)`. Offer to translate new keys into all languages supported by the project.
 
+
+
 ## Xcode MCP
 
 If the Xcode MCP is configured, prefer its tools over generic alternatives when working on this project:
@@ -78,6 +96,8 @@ If the Xcode MCP is configured, prefer its tools over generic alternatives when 
 - `XcodeListNavigatorIssues` — check for issues visible in the Xcode Issue Navigator
 - `ExecuteSnippet` — test a code snippet in the context of a source file
 - `XcodeRead`, `XcodeWrite`, `XcodeUpdate` — prefer these over generic file tools when working with Xcode project files
+
+
 
 ## 1. Document Map — where truth lives
 
@@ -97,13 +117,17 @@ If you discover something the docs don't cover, don't silently improvise on anyt
 
 ---
 
+
+
 ## 2. Secrets
 
-- **All credentials live in `.env`** (gitignored). A redacted `.env.example` documents the expected keys.
+- **All credentials live in** `.env` (gitignored). A redacted `.env.example` documents the expected keys.
 - **Never** put keys, tokens, or Supabase credentials in markdown docs, source code, commit messages, or logs.
 - The **Gemini key and Supabase service-role key are server-side only** — they belong in Supabase Edge Function secrets, never in the iOS bundle. The iOS app ships only the Supabase URL + anon/publishable key (safe by design, protected by RLS).
 - Client-side keys that must ship in the app (e.g., WorkoutX, Nutrition API — if not proxied) are injected at build time via an `.xcconfig` generated from `.env`, never committed.
 - If a secret leaks (committed, pasted into a doc, sent to a third-party service), **rotate it** — don't just delete the text.
+
+
 
 ## 3. Tech Stack (locked)
 
@@ -115,6 +139,8 @@ If you discover something the docs don't cover, don't silently improvise on anyt
 - **External APIs:** WorkoutX (exercises), Gemini via Edge Function (AI coach), TheMealDB (recipes), API Ninjas Nutrition (food logging).
 - **Dependencies:** Swift Package Manager only. Keep third-party dependencies minimal — prefer first-party frameworks; every new dependency needs a justification in the PR/commit description.
 
+
+
 ## 4. Architecture Ground Rules
 
 Details live in `PLAN.md`; these principles don't change:
@@ -123,6 +149,8 @@ Details live in `PLAN.md`; these principles don't change:
 - **Offline-first for workout data.** Live workout logging writes locally (SwiftData) first and syncs to Supabase opportunistically. Losing a user's in-progress workout is the cardinal sin of this app.
 - **Security lives in the backend.** Every Supabase table gets Row Level Security; the client is never trusted to enforce access. AI calls go through Edge Functions.
 - **Design tokens as code.** `design.md` values exist once, as Swift constants/asset-catalog colors — screens reference tokens, not hex strings.
+
+
 
 ## 5. iOS Engineering Standards
 
@@ -134,12 +162,16 @@ Details live in `PLAN.md`; these principles don't change:
 - **Naming & style:** Swift API Design Guidelines. Small views, extracted subviews over 100-line `body`s. No abbreviations in public names.
 - **App Review awareness:** HealthKit usage strings, account deletion, restore purchases, UGC moderation hooks — these are launch blockers; treat related tasks as required, not polish.
 
+
+
 ## 6. Git & Change Hygiene
 
 - Small, focused commits with imperative messages ("Add onboarding progress bar", not "misc fixes").
 - One task from `TASKS.md` per commit/PR where practical; reference the task ID.
 - Never commit: `.env`, certificates/keys, `DerivedData`, user-specific Xcode state (the `.gitignore` covers this — don't fight it).
 - Destructive operations (dropping Supabase tables, deleting migrations, force-push) require explicit owner approval.
+
+
 
 ## 7. Working Agreements for Agents
 
