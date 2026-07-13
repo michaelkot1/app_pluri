@@ -55,18 +55,18 @@ Tasks are generated **incrementally, one milestone at a time** (see `[PLAN.md](P
 
 ### Onboarding flow
 
-- [ ] **M1-04** `OnboardingRouter` + state container holding all answers locally (SPEC §2 — nothing persists remotely until the paywall milestone).
-- [ ] **M1-05** Splash screen with sunrise-glow branding (design.md sunrise gradient tokens).
-- [ ] **M1-06** Name entry screen (no progress bar).
-- [ ] **M1-07** Progress bar behavior per SPEC §3.1: appears at Q1, starts at the step's actual completion percentage (name = step 1 of 14), animates forward, supports back navigation.
-- [ ] **M1-08** Q1 fitness type — Workout selectable; Cardio/Flexibility visible but disabled with "coming soon".
-- [ ] **M1-09** Q2 goal + Q3 experience + Q4 regularity screens (single-select chip lists).
-- [ ] **M1-10** Q5 workout location + Q6 equipment multi-select. Define the auto-select mapping: Commercial = all; propose Home/Small/Bodyweight subsets from the WorkoutX list and record the chosen defaults in SPEC §15 → resolved.
-- [ ] **M1-11** Q7 injuries: multi-select body areas, per-area pain level 1–5 stepper.
-- [ ] **M1-12** Q8 training days (weekday picker, default M/W/F, enforce 2–6) + Q9 scheduled/flexible + plan length slider (3–12, suggest 6).
-- [ ] **M1-13** Q10 session duration + Q11 age/gender/height/weight (locale-aware units).
-- [ ] **M1-14** Q12 maintenance calories (Mifflin-St Jeor in a unit-tested `CalorieCalculator`) + allergy chips with search.
-- [ ] **M1-15** Q13 start date (Today / Tomorrow / date picker).
+- [x] **M1-04** `OnboardingRouter` + state container holding all answers locally (SPEC §2 — nothing persists remotely until the paywall milestone).
+- [x] **M1-05** Splash screen with sunrise-glow branding (design.md sunrise gradient tokens).
+- [x] **M1-06** Name entry screen (no progress bar).
+- [x] **M1-07** Progress bar behavior per SPEC §3.1: appears at Q1, starts at the step's actual completion percentage (name = step 1 of 14), animates forward, supports back navigation.
+- [x] **M1-08** Q1 fitness type — Workout selectable; Cardio/Flexibility visible but disabled with "coming soon".
+- [x] **M1-09** Q2 goal + Q3 experience + Q4 regularity screens (single-select chip lists).
+- [x] **M1-10** Q5 workout location + Q6 equipment multi-select. Define the auto-select mapping: Commercial = all; propose Home/Small/Bodyweight subsets from the WorkoutX list and record the chosen defaults in SPEC §15 → resolved.
+- [x] **M1-11** Q7 injuries: multi-select body areas, per-area pain level 1–5 stepper.
+- [x] **M1-12** Q8 training days (weekday picker, default M/W/F, enforce 2–6) + Q9 scheduled/flexible + plan length slider (3–12, suggest 6).
+- [x] **M1-13** Q10 session duration + Q11 age/gender/height/weight (locale-aware units).
+- [x] **M1-14** Q12 maintenance calories (Mifflin-St Jeor in a unit-tested `CalorieCalculator`) + allergy chips with search.
+- [x] **M1-15** Q13 start date (Today / Tomorrow / date picker).
 
 ### Plan generation
 
@@ -75,6 +75,15 @@ Tasks are generated **incrementally, one milestone at a time** (see `[PLAN.md](P
 - [ ] **M1-18** "Generating Plan…" screen (progress animation, silent retry, gentle failure state) → "Your plan is ready" screen with plan summary teaser (paywall itself is M2 — stub the transition).
 
 **M1 exit check:** fresh install → full questionnaire → real generated plan visible in a debug plan-dump view; engine tests green.
+
+**M1-04..M1-15 learned/changed:**
+
+- Onboarding lives under `Features/Onboarding/` (`Models/`, `Views/`, `Views/Components/`). `OnboardingAnswers` is the single in-memory `@Observable @MainActor` state container (no persistence); `OnboardingRouter` owns the `NavigationStack` path as `[OnboardingDestination]` — both a Continue tap and an edge swipe-back mutate the same path, so the progress bar derives from one source of truth and recedes correctly on back navigation.
+- `AppRootView` now shows `OnboardingRootView()` instead of `ComponentGalleryView()`. The gallery stays reachable in `DEBUG` builds only, via a small palette-icon button that presents it in a sheet — no scope expansion beyond "keep it trivially reachable."
+- Q13 → `PlanGenerationStubView`, a dead-end "You're all set!" screen — intentional per task scope; M1-16/17/18 (`PlanEngine`, its tests, "Generating Plan" screen) are **not implemented** and remain `[ ]` below.
+- `CalorieCalculator` (Q12) is a pure `nonisolated enum` with static functions, written to be trivially testable. Since no Swift Testing target exists yet (see Backlog), its tests live at `pluri_fable_xcode/PluriTests/CalorieCalculatorTests.swift` — a sibling of the synchronized target folder, so it is **not** compiled into the app target; ready to move into a real test target once one is added.
+- Decisions recorded in `SPEC.md` §14 (#13–#18): progress-bar denominator confirmed, Q6 equipment subsets defined (resolves the old §15 open question), Q7 excludes "Cardio" as a non-physical injury area, `CalorieCalculator`'s "Other" gender offset, Q12's allergy search/custom-entry behavior, and the M1-16/17/18 deferral.
+- Verified: builds clean (no warnings) for iPhone 17 Pro simulator via `build_sim`/`build_run_sim`; ran the app and confirmed Splash auto-advances into Name entry (screenshot-verified). Deeper click-through of Q1–Q13 wasn't automated — this session's XcodeBuildMCP config only exposed `screenshot`/`snapshot_ui`, not tap/type UI-automation tools.
 
 ---
 
@@ -87,7 +96,9 @@ Tasks for M2 (Auth, Paywall & Accounts) will be generated when M1 is near comple
 ## Backlog / surfaced items
 
 - Decide the fate of the legacy Supabase prototype tables (`workout_plans`, `plan_days`, `plan_day_exercises`, `user_equipment`, plus the 3 seeded profile rows). Dropping them is destructive → owner approval required (AGENTS §6). The seeded `exercises` catalog (1,327 rows) is confirmed reusable as an offline/fallback seed for the WorkoutX cache (M1-01: it's a 1:1 snapshot of the live API's fields, right down to a `synced_at` column) — not wired up in M1-03, since that was scoped to evaluation only.
-- No test target exists yet; M1-03's cache-staleness logic was deliberately written as a pure `nonisolated static func` (`ExerciseCatalogStore.isStale`) so it's trivially testable once a Swift Testing target is added — creating that target by hand-editing the synchronized-group `project.pbxproj` was judged too risky to do as a drive-by part of M1-01/02/03. Consider adding the test target as its own task before or alongside M1-17.
+- No test target exists yet; M1-03's cache-staleness logic was deliberately written as a pure `nonisolated static func` (`ExerciseCatalogStore.isStale`) so it's trivially testable once a Swift Testing target is added — creating that target by hand-editing the synchronized-group `project.pbxproj` was judged too risky to do as a drive-by part of M1-01/02/03. Consider adding the test target as its own task before or alongside M1-17. M1-14's `CalorieCalculator` tests hit the same wall — they're written and waiting at `pluri_fable_xcode/PluriTests/CalorieCalculatorTests.swift` (outside the synchronized app-target folder, so not compiled in) for whenever the test target lands.
+- `PluriPillButtonStyle` (M0) has no visual disabled state — it ignores `\.isEnabled`, so onboarding's disabled Continue buttons (empty name, no location picked, <2 training days, …) still render full brand orange and look tappable. Add an `@Environment(\.isEnabled)` dim/desaturate to the style. (Surfaced during M1-04..15 QA — pre-existing component, not fixed inline per AGENTS §7.)
+- Q6 equipment strings come from SPEC §3.2's 34-item list (mirrored in `EquipmentCatalog.all`), but the live WorkoutX `equipmentList` endpoint reportedly returns 32 strings with punctuation/casing differences (see `Core/Networking/WorkoutX/README.md`, e.g. `"Dumbbell, Exercise Ball"` vs SPEC's `"Dumbbell + Exercise Ball"`). Before M1-16's equipment filtering, reconcile the two (normalize on the API's exact strings or add a mapping) so Q6 selections actually match catalog `equipment` values.
 - Consider renaming the Xcode target/product from `pluri_fable_xcode` to `Pluri` (display name already "Pluri"; bundle id `com.codewithmikey.pluri-fable-xcode`). Do it before M2 auth/StoreKit setup, since the bundle id feeds App Store Connect.
 - Security advisor flags: `public.rls_auto_enable()` (SECURITY DEFINER, pre-existing) is executable by anon/authenticated — revoke EXECUTE or move it; leaked-password protection is disabled in Auth settings.
 - Supabase Auth leaked-password protection and the M0-11 key rotation both need the owner in the dashboard — bundle them into one session.

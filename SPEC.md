@@ -364,11 +364,20 @@ Choices made while structuring this spec (flag if wrong):
 10. **iOS minimum:** the Xcode project targets the current iOS SDK generation (created on Xcode 26); PLAN §1.2's "iOS 17 minimum" is superseded by the project's setting.
 11. **WorkoutX has no video URL (M1-01):** §8's "image/animation ↔ video toggle" assumed WorkoutX exposes a video per exercise. The real API only returns an animated GIF (`gifUrl`); no video field or endpoint exists (confirmed by trying several plausible endpoint shapes — see `Core/Networking/WorkoutX/README.md`). Interim decision: the `Exercise` domain model keeps an optional `videoURL` for a future provider/tier to fill in; until then, the toggle in §8 has only one state (image/animation) and the video option should be hidden rather than shown-and-broken. Revisit when a video source is identified.
 12. **Exercise catalog staleness window (M1-03):** the SwiftData cache refreshes from WorkoutX after 7 days (or immediately if empty), not on every launch — WorkoutX's free-tier quota is 500 requests/month and the catalog itself rarely changes.
+13. **Progress bar denominator confirmed (M1-07):** §3.1's "14 steps" = name entry (step 1) + Q1–Q13 (steps 2–14). The bar is hidden on splash/name, appears at Q1 already showing 2/14 (~14%) filled (name counts as the completed first step), and reaches 14/14 (100%) at Q13. Both forward taps and back-swipes mutate the same navigation path, so the bar recedes correctly on back navigation.
+14. **Q6 equipment auto-select subsets defined (M1-10, resolves the §15 open question below):** Commercial Gym selects the full 34-item WorkoutX equipment list. The other three locations pre-select an editorial subset (WorkoutX doesn't tag equipment by "typical setting"), freely editable afterwards:
+    - **Home Gym:** Band, Barbell, Body Weight, Body Weight (with Resistance Band), Bosu Ball, Dumbbell, Dumbbell (used as Handles for Deeper Range), Ez Barbell, Kettlebell, Medicine Ball, Olympic Barbell, Resistance Band, Rope, Stability Ball, Trap Bar, Weighted.
+    - **Small Gym:** Assisted, Band, Barbell, Body Weight, Cable, Dumbbell, Ez Barbell, Kettlebell, Leverage Machine, Medicine Ball, Olympic Barbell, Resistance Band, Smith Machine, Stability Ball, Stationary Bike, Trap Bar, Weighted.
+    - **Bodyweight:** Body Weight, Body Weight (with Resistance Band), Band, Resistance Band, Roller, Wheel Roller.
+15. **Q7 excludes "Cardio" from injury body areas (M1-11):** WorkoutX's `bodyPart` taxonomy has 10 values including `"Cardio"`, but that isn't a physical area someone reports pain in, so the injury question offers only the other 9 (Back, Chest, Lower Arms, Lower Legs, Neck, Shoulders, Upper Arms, Upper Legs, Waist).
+16. **`CalorieCalculator` "Other" gender (M1-14):** Mifflin-St Jeor only defines male/female offsets (+5 / −161). `.other` uses their average (−78) as a documented, reasonable middle ground pending better guidance.
+17. **Q12 allergy search (M1-14):** the search field filters a secondary pool of ~20 less-common allergens via `localizedStandardContains`; submitting text that matches neither the 9 common chips nor that pool still adds it as a free-text custom allergy.
+18. **M1-16/17/18 intentionally deferred:** `PlanEngine`, its unit tests, and the "Generating Plan"/"Plan Ready" screens are out of scope for this onboarding pass. Q13 instead advances to a simple "You're all set!" screen that tells the user plan generation is next; it's a dead end by design until `PlanEngine` ships.
 
 ## 15. Open Questions
 
 - Exact Pluri Score formula and weighting (consistency vs. health signals).
-- Default equipment subsets for Home Gym / Small Gym / Bodyweight (Q6 auto-select).
+- ~~Default equipment subsets for Home Gym / Small Gym / Bodyweight (Q6 auto-select).~~ **Resolved — see §14 decision #14.**
 - Plan-generation algorithm details: exercise selection heuristics, progression model (linear? weekly volume ramp?), and how injuries map to exercise exclusions.
 - Community moderation (reporting, blocking) — required by App Review for UGC; must be scoped before Community ships.
 - Whether "Flexible" schedule workouts still appear on the calendar (suggested slots) or only in a weekly checklist.
