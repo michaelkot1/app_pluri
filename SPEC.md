@@ -360,6 +360,8 @@ Choices made while structuring this spec (flag if wrong):
 6. **Gemini via Edge Function:** the AI key stays server-side rather than shipping in the app.
 7. **Trial:** 10-day free trial applies to both monthly and yearly plans.
 8. **Outdoor Run in v1:** entry point exists but is a stub — full run tracking isn't specced for v1.
+9. **Schema v1 applied non-destructively (M0):** the Supabase project pre-dated M0 with prototype tables (`workout_plans`, `plan_days`, `plan_day_exercises`, `user_equipment`, `exercises`). PLAN §1.3 tables (`plans`, `plan_workouts`, `workout_exercises`, `workout_sessions`, `set_logs`) were added alongside and `profiles` extended in place; legacy tables untouched pending owner approval (see TASKS backlog).
+10. **iOS minimum:** the Xcode project targets the current iOS SDK generation (created on Xcode 26); PLAN §1.2's "iOS 17 minimum" is superseded by the project's setting.
 
 ## 15. Open Questions
 
