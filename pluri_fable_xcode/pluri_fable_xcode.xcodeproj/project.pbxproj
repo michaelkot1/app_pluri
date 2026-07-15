@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		70E38E603004B00000BC4AE7 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 70E38E5F3004B00000BC4AE7 /* Supabase */; };
+		AA1000000000000000000001 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = AA1000000000000000000003 /* RevenueCat */; };
+		AA1000000000000000000002 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = AA1000000000000000000004 /* RevenueCatUI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -16,19 +18,20 @@
 			containerPortal = 70E38E383004A92200BC4AE7 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 70E38E3F3004A92200BC4AE7;
-			remoteInfo = pluri_fable_xcode;
+			remoteInfo = Pluri;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		70E38E403004A92200BC4AE7 /* pluri_fable_xcode.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = pluri_fable_xcode.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		70E38E403004A92200BC4AE7 /* Pluri.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pluri.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		70E38E503004B00000BC4AE7 /* Shared.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Shared.xcconfig; sourceTree = "<group>"; };
 		70E38E513004B00000BC4AE7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		70E38E543004B00000BC4AE7 /* Pluri.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Pluri.entitlements; sourceTree = "<group>"; };
 		AA0000000000000000000005 /* PluriTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PluriTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		70E38E703004B00000BC4AE7 /* Exceptions for "pluri_fable_xcode" folder in "pluri_fable_xcode" target */ = {
+		70E38E703004B00000BC4AE7 /* Exceptions for "Pluri" folder in "Pluri" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Core/Extensions/.gitkeep,
@@ -43,17 +46,17 @@
 				Features/Recipe/.gitkeep,
 				Features/Workout/.gitkeep,
 			);
-			target = 70E38E3F3004A92200BC4AE7 /* pluri_fable_xcode */;
+			target = 70E38E3F3004A92200BC4AE7 /* Pluri */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		70E38E423004A92200BC4AE7 /* pluri_fable_xcode */ = {
+		70E38E423004A92200BC4AE7 /* Pluri */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				70E38E703004B00000BC4AE7 /* Exceptions for "pluri_fable_xcode" folder in "pluri_fable_xcode" target */,
+				70E38E703004B00000BC4AE7 /* Exceptions for "Pluri" folder in "Pluri" target */,
 			);
-			path = pluri_fable_xcode;
+			path = Pluri;
 			sourceTree = "<group>";
 		};
 		AA0000000000000000000006 /* PluriTests */ = {
@@ -69,6 +72,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				70E38E603004B00000BC4AE7 /* Supabase in Frameworks */,
+				AA1000000000000000000001 /* RevenueCat in Frameworks */,
+				AA1000000000000000000002 /* RevenueCatUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -86,7 +91,7 @@
 			isa = PBXGroup;
 			children = (
 				70E38E523004B00000BC4AE7 /* Config */,
-				70E38E423004A92200BC4AE7 /* pluri_fable_xcode */,
+				70E38E423004A92200BC4AE7 /* Pluri */,
 				AA0000000000000000000006 /* PluriTests */,
 				70E38E413004A92200BC4AE7 /* Products */,
 			);
@@ -95,7 +100,7 @@
 		70E38E413004A92200BC4AE7 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				70E38E403004A92200BC4AE7 /* pluri_fable_xcode.app */,
+				70E38E403004A92200BC4AE7 /* Pluri.app */,
 				AA0000000000000000000005 /* PluriTests.xctest */,
 			);
 			name = Products;
@@ -106,6 +111,7 @@
 			children = (
 				70E38E503004B00000BC4AE7 /* Shared.xcconfig */,
 				70E38E513004B00000BC4AE7 /* Info.plist */,
+				70E38E543004B00000BC4AE7 /* Pluri.entitlements */,
 			);
 			path = Config;
 			sourceTree = "<group>";
@@ -113,9 +119,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		70E38E3F3004A92200BC4AE7 /* pluri_fable_xcode */ = {
+		70E38E3F3004A92200BC4AE7 /* Pluri */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 70E38E4B3004A92400BC4AE7 /* Build configuration list for PBXNativeTarget "pluri_fable_xcode" */;
+			buildConfigurationList = 70E38E4B3004A92400BC4AE7 /* Build configuration list for PBXNativeTarget "Pluri" */;
 			buildPhases = (
 				70E38E623004B00000BC4AE7 /* Check Secrets */,
 				70E38E3C3004A92200BC4AE7 /* Sources */,
@@ -127,14 +133,16 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				70E38E423004A92200BC4AE7 /* pluri_fable_xcode */,
+				70E38E423004A92200BC4AE7 /* Pluri */,
 			);
-			name = pluri_fable_xcode;
+			name = Pluri;
 			packageProductDependencies = (
 				70E38E5F3004B00000BC4AE7 /* Supabase */,
+				AA1000000000000000000003 /* RevenueCat */,
+				AA1000000000000000000004 /* RevenueCatUI */,
 			);
-			productName = pluri_fable_xcode;
-			productReference = 70E38E403004A92200BC4AE7 /* pluri_fable_xcode.app */;
+			productName = Pluri;
+			productReference = 70E38E403004A92200BC4AE7 /* Pluri.app */;
 			productType = "com.apple.product-type.application";
 		};
 		AA0000000000000000000001 /* PluriTests */ = {
@@ -190,13 +198,14 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				70E38E5E3004B00000BC4AE7 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				AA1000000000000000000005 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 70E38E413004A92200BC4AE7 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				70E38E3F3004A92200BC4AE7 /* pluri_fable_xcode */,
+				70E38E3F3004A92200BC4AE7 /* Pluri */,
 				AA0000000000000000000001 /* PluriTests */,
 			);
 		};
@@ -237,7 +246,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Fail the build loudly if secrets were not injected (M0-03).\n# Values come from Config/Secrets.xcconfig, generated by Scripts/generate_secrets.sh.\nfor key in PLURI_SUPABASE_URL PLURI_SUPABASE_PUBLISHABLE_KEY PLURI_WORKOUTX_API_KEY PLURI_WORKOUTX_ENDPOINT PLURI_NUTRITION_API_KEY; do\n  eval \"value=\\${$key:-}\"\n  if [ -z \"$value\" ]; then\n    echo \"error: Missing secret build setting '$key'. Run ./Scripts/generate_secrets.sh from the repo root (requires .env), then rebuild.\"\n    exit 1\n  fi\ndone\n";
+			shellScript = "# Fail the build loudly if secrets were not injected (M0-03).\n# Values come from Config/Secrets.xcconfig, generated by Scripts/generate_secrets.sh.\nfor key in PLURI_SUPABASE_URL PLURI_SUPABASE_PUBLISHABLE_KEY PLURI_WORKOUTX_API_KEY PLURI_WORKOUTX_ENDPOINT PLURI_NUTRITION_API_KEY PLURI_REVENUECAT_API_KEY; do\n  eval \"value=\\${$key:-}\"\n  if [ -z \"$value\" ]; then\n    echo \"error: Missing secret build setting '$key'. Run ./Scripts/generate_secrets.sh from the repo root (requires .env), then rebuild.\"\n    exit 1\n  fi\ndone\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -261,7 +270,7 @@
 /* Begin PBXTargetDependency section */
 		AA000000000000000000000A /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 70E38E3F3004A92200BC4AE7 /* pluri_fable_xcode */;
+			target = 70E38E3F3004A92200BC4AE7 /* Pluri */;
 			targetProxy = AA000000000000000000000B /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -394,6 +403,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Config/Pluri.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Y8SDGALAMG;
@@ -411,7 +421,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.codewithmikey.pluri-fable-xcode";
+				PRODUCT_BUNDLE_IDENTIFIER = com.codewithmikey.Pluri;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -429,6 +439,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Config/Pluri.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Y8SDGALAMG;
@@ -446,7 +457,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.codewithmikey.pluri-fable-xcode";
+				PRODUCT_BUNDLE_IDENTIFIER = com.codewithmikey.Pluri;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -468,7 +479,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.codewithmikey.pluri-fable-xcode.PluriTests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.codewithmikey.Pluri.PluriTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -476,7 +487,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/pluri_fable_xcode.app/pluri_fable_xcode";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Pluri.app/Pluri";
 			};
 			name = Debug;
 		};
@@ -490,7 +501,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.codewithmikey.pluri-fable-xcode.PluriTests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.codewithmikey.Pluri.PluriTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -498,7 +509,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/pluri_fable_xcode.app/pluri_fable_xcode";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Pluri.app/Pluri";
 			};
 			name = Release;
 		};
@@ -514,7 +525,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		70E38E4B3004A92400BC4AE7 /* Build configuration list for PBXNativeTarget "pluri_fable_xcode" */ = {
+		70E38E4B3004A92400BC4AE7 /* Build configuration list for PBXNativeTarget "Pluri" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				70E38E4C3004A92400BC4AE7 /* Debug */,
@@ -543,6 +554,14 @@
 				minimumVersion = 2.0.0;
 			};
 		};
+		AA1000000000000000000005 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -550,6 +569,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 70E38E5E3004B00000BC4AE7 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
+		};
+		AA1000000000000000000003 /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA1000000000000000000005 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCat;
+		};
+		AA1000000000000000000004 /* RevenueCatUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA1000000000000000000005 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCatUI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

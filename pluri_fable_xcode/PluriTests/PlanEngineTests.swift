@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import pluri_fable_xcode
+@testable import Pluri
 
 /// M1-17 — persona-driven tests for the deterministic `PlanEngine` (M1-16).
 ///

@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 import Testing
-@testable import pluri_fable_xcode
+@testable import Pluri
 
 /// Pins the root cause of the "plan generation always fails on fresh install"
 /// bug and verifies the fix (Supabase-seeded catalog as the source —

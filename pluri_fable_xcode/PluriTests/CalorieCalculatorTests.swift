@@ -1,5 +1,5 @@
 import Testing
-@testable import pluri_fable_xcode
+@testable import Pluri
 
 // This suite compiles into the `PluriTests` unit-test target (added in M1-17,
 // hosted on the app so `@testable import` can reach the app's internal types).

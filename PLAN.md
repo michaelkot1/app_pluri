@@ -55,6 +55,7 @@ Derived from [`SPEC.md`](SPEC.md). Ground rules in [`AGENTS.md`](AGENTS.md). Wor
 - **Edge Functions:**
   - `ask-pluri` — receives the user's message + auth JWT, loads plan/history context from Postgres, calls Gemini, returns reply; handles "add/remove workout" as structured tool-style actions that mutate `plan_workouts`.
   - `generate-plan` — plan-generation endpoint so the algorithm can evolve server-side without app releases. Calls WorkoutX, applies equipment/injury/goal/duration filters, writes plan rows. (Client keeps a thin fallback only if latency demands it.)
+  - `delete-account` — verifies the caller's JWT, deletes owned rows (`profiles` CASCADE to plan/session tables), then `auth.admin.deleteUser`. Uses the server-side `SUPABASE_SERVICE_ROLE_KEY` only (never in the iOS bundle). Live deletion is blocked until M0-11 supplies a real service-role key (`supabase secrets set`).
 - **HealthKit data stays on-device** (SPEC §13); only user-initiated workout syncs write to Apple Health, and Pluri Score inputs are computed on-device.
 
 ### 1.4 Key algorithms (owned by `PlanEngine` / `ScoreEngine`)
@@ -66,7 +67,7 @@ Derived from [`SPEC.md`](SPEC.md). Ground rules in [`AGENTS.md`](AGENTS.md). Wor
 ### 1.5 Cross-cutting decisions
 
 - WorkoutX responses cached in SwiftData (exercise catalog rarely changes); media cached on disk.
-- StoreKit 2 subscription group: monthly $7.99 / yearly $29.99, 10-day intro trial; entitlement checked at launch, lapse → locked paywall state.
+- RevenueCat (StoreKit products via ASC): monthly $7.99 / yearly $29.99, **1-month free trial** intro offer; entitlement checked at launch, lapse → locked paywall state.
 - All screens support Dynamic Type + VoiceOver from first implementation (per AGENTS.md), not retrofitted.
 
 ---

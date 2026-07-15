@@ -6,8 +6,8 @@ import Foundation
 /// → Info.plist (`Config/Info.plist` merged into the generated plist) → here.
 ///
 /// Only client-safe keys ever reach the bundle (Supabase URL + publishable key,
-/// WorkoutX, Nutrition). Gemini and Supabase service-role keys are server-side
-/// only — see AGENTS.md §2.
+/// WorkoutX, Nutrition, RevenueCat public Apple SDK key). Gemini and Supabase
+/// service-role keys are server-side only — see AGENTS.md §2.
 enum Secrets {
     static var supabaseURL: URL {
         url(for: "SUPABASE_URL")
@@ -27,6 +27,11 @@ enum Secrets {
 
     static var nutritionAPIKey: String {
         value(for: "NUTRITION_API_KEY")
+    }
+
+    /// RevenueCat public Apple SDK key (`appl_…`). Safe to ship in the client.
+    static var revenueCatAPIKey: String {
+        value(for: "REVENUECAT_API_KEY")
     }
 
     private static func value(for key: String) -> String {

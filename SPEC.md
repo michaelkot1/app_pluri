@@ -30,7 +30,7 @@ Pluri is a personal fitness coach in your pocket. A user answers a short onboard
 - **Recipes:** TheMealDB API.
 - **Food/nutrition logging:** API Ninjas Nutrition API.
 - **Health data:** Apple HealthKit (steps, sleep, heart rate, calories, workout sync).
-- **Payments:** Apple In-App Purchase subscriptions (StoreKit 2).
+- **Payments:** Apple In-App Purchase subscriptions via RevenueCat (ASC hosts products; client uses Purchases + RevenueCatUI).
 
 > **Secrets:** all API keys and Supabase credentials live in the local `.env` file (never committed, never in docs). See `AGENTS.md` §Secrets.
 
@@ -43,7 +43,7 @@ Pluri is a personal fitness coach in your pocket. A user answers a short onboard
 - Users create an account so plans and logs sync to Supabase. **Sign in with Apple** is the primary method; email + password as a fallback. Auth happens via Supabase Auth.
 - Account creation is deferred until **after** the questionnaire and plan generation, right before/at the paywall — the user invests in onboarding first, answers stay local until then.
 - Profile supports **Sign out** and **Delete account** (full remote data deletion — App Store requirement).
-- If a signed-in user reinstalls or gets a new device, their plan, history, and subscription restore from Supabase / StoreKit.
+- If a signed-in user reinstalls or gets a new device, their plan, history, and subscription restore from Supabase / RevenueCat.
 
 ---
 
@@ -143,9 +143,9 @@ Injury + pain level influence plan generation (avoid or de-load exercises target
 ## 4. Paywall & Subscription
 
 - Shown once the plan is ready — plan is teased but locked behind the paywall.
-- Pricing: **$7.99 / month** or **$29.99 / year**, both with a **10-day free trial**.
-- Implemented with StoreKit 2 auto-renewable subscriptions in one subscription group; trial as an introductory offer.
-- Must include: restore purchases, terms & privacy links, and clear trial disclosure (App Review requirements).
+- Pricing: **$7.99 / month** or **$29.99 / year**, both with a **1-month free trial** (App Store Connect introductory offer — see §14 #7).
+- Implemented via **RevenueCat** (Purchases + RevenueCatUI Paywalls) on top of App Store Connect auto-renewable products; entitlement id **`Pluri Pro`**, product ids **`monthly`** / **`yearly`**. Trial / intro state is applied by Apple on eligible purchases and reflected in RevenueCat `CustomerInfo` / entitlement info; the SDK does not invent a custom trial length.
+- Must include: restore purchases, terms & privacy links, and clear trial disclosure (App Review requirements) — provided by the RevenueCat Paywall template when enabled in the dashboard editor.
 - After purchase (or trial start), account creation completes (§2) and the user lands on **Home**.
 - If the subscription lapses, the user returns to a locked state with the paywall (content preserved, not deleted).
 
@@ -358,7 +358,7 @@ Choices made while structuring this spec (flag if wrong):
 4. **Q9 combined:** "scheduled vs flexible" and plan length (3–12 weeks, suggest 6) were tangled in one note; kept as one two-part question.
 5. **Maintenance calories formula:** Mifflin-St Jeor chosen as default; can be revisited.
 6. **Gemini via Edge Function:** the AI key stays server-side rather than shipping in the app.
-7. **Trial:** 10-day free trial applies to both monthly and yearly plans.
+7. **Trial:** **1-month free trial** applies to both monthly and yearly plans, configured as an App Store Connect **introductory offer** (Free → 1 Month) on each product. Apple applies it automatically for eligible users in the subscription group; RevenueCat surfaces it via the paywall / `CustomerInfo`. (Supersedes the earlier draft “10-day” wording — ASC has no 10-day intro duration.)
 8. **Outdoor Run in v1:** entry point exists but is a stub — full run tracking isn't specced for v1.
 9. **Schema v1 applied non-destructively (M0):** the Supabase project pre-dated M0 with prototype tables (`workout_plans`, `plan_days`, `plan_day_exercises`, `user_equipment`, `exercises`). PLAN §1.3 tables (`plans`, `plan_workouts`, `workout_exercises`, `workout_sessions`, `set_logs`) were added alongside and `profiles` extended in place; legacy tables untouched pending owner approval (see TASKS backlog).
 10. **iOS minimum:** the Xcode project targets the current iOS SDK generation (created on Xcode 26); PLAN §1.2's "iOS 17 minimum" is superseded by the project's setting.
@@ -380,12 +380,18 @@ Choices made while structuring this spec (flag if wrong):
 23. **Muscle-group-balanced selection with a seeded RNG (M1-16):** eligible exercises are grouped by `bodyPart`, seed-shuffled within each group, drawn round-robin across groups into one balanced pool, then chunked into sessions so each session spans varied muscle groups. The same session templates repeat every week. If the eligible pool is smaller than the plan needs (e.g. a heavily restricted bodyweight/injury combination), the pool is cycled and some exercises recur — acceptable for v1, and only for unusually small catalogs.
 24. **Progression + determinism (M1-16):** base sets×reps per goal — strength 4×5, hypertrophy (build muscle) 3×10, fat-loss/tone 3×12, general 3×10. Progression is linear: +1 rep per week capped at +3, then +1 set from week 5 onward. The engine is fully deterministic given a `seed`; `PlanInput.deterministicSeed` derives a stable seed (FNV-1a over the canonical answers, not `Hasher` which is per-process randomized) so identical answers always regenerate the same plan.
 25. **Exercise catalog source switched to the Supabase seed (bug fix, 2026-07-13):** on-device plan generation always failed on fresh installs because the live WorkoutX free tier now caps every `/exercises` response at **10 rows** regardless of `limit`, so a full 1,327-row catalog fetch needs ~133 requests and 429s against the 30-requests/window burst limit before finishing (each attempt also burning ~¼ of the 500/month quota). Fix: catalog reads now come from the Supabase `exercises` table — the seeded 1:1 WorkoutX snapshot flagged as a reusable fallback in M1-01 — via `SupabaseExerciseCatalogClient`, with an anon SELECT RLS policy added (migration `allow_anon_read_exercises`) since the catalog is public, non-sensitive reference data and onboarding runs pre-auth (§2). `LiveWorkoutXClient` is retained for single-exercise lookups and a future paid-tier path; keeping the snapshot in sync with WorkoutX becomes a server-side concern for the M2+ `generate-plan` Edge Function.
+26. **Bundle id settled (M2-01, 2026-07-15):** app `com.codewithmikey.Pluri`, tests `com.codewithmikey.Pluri.PluriTests`. Still changeable until the App Store Connect app record exists.
+27. **RevenueCat for subscriptions (owner decision 2026-07-13):** subscription infrastructure will use RevenueCat (third-party SDK, owner-approved) on top of App Store Connect / StoreKit products. The SDK lands in M2-06/07; ASC still hosts the actual `$7.99/month` and `$29.99/year` auto-renewable products.
+28. **Client uses RevenueCat SDK + RevenueCatUI only (M2-06..10, 2026-07-15):** no app-authored StoreKit 2 service. SPM packages `RevenueCat` + `RevenueCatUI`; paywall is dashboard `PaywallView`; Customer Center wrapped as `PluriCustomerCenterView` for Profile (M2-16). Entitlement id **`Pluri Pro`**; package/product ids **`monthly`** / **`yearly`**. Public Apple API key injected via `REVENUECAT_API_KEY` → `Secrets.revenueCatAPIKey` (never committed).
 
 ## 15. Open Questions
 
 - Exact Pluri Score formula and weighting (consistency vs. health signals).
 - ~~Default equipment subsets for Home Gym / Small Gym / Bodyweight (Q6 auto-select).~~ **Resolved — see §14 decision #14.**
 - ~~Plan-generation algorithm details: exercise selection heuristics, progression model, and how injuries map to exercise exclusions.~~ **Resolved for v1 — see §14 decisions #19–#24** (equipment normalization, coarse injury exclusion by `bodyPart`, muscle-group-balanced seeded selection, and linear rep-then-set progression). Graded pain-level de-loading and smarter selection remain candidate v2 refinements.
+- ~~**Free-trial shape.**~~ **Resolved (2026-07-15) — see §14 #7 / §4:** locked to a **1-month free trial** via ASC introductory offers on `monthly` and `yearly` (auto-converts). No custom RevenueCat granted-entitlement trial.
 - Community moderation (reporting, blocking) — required by App Review for UGC; must be scoped before Community ships.
 - Whether "Flexible" schedule workouts still appear on the calendar (suggested slots) or only in a weekly checklist.
 - Recipe suggestion algorithm specifics (similarity model for favorites).
+- **M0-11 — real `SUPABASE_SERVICE_ROLE_KEY`:** the `delete-account` Edge Function (M2-05) is implemented but cannot fully run against production until the owner rotates keys and sets the real service-role secret via `supabase secrets set` (never in the iOS bundle). Client invoke path is ready.
+- **Sign in with Apple portal gap (M2-03 / M2-04):** app entitlement is present; Apple Developer App ID capability + Supabase Auth → Apple provider still need owner configuration before SIWA works end-to-end. Email/password auth does not depend on that portal step.

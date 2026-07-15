@@ -12,5 +12,7 @@
 	<string>$(PLURI_WORKOUTX_ENDPOINT)</string>
 	<key>NUTRITION_API_KEY</key>
 	<string>$(PLURI_NUTRITION_API_KEY)</string>
+	<key>REVENUECAT_API_KEY</key>
+	<string>$(PLURI_REVENUECAT_API_KEY)</string>
 </dict>
 </plist>

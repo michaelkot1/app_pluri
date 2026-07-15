@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// "Your plan is ready" screen (M1-18 / SPEC §3.3 → §4). Teases the generated
-/// plan — weeks, sessions per week, and a first-session preview — then hands
-/// off to the paywall. The paywall itself is M2, so the forward transition is
-/// a stub (`PlanReadyPaywallStubView`).
+/// plan — weeks, sessions per week, and a first-session preview — then presents
+/// the RevenueCat paywall (M2-09). Successful unlock (or DEBUG long-press bypass)
+/// advances to a temporary account-creation placeholder (M2-11).
 ///
 /// In DEBUG builds a "View full plan" button opens `PlanDumpView`, the M1 exit
 /// check's plan-dump view.
@@ -11,7 +11,10 @@ struct PlanReadyView: View {
     var plan: GeneratedPlan
     var userName: String
 
-    @State private var showsPaywallStub = false
+    @Environment(SubscriptionService.self) private var subscriptionService
+
+    @State private var showsPaywall = false
+    @State private var isUnlocked = false
     #if DEBUG
     @State private var showsDebugDump = false
     #endif
@@ -25,6 +28,37 @@ struct PlanReadyView: View {
     }
 
     var body: some View {
+        Group {
+            if isUnlocked || subscriptionService.isPluriProActive {
+                PaywallUnlockedPlaceholderView()
+            } else {
+                planReadyContent
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(PluriColor.bgCanvas)
+        .navigationBarBackButtonHidden(true)
+        .fullScreenCover(isPresented: $showsPaywall) {
+            PluriPaywallView {
+                isUnlocked = true
+            }
+            .environment(subscriptionService)
+        }
+        #if DEBUG
+        .sheet(isPresented: $showsDebugDump) {
+            NavigationStack {
+                PlanDumpView(plan: plan)
+            }
+        }
+        #endif
+        .onAppear {
+            if subscriptionService.isPluriProActive {
+                isUnlocked = true
+            }
+        }
+    }
+
+    private var planReadyContent: some View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(spacing: PluriSpacing.lg) {
@@ -45,23 +79,25 @@ struct PlanReadyView: View {
             }
             .scrollIndicators(.hidden)
 
-            Button("Unlock my plan", action: { showsPaywallStub = true })
-                .buttonStyle(.pluriPrimary)
+            unlockButton
                 .padding(.horizontal, PluriSpacing.lg)
                 .padding(.bottom, PluriSpacing.md)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(PluriColor.bgCanvas)
-        .navigationBarBackButtonHidden(true)
-        .sheet(isPresented: $showsPaywallStub) {
-            PlanReadyPaywallStubView()
+    }
+
+    private var unlockButton: some View {
+        Button("Unlock my plan") {
+            showsPaywall = true
         }
+        .buttonStyle(.pluriPrimary)
         #if DEBUG
-        .sheet(isPresented: $showsDebugDump) {
-            NavigationStack {
-                PlanDumpView(plan: plan)
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.8).onEnded { _ in
+                subscriptionService.enableDebugPaywallBypass()
+                isUnlocked = true
             }
-        }
+        )
+        .accessibilityHint("Long-press to skip paywall (DEBUG)")
         #endif
     }
 
@@ -110,5 +146,6 @@ struct PlanReadyView: View {
     )
     return NavigationStack {
         PlanReadyView(plan: plan, userName: "Alex")
+            .environment(SubscriptionService(configurePurchases: false))
     }
 }

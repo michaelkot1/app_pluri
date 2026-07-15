@@ -99,9 +99,82 @@ Tasks are generated **incrementally, one milestone at a time** (see `[PLAN.md](P
 
 ---
 
-## M2+ — not yet generated
+## M2 — Auth, Paywall & Accounts
 
-Tasks for M2 (Auth, Paywall & Accounts) will be generated when M1 is near completion, incorporating what M0/M1 taught us (WorkoutX realities, plan-engine shape, onboarding data model).
+### App Store Connect & project prep (do first — owner-dependent, unblocks RevenueCat & auth)
+
+- [x] **M2-01** Rename the Xcode target/product from `pluri_fable_xcode` to `Pluri` and settle the final bundle id (Backlog item — must land before App Store Connect setup, since the bundle id feeds ASC). Keep display name "Pluri"; fix `TEST_HOST`/`BUNDLE_LOADER`, `@testable import`, and scheme references so `PluriTests` still runs. ✅ Target/module `Pluri`, bundle id `com.codewithmikey.Pluri`, source folder `pluri_fable_xcode/Pluri/`. Outer project dir + `.xcodeproj` name intentionally kept as `pluri_fable_xcode`.
+- [!] **M2-02** App Store Connect + RevenueCat configuration *(requires owner action — no ASC/RC access via agent tools)*. Owner must: (a) create the ASC app record for `com.codewithmikey.Pluri`, one subscription group with **$7.99/month** + **$29.99/year** auto-renewable products, each with a **1-month free trial** introductory offer (SPEC §4 / §14 #7), Paid Apps agreement signed, sandbox tester created; (b) create a RevenueCat project, connect the ASC app, link products `monthly`/`yearly` + entitlement `Pluri Pro` + Paywall, and set the production iOS SDK key (`appl_...`) in `.env` / `REVENUECAT_API_KEY` for release builds (Test Store `test_…` keys must not ship — see RC launch checklist). Trial length is decided — ASC intro Free / 1 Month. Blocked on owner.
+- [x] **M2-03** Enable Sign in with Apple: capability + entitlement on the app target (`Config/Pluri.entitlements` + `CODE_SIGN_ENTITLEMENTS`). ⚠️ Apple Developer portal App ID capability + Supabase Auth Apple provider still require owner action.
+
+**M2-01..M2-03 learned/changed:**
+
+- Target rename: module/`@testable import` is now `Pluri`; `TEST_HOST` → `Pluri.app/Pluri`; color-asset script path updated. `generate_secrets.sh` still writes to `pluri_fable_xcode/Config/` (outer project dir unchanged).
+- RevenueCat is approved (SPEC §14 #27) but SDK addition is deferred to M2-06/07.
+- Sign in with Apple entitlement is app-side only until the portal + Supabase provider are configured.
+- ✅ Verified via XcodeBuildMCP (iPhone 17 Pro sim) after the rename: `build_sim` succeeds clean, `test_sim` **27/27 passing** (unchanged count from M1-17/18 — no test logic touched).
+
+### Supabase Auth service & session
+
+- [x] **M2-04** `SupabaseAuthService` (protocol + live implementation composing `SupabaseService`, + mock for previews/tests): Sign in with Apple (`signInWithIdToken`), email/password sign-up & sign-in, sign-out, session restore at launch, and observable auth state (`session` / `user` / `isSignedIn` / `hasResolvedSession`) the router can drive from (SPEC §2, PLAN §1.3). Thin `SignInWithAppleTokenExtractor` only — account UI is M2-11. ⚠️ SIWA end-to-end still needs Apple Developer + Supabase Apple provider (SPEC §15).
+- [x] **M2-05** `delete-account` Edge Function: verifies JWT, deletes `profiles` (CASCADE covers plan/session tables), then `auth.admin.deleteUser`; client `SupabaseAuthService.deleteAccount()` invokes with the user JWT. Full remote data deletion is an App Review requirement (SPEC §2). ⚠️ Live delete blocked on M0-11 — set real `SUPABASE_SERVICE_ROLE_KEY` via `supabase secrets set` (never in the iOS bundle). Confirmation UI / local wipe remains M2-17.
+
+### RevenueCat subscription service
+
+- [x] **M2-06** Configure RevenueCat Dashboard as the primary subscription source of truth (not a local `.storekit` file): default offering with **`monthly`** + **`yearly`** packages, entitlement **`Pluri Pro`**, and a dashboard Paywall (V2). Simulator testing uses the RC test/public Apple key + Apple sandbox once ASC products exist (M2-02 still required for real purchases). A StoreKit Configuration file is **not** required — Purchases abstracts StoreKit. ⚠️ Owner must finish dashboard + ASC product linking in M2-02; client wiring + secrets injection landed with M2-07/09.
+- [x] **M2-07** `SubscriptionService` (protocol + live RevenueCat + mock): configure `Purchases`, fetch offerings, purchase package, listen to `CustomerInfo` updates, resolve `Pluri Pro` entitlement / trial-ish state via RC entitlement info, restore purchases (SPEC §4, PLAN §1.5). No raw `Transaction.updates` / app-authored StoreKit service.
+- [x] **M2-08** Entitlement hydration at launch: `hasResolvedCustomerInfo` after first `CustomerInfo` / refresh so M2-18 can avoid flash; lapse → locked paywall later with content preserved (SPEC §4). Full `AppRouter` / Main TabView / signed-in+lapsed navigation tree remains M2-18.
+
+**M2-04 / M2-05 / M2-08 learned:**
+
+- Auth composes the existing `SupabaseService` client (no second naked client). `delete-account` lives under `supabase/functions/`; deploy + `supabase secrets set SUPABASE_SERVICE_ROLE_KEY` after M0-11.
+- Entitlement hydration is a flag on `SubscriptionService`, not a router — M2-18 still owns launch phases / lapsed navigation.
+- SIWA portal + Apple provider and M0-11 service_role remain owner blockers (SPEC §15).
+
+### Paywall UI & purchase flow
+
+- [x] **M2-09** `Features/Paywall/` module + `PluriPaywallView` wrapping RevenueCatUI `PaywallView` (dashboard-designed paywall), replacing `PlanReadyPaywallStubView`. App Review must-haves (restore, terms, trial disclosure) come from the RC paywall template when configured — **owner must enable them in the RC Paywall editor**. Gentle offerings-failure fallback (Retry + Restore) only; no parallel custom monthly/yearly chip UI unless fallback.
+- [x] **M2-10** Purchase flow: RevenueCat Paywall / `purchase(package:)` → on success dismiss paywall + unlock callback; temporary "You're in — account creation next (M2-11)" placeholder (full account screen not built). Gentle typed-error handling for cancelled / failed / pending purchases.
+
+### Account creation & sign-in at the paywall
+
+- [ ] **M2-11** Post-purchase account-creation screen: Sign in with Apple (primary) + email/password (secondary) per SPEC §2, with validation and gentle error states; on success, continue to the data flush (M2-14) and then Main.
+- [ ] **M2-12** Returning-user path: "Already have an account?" sign-in entry from the paywall; on reinstall/new device, restore subscription via **RevenueCat** (`restorePurchases`) and plan/history via the M2-15 remote restore (SPEC §2).
+
+### Persist onboarding data & plan to Supabase
+
+- [ ] **M2-13** Mapping layer (pure, unit-testable): `OnboardingAnswers` → `profiles` row (display name, demographics, units, goal, maintenance calories, allergies, injuries jsonb, equipment, schedule prefs) and `GeneratedPlan` → `plans` + `plan_workouts` + `workout_exercises` rows (PLAN §1.3 — schema already fits, no migration expected).
+- [ ] **M2-14** Flush on account creation: after auth succeeds, write profile + plan through the authed session (verifying owner-only RLS from M0-09 works end-to-end), with retry on transient failure; answers/plan stay local until the flush is confirmed so nothing is lost if the app dies mid-write.
+- [ ] **M2-15** Remote restore: on sign-in with an existing account, fetch profile + active plan (`plans`/`plan_workouts`/`workout_exercises`) from Supabase and hydrate local state, so the returning user skips onboarding and lands on Main (SPEC §2).
+
+### Profile screen
+
+- [ ] **M2-16** `Features/Profile/` module + profile screen per SPEC §5.2: basic plan info (goal, dates, schedule), connected apps (Apple Health row — display-only until M5), notification settings (stub until M3), language, theme light/dark, terms & conditions link. *(Reusable `PluriCustomerCenterView` RevenueCatUI wrapper added now so Profile can present Customer Center later.)*
+- [ ] **M2-17** Sign out (end session, clear local user state, return to the sign-in/paywall entry) and Delete account (confirmation dialog → `delete-account` Edge Function (M2-05) → wipe local data → return to onboarding start) (SPEC §2, §5.2).
+
+### App routing
+
+- [ ] **M2-18** Root `AppRouter` phase switching per PLAN §1.2: Splash → Onboarding → Paywall → Main; the paywall phase receives the generated plan + onboarding answers; Main is a minimal `TabView` shell (Home · Plan · Insights · Community · Recipe with placeholder screens — real tabs are M3+). Launch routing derives from auth session + entitlement state: fresh install → Onboarding; signed-in + entitled → Main; signed-in + lapsed → locked Paywall (SPEC §4).
+
+### Tests
+
+- [ ] **M2-19** Unit tests (Swift Testing, in `PluriTests`, mocks for auth/**RevenueCat**): launch-routing state machine (fresh / signed-in+entitled / signed-in+lapsed / signed-out), entitlement + trial-state resolution logic, and the M2-13 mapping layer (representative personas round-trip answers/plan → rows).
+
+**M2 exit check** (PLAN M2): full funnel end-to-end — fresh install → onboard → paywall → RevenueCat sandbox / test-key purchase with trial → account created → profile + plan rows visible in Supabase under the new user → relaunch restores session and entitlement. Sign out and delete account both verified.
+
+**M2-06..10 learned/changed:**
+
+- DEBUG long-press on "Unlock my plan" sets `debug.bypassPaywall` and skips the paywall for local testing (`#if DEBUG` only).
+- No direct StoreKit client code; SPM products are **RevenueCat** + **RevenueCatUI** (`purchases-ios-spm`).
+- `REVENUECAT_API_KEY` flows `.env` → `generate_secrets.sh` → `Secrets.xcconfig` → Info.plist → `Secrets.revenueCatAPIKey` (never hardcode / never commit the key).
+- Owner checklist: RC entitlement `Pluri Pro`, products `monthly`/`yearly`, default offering + Paywall (V2) with restore/terms/trial disclosure enabled; ASC products with **1-month free trial** intro offers on both (SPEC §14 #7); real IAP still requires M2-02.
+- Trial open question closed: **1-month ASC introductory offer** (not 10-day / not RC granted entitlement) — SPEC §4, §14 #7, §15 updated 2026-07-15.
+
+---
+
+## M3+ — not yet generated
+
+Tasks for M3 (Home, Plan & Calendar) will be generated when M2 is near completion, incorporating what M2 taught us (auth/session shape, entitlement handling, remote plan representation).
 
 ---
 
@@ -112,7 +185,7 @@ Tasks for M2 (Auth, Paywall & Accounts) will be generated when M1 is near comple
 - `PlanEngine.scheduledDate` (M1-16) anchors each week's window at `startDate + 7×(week−1)` and maps sessions onto training days sorted Sunday-first, so when the start date falls mid-week, week 1's session dates can be out of order relative to `indexInWeek` (e.g. start Wed with Mon/Wed/Fri → "Workout 1" lands on the *following* Monday, after "Workout 2"'s date). Harmless for the M1 teaser/dump, but fix before the calendar/home screens render week 1 (surfaced during M1-16..18 QA).
 - `PluriPillButtonStyle` (M0) has no visual disabled state — it ignores `\.isEnabled`, so onboarding's disabled Continue buttons (empty name, no location picked, <2 training days, …) still render full brand orange and look tappable. Add an `@Environment(\.isEnabled)` dim/desaturate to the style. (Surfaced during M1-04..15 QA — pre-existing component, not fixed inline per AGENTS §7.)
 - ~~Q6 equipment strings vs live WorkoutX punctuation/casing differences~~ **Resolved (M1-16):** `EquipmentMatcher` normalizes both sides (lowercase + strip non-alphanumerics) before comparison, so `"Dumbbell + Exercise Ball"` matches `"Dumbbell, Exercise Ball"` etc., with no brittle mapping table. Covered by `PlanEngineTests`. See SPEC §14 #19.
-- Consider renaming the Xcode target/product from `pluri_fable_xcode` to `Pluri` (display name already "Pluri"; bundle id `com.codewithmikey.pluri-fable-xcode`). Do it before M2 auth/StoreKit setup, since the bundle id feeds App Store Connect.
+- ~~Consider renaming the Xcode target/product from `pluri_fable_xcode` to `Pluri`~~ **Resolved (M2-01):** target/module renamed to `Pluri`, bundle id `com.codewithmikey.Pluri`.
 - Security advisor flags: `public.rls_auto_enable()` (SECURITY DEFINER, pre-existing) is executable by anon/authenticated — revoke EXECUTE or move it; leaked-password protection is disabled in Auth settings.
 - Supabase Auth leaked-password protection and the M0-11 key rotation both need the owner in the dashboard — bundle them into one session.
 
