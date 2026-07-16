@@ -154,13 +154,13 @@ Tasks are generated **incrementally, one milestone at a time** (see `[PLAN.md](P
 
 ### App routing
 
-- [ ] **M2-18** Root `AppRouter` phase switching per PLAN §1.2: Splash → Onboarding → Paywall → Main; the paywall phase receives the generated plan + onboarding answers; Main is a minimal `TabView` shell (Home · Plan · Insights · Community · Recipe with placeholder screens — real tabs are M3+). Launch routing derives from auth session + entitlement state: fresh install → Onboarding; signed-in + entitled → Main; signed-in + lapsed → locked Paywall (SPEC §4). *Depends on M2-15 hydrate data being ready. Interim: cold-launch questionnaire skip + welcome-back stub already ship (SPEC §14 #33); this task still owns Main TabView / locked-paywall phases.*
+- [x] **M2-18** Root `AppRouter` phase switching per PLAN §1.2: Splash → Onboarding → Paywall → Main; the paywall phase receives the generated plan + onboarding answers; Main is a minimal `TabView` shell (Home · Plan · Insights · Community · Recipe with placeholder screens — real tabs are M3+). Launch routing derives from auth session + entitlement state: fresh install → Onboarding; signed-in + entitled → Main; signed-in + lapsed → locked Paywall (SPEC §4). *Shipped: `AppRouter` replaces `AppLaunchGate`; splash gates the first transition (no onboarding/paywall flash); locked lapsed paywall is non-dismissible with restored content preserved; flush success → Main; `WelcomeBackStubView` deleted — returning entitled sign-in reclassifies through the router; Profile reachable from Home's top bar (SPEC §14 #36).*
 
 ### Tests
 
-- [ ] **M2-19** Unit tests (Swift Testing, in `PluriTests`, mocks for auth/**RevenueCat**): launch-routing state machine (fresh / signed-in+entitled / signed-in+lapsed / signed-out), entitlement + trial-state resolution logic, and the M2-13 mapping layer (representative personas round-trip answers/plan → rows). *M2-13 mapper round-trips + OTP / flush mock tests already land under `OnboardingSyncMapperTests` / `AccountAuthTests` — expand personas + routing when M2-18 exists.*
+- [x] **M2-19** Unit tests (Swift Testing, in `PluriTests`, mocks for auth/**RevenueCat**): launch-routing state machine (fresh / signed-in+entitled / signed-in+lapsed / signed-out), entitlement + trial-state resolution logic, and the M2-13 mapping layer (representative personas round-trip answers/plan → rows). *Shipped: `AppRouterTests` cover the full routing matrix + splash gating + funnel transitions; pure `EntitlementResolver` (extracted from `SubscriptionService.isInTrialPeriod`) tested for inactive / active-regular / active-trial / active-introductory without constructing RC `CustomerInfo`; `OnboardingSyncMapperTests` expanded to three personas (commercial-gym scheduled, bodyweight+injured flexible, home-gym single-day returner) with strong assertions on ids, ordering, dates, enums, injuries, equipment, and hydrated plan structure. 95/95 tests pass on iPhone 17 Pro sim.*
 
-**M2 exit check** (PLAN M2): full funnel end-to-end — fresh install → name → auth → questionnaire → paywall → RevenueCat sandbox / test-key purchase with trial → flush profile + plan rows visible in Supabase under the signed-in user → relaunch restores session and entitlement. Sign out and delete account both verified.
+**M2 exit check** (PLAN M2): full funnel end-to-end — fresh install → name → auth → questionnaire → paywall → RevenueCat sandbox / test-key purchase with trial → flush profile + plan rows visible in Supabase under the signed-in user → relaunch restores session and entitlement. Sign out and delete account both verified. *Status 2026-07-16: M2-01..19 code-complete (95/95 tests, iPhone 17 Pro sim); the end-to-end exit run remains blocked on owner-controlled setup — M2-02 ASC/RC products, Apple Developer SIWA + Supabase Apple provider, and the M0-11 service-role key (SPEC §15).*
 
 **M2-06..10 learned/changed:**
 
@@ -195,9 +195,48 @@ Tasks are generated **incrementally, one milestone at a time** (see `[PLAN.md](P
 
 ---
 
-## M3+ — not yet generated
+## M3 — Home, Plan & Calendar
 
-Tasks for M3 (Home, Plan & Calendar) will be generated when M2 is near completion, incorporating what M2 taught us (auth/session shape, entitlement handling, remote plan representation).
+### Scope & plan data foundation (do first — decisions + data shape unblock every screen)
+
+- [ ] **M3-01** Resolve and record M3 behavior decisions in SPEC §14/§15 before building UI: how flexible-plan (non-scheduled) workouts appear on calendar dots/day views, what "add a workout to an empty day" creates (SPEC §5.4), and how Manage Plan preserves completed workouts while regenerating the remainder (SPEC §6.2). Pick the most reversible interim option where the owner is unavailable (AGENTS §7).
+- [ ] **M3-02** Fix `PlanEngine.scheduledDate` for plans starting mid-week (known Backlog defect): session order and concrete dates must stay chronological across week boundaries (e.g. start Wed with M/W/F must not put "Workout 1" after "Workout 2"). Regression tests covering all seven start weekdays.
+- [ ] **M3-03** Extend the restored-plan domain/mapping (M2-15) to preserve workout status, type, color, stable ordering, and IDs — currently discarded on hydrate — as required by Home, Plan, Calendar, and future M4 workout navigation (PLAN §1.3).
+- [ ] **M3-04** Shared `@Observable` plan store/view model initialized from `AppRouter`'s restored state, with derived day/week/today/completion data and explicit loading, empty (no plan), and failure states for the Main tabs to consume.
+- [ ] **M3-05** Protocol-based authenticated plan mutation services (+ mocks for previews/tests): move/add workouts, update plan/profile settings, replace only-remaining workouts. Verify owner-only RLS (M0-09) end-to-end and that mutations survive relaunch restore.
+
+### Main navigation & Home
+
+- [ ] **M3-06** Evolve `MainTabView` from the M2-18 placeholder shell into the real M3 navigation skeleton: one `NavigationStack` per tab, typed `navigationDestination(for:)` routing, programmatic tab selection for cross-tab jumps, and Home health-tile deep links into the Insights placeholder (PLAN §1.2).
+- [ ] **M3-07** Replace `HomePlaceholderView` with the Home top bar + calendar strip/month summary per SPEC §5: one workout dot per day (v1), selected-day workout content, and navigation to Profile, Notifications (M3-15), and the full Calendar page (M3-13).
+- [ ] **M3-08** Home Pluri Score card *displaying a clearly-identified stub score* (SPEC §5.1 — real engine is M5) + Today's Health placeholder tiles for steps, sleep, and active heart rate (no HealthKit reads — live tiles are M5).
+- [ ] **M3-09** Floating Record Workout action menu (SPEC §5) offering today's scheduled workout + Outdoor Run; both route to honest M4/stub destinations — no workout execution in M3.
+
+### Plan page & Calendar
+
+- [ ] **M3-10** Replace the Plan tab placeholder with the Plan page per SPEC §6: plan card (goal, end date, weeks-completed tracker), action buttons, and accessible week cards showing workout count, day, duration, type color, and completion checkmarks (design.md tokens).
+- [ ] **M3-11** Week Overview (SPEC §6.3): the selected week's complete schedule with workout selection; taps route to an honest Workout Detail placeholder owned by M4 (SPEC §7 — do not build ahead).
+- [ ] **M3-12** Plan Overview info page (SPEC §6.1) + Connected Apps shell: explain workout colors, the stub Pluri Score, Ask Pluri's future role, and current Apple Health/device status (display-only until M5).
+- [ ] **M3-13** Reusable Calendar/Rearrange page (SPEC §5.4), reachable from Home and Plan: week-by-week navigation, empty-day affordances, move-workout and add-workout flows, conflict validation, optimistic UI with gentle rollback on failure, remote persistence via M3-05, and reminder reconciliation (M3-15).
+- [ ] **M3-14** Manage Plan (SPEC §6.2): edit goal, dates/length, training days, session duration, and units; regenerate **only unfinished workouts**, preserving completed/skipped history and exercise-row integrity per the M3-01 decision; persist atomically enough that a failure never leaves a partially replaced remote plan.
+
+### Notifications & verification
+
+- [ ] **M3-15** Replace Profile's notification stub (M2-16) with the Notifications page shell (SPEC §5.3) + protocol-based local notification service: request permission only after explicit opt-in, then schedule/update/cancel upcoming-workout reminders whenever the plan changes. (Community notification rows stay placeholders until M8; the late-day reschedule nudge is M4.)
+- [ ] **M3-16** Unit/integration tests (Swift Testing, `PluriTests`): date grouping, completion calculations, calendar dots, move/add flows, remaining-plan regeneration, reminder reconciliation, mutation-failure rollback, and restoration round trips (extends M2-19 fixtures).
+- [ ] **M3-17** M3 UI QA: previews for populated/empty/error states of every new view, Dynamic Type, VoiceOver, dark mode, 44pt targets, scheduled + flexible personas, relaunch persistence, and full Home → Plan → Calendar → Manage Plan navigation click-through.
+
+**Dependencies:** M3-01 → 02/03 → 04/05 → UI tasks (06–12); 02/04/05 → 13/14; 13/14 → 15; everything → 16/17.
+
+**M3 exit check** (PLAN M3): user can browse and rearrange their entire plan; navigation skeleton complete. Specifically: the M2 routing matrix stays green; mid-week scheduled plans are chronological; flexible-plan behavior matches the M3-01 decision; calendar moves/additions survive relaunch under owner-only RLS; Manage Plan preserves completed/skipped and replaces only the remaining range with no partial remote state; week cards reflect persisted status/type/color; Home/Plan handle no-plan, offline-restore, and mutation failures gently; reminder opt-in/denial/reschedule/cancel is deterministic and tested; stub Score/Health/Workout Detail/Outdoor Run can't be mistaken for live functionality; build + Swift Testing suite pass with no new warnings; Dynamic Type/VoiceOver/dark mode/contrast/44pt targets manually checked.
+
+**Deferred out of M3 (don't build ahead):** real Workout Detail + live workout and the late-day reschedule nudge (M4); real HealthKit reads + Pluri Score engine (M5); Outdoor Run stays a stub; Community notification rows stay placeholders until M8.
+
+---
+
+## M4+ — not yet generated
+
+Tasks for M4 (Workout Experience) will be generated when M3 is near completion, incorporating what M3 taught us (plan store shape, mutation services, calendar/reminder behavior).
 
 ---
 
@@ -205,7 +244,7 @@ Tasks for M3 (Home, Plan & Calendar) will be generated when M2 is near completio
 
 - Decide the fate of the legacy Supabase prototype tables (`workout_plans`, `plan_days`, `plan_day_exercises`, `user_equipment`, plus the 3 seeded profile rows). Dropping them is destructive → owner approval required (AGENTS §6). **Update (2026-07-13):** the seeded `exercises` catalog (1,327 rows) is no longer just a candidate fallback — it is now the app's **primary catalog source** (`SupabaseExerciseCatalogClient`, SPEC §14 #25), so `exercises` must be kept (and eventually kept in sync with WorkoutX server-side, e.g. from the M2+ `generate-plan` Edge Function). The other legacy tables are still pending an owner decision.
 - ~~No test target exists yet~~ **Resolved (M1-17):** the `PluriTests` Swift Testing target was added to `project.pbxproj` and now compiles `CalorieCalculatorTests.swift` + `PlanEngineTests.swift` (24 tests passing). `ExerciseCatalogStore.isStale` (M1-03) is still uncovered but now trivially testable in the same target — a candidate follow-up test.
-- `PlanEngine.scheduledDate` (M1-16) anchors each week's window at `startDate + 7×(week−1)` and maps sessions onto training days sorted Sunday-first, so when the start date falls mid-week, week 1's session dates can be out of order relative to `indexInWeek` (e.g. start Wed with Mon/Wed/Fri → "Workout 1" lands on the *following* Monday, after "Workout 2"'s date). Harmless for the M1 teaser/dump, but fix before the calendar/home screens render week 1 (surfaced during M1-16..18 QA).
+- `PlanEngine.scheduledDate` (M1-16) anchors each week's window at `startDate + 7×(week−1)` and maps sessions onto training days sorted Sunday-first, so when the start date falls mid-week, week 1's session dates can be out of order relative to `indexInWeek` (e.g. start Wed with Mon/Wed/Fri → "Workout 1" lands on the *following* Monday, after "Workout 2"'s date). Harmless for the M1 teaser/dump, but fix before the calendar/home screens render week 1 (surfaced during M1-16..18 QA). **Update (2026-07-16):** scheduled as **M3-02**.
 - `PluriPillButtonStyle` (M0) has no visual disabled state — it ignores `\.isEnabled`, so onboarding's disabled Continue buttons (empty name, no location picked, <2 training days, …) still render full brand orange and look tappable. Add an `@Environment(\.isEnabled)` dim/desaturate to the style. (Surfaced during M1-04..15 QA — pre-existing component, not fixed inline per AGENTS §7.)
 - ~~Q6 equipment strings vs live WorkoutX punctuation/casing differences~~ **Resolved (M1-16):** `EquipmentMatcher` normalizes both sides (lowercase + strip non-alphanumerics) before comparison, so `"Dumbbell + Exercise Ball"` matches `"Dumbbell, Exercise Ball"` etc., with no brittle mapping table. Covered by `PlanEngineTests`. See SPEC §14 #19.
 - ~~Consider renaming the Xcode target/product from `pluri_fable_xcode` to `Pluri`~~ **Resolved (M2-01):** target/module renamed to `Pluri`, bundle id `com.codewithmikey.Pluri`.
