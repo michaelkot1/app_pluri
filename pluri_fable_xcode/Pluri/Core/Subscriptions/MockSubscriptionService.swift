@@ -65,10 +65,24 @@ final class MockSubscriptionService: SubscriptionServicing {
     }
 
     private(set) var lastLoggedInAppUserID: String?
+    private(set) var logOutCallCount = 0
+    /// When set, the next `logOut()` throws this error once.
+    var nextLogOutError: PluriSubscriptionError?
 
     func logIn(appUserID: String) async throws {
         lastLoggedInAppUserID = appUserID
         hasResolvedCustomerInfo = true
+        lastError = nil
+    }
+
+    func logOut() async throws {
+        logOutCallCount += 1
+        if let nextLogOutError {
+            self.nextLogOutError = nil
+            lastError = nextLogOutError
+            throw nextLogOutError
+        }
+        entitled = false
         lastError = nil
     }
 

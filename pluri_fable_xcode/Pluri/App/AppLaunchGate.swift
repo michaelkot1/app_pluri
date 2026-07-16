@@ -34,6 +34,12 @@ final class AppLaunchGate {
         return restored.profile.onboardingCompleted || restored.plan != nil
     }
 
+    /// Narrow reset after a successful sign-out / account deletion (M2-17):
+    /// back to the signed-out onboarding entry. Full phase routing is M2-18.
+    func resetToOnboarding() {
+        route = .onboarding
+    }
+
     func resolve(
         authService: any SupabaseAuthServicing,
         subscriptionService: any SubscriptionServicing,

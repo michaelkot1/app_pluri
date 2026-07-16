@@ -99,6 +99,22 @@ final class SubscriptionService: SubscriptionServicing {
         }
     }
 
+    func logOut() async throws {
+        isLoading = true
+        lastError = nil
+        defer { isLoading = false }
+
+        do {
+            customerInfo = try await Purchases.shared.logOut()
+            logger.info("RevenueCat logged out to anonymous user")
+        } catch {
+            let wrapped = PluriSubscriptionError.logOutFailed(error.localizedDescription)
+            lastError = wrapped
+            logger.error("RevenueCat logOut failed: \(error.localizedDescription)")
+            throw wrapped
+        }
+    }
+
     func purchase(_ package: Package) async throws {
         isLoading = true
         lastError = nil

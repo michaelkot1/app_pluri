@@ -10,6 +10,7 @@ struct AppRootView: View {
     @State private var flushService: SupabaseOnboardingFlushService
     @State private var restoreService: SupabaseRemotePlanRestoreService
     @State private var launchGate = AppLaunchGate()
+    @State private var themeStore = ThemeStore()
 
     #if DEBUG
     @State private var showsDebugGallery = false
@@ -36,15 +37,18 @@ struct AppRootView: View {
                 NavigationStack {
                     WelcomeBackStubView(
                         restoreService: restoreService,
-                        preloadedState: restored
+                        preloadedState: restored,
+                        onAccountEnded: { launchGate.resetToOnboarding() }
                     )
                 }
             }
         }
+        .preferredColorScheme(themeStore.selection.colorScheme)
         .environment(subscriptionService)
         .environment(authService)
         .environment(flushService)
         .environment(restoreService)
+        .environment(themeStore)
         .task {
             await launchGate.resolve(
                 authService: authService,

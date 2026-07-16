@@ -21,6 +21,11 @@ final class MockSupabaseAuthService: SupabaseAuthServicing {
     private(set) var verifyOTPCallCount = 0
     private(set) var resendOTPCallCount = 0
     private(set) var lastResendEmail: String?
+    private(set) var signOutCallCount = 0
+    private(set) var deleteAccountCallCount = 0
+    /// When set, `signOut()` / `deleteAccount()` suspend for this long so
+    /// tests can overlap calls (M2-17 duplicate-tap guard).
+    var accountOperationDelay: Duration?
 
     private var signedIn: Bool
     /// Stand-in id when signed in without a real Supabase `Session`/`User`.
@@ -107,8 +112,12 @@ final class MockSupabaseAuthService: SupabaseAuthServicing {
     }
 
     func signOut() async throws {
+        signOutCallCount += 1
         isLoading = true
         defer { isLoading = false }
+        if let accountOperationDelay {
+            try? await Task.sleep(for: accountOperationDelay)
+        }
         if let idString = appUserID, let userID = UUID(uuidString: idString) {
             OnboardingCompletionHintStore.clear(userID: userID)
         }
@@ -133,8 +142,12 @@ final class MockSupabaseAuthService: SupabaseAuthServicing {
             lastError = missing
             throw missing
         }
+        deleteAccountCallCount += 1
         isLoading = true
         defer { isLoading = false }
+        if let accountOperationDelay {
+            try? await Task.sleep(for: accountOperationDelay)
+        }
         if shouldFailAccountDeletion {
             let failure = PluriAuthError.accountDeletionFailed("Mock deletion failure")
             lastError = failure

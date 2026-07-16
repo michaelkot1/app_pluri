@@ -31,4 +31,11 @@ enum FlushCheckpointStore {
     static func clear() {
         UserDefaults.standard.removeObject(forKey: defaultsKey)
     }
+
+    /// Clears the pending checkpoint only when it belongs to `userID` (M2-17
+    /// sign-out / delete). Another account's unsent data is left untouched.
+    static func clear(userID: UUID) {
+        guard let checkpoint = load(), checkpoint.userID == userID else { return }
+        clear()
+    }
 }

@@ -6,12 +6,16 @@ struct WelcomeBackStubView: View {
     var restoreService: any RemotePlanRestoreServicing
     /// When set (e.g. by `AppLaunchGate`), skips a second remote fetch.
     var preloadedState: RestoredUserState? = nil
+    /// Root reroute after sign-out / account deletion from Profile (M2-17).
+    var onAccountEnded: @MainActor @Sendable () -> Void = {}
 
     @Environment(SupabaseAuthService.self) private var authService
+    @Environment(SubscriptionService.self) private var subscriptionService
 
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var restored: RestoredUserState?
+    @State private var showsProfile = false
 
     var body: some View {
         VStack(spacing: PluriSpacing.lg) {
@@ -64,6 +68,25 @@ struct WelcomeBackStubView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(PluriColor.bgCanvas)
         .navigationBarBackButtonHidden(true)
+        // Temporary Profile access until the Main TabView ships (M2-18).
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Profile", systemImage: "person.crop.circle") {
+                    showsProfile = true
+                }
+                .foregroundStyle(PluriColor.brandOrange)
+            }
+        }
+        .navigationDestination(isPresented: $showsProfile) {
+            ProfileView(
+                restored: restored,
+                viewModel: ProfileViewModel(
+                    authService: authService,
+                    subscriptionService: subscriptionService,
+                    onAccountEnded: { onAccountEnded() }
+                )
+            )
+        }
         .task { await load() }
     }
 
@@ -126,5 +149,7 @@ struct WelcomeBackStubView: View {
     NavigationStack {
         WelcomeBackStubView(restoreService: MockRemotePlanRestoreService())
             .environment(SupabaseAuthService(supabaseService: SupabaseService(), restoreOnLaunch: false))
+            .environment(SubscriptionService(configurePurchases: false))
+            .environment(ThemeStore())
     }
 }

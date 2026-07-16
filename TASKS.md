@@ -149,8 +149,8 @@ Tasks are generated **incrementally, one milestone at a time** (see `[PLAN.md](P
 
 ### Profile screen
 
-- [ ] **M2-16** `Features/Profile/` module + profile screen per SPEC §5.2: basic plan info (goal, dates, schedule), connected apps (Apple Health row — display-only until M5), notification settings (stub until M3), language, theme light/dark, terms & conditions link. *(Reusable `PluriCustomerCenterView` RevenueCatUI wrapper added now so Profile can present Customer Center later.)*
-- [ ] **M2-17** Sign out (end session, clear local user state, return to the sign-in/paywall entry) and Delete account (confirmation dialog → `delete-account` Edge Function (M2-05) → wipe local data → return to onboarding start) (SPEC §2, §5.2).
+- [x] **M2-16** `Features/Profile/` module + profile screen per SPEC §5.2: basic plan info (goal, dates, schedule), connected apps (Apple Health row — display-only until M5), notification settings (stub until M3), language, theme light/dark, terms & conditions link. *(Reusable `PluriCustomerCenterView` RevenueCatUI wrapper added now so Profile can present Customer Center later.)* *Interim choices (theme Auto default, Apple-EULA terms link, device-language row) logged as SPEC §14 #35; Profile reachable from the welcome-back stub toolbar until M2-18's Main shell.*
+- [x] **M2-17** Sign out (end session, clear local user state, return to the sign-in/paywall entry) and Delete account (confirmation dialog → `delete-account` Edge Function (M2-05) → wipe local data → return to onboarding start) (SPEC §2, §5.2). *Adds RevenueCat `logOut()` to `SubscriptionServicing` and user-scoped `FlushCheckpointStore.clear(userID:)`; reroute via `AppLaunchGate.resetToOnboarding()`. Live remote deletion still gated on M0-11's real service-role key (SPEC §15).*
 
 ### App routing
 

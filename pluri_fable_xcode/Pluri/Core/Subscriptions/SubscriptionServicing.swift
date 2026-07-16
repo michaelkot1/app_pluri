@@ -10,6 +10,7 @@ enum PluriSubscriptionError: Error, Equatable, Sendable {
     case purchasePending
     case purchaseFailed(String)
     case restoreFailed(String)
+    case logOutFailed(String)
 
     var userFacingMessage: String {
         switch self {
@@ -27,6 +28,8 @@ enum PluriSubscriptionError: Error, Equatable, Sendable {
             detail.isEmpty ? "Something went wrong with the purchase. Please try again." : detail
         case .restoreFailed(let detail):
             detail.isEmpty ? "We couldn’t restore purchases. Please try again." : detail
+        case .logOutFailed(let detail):
+            detail.isEmpty ? "We couldn’t finish signing out of subscriptions." : detail
         }
     }
 }
@@ -49,6 +52,8 @@ protocol SubscriptionServicing: AnyObject {
     func purchaseYearly() async throws
     /// Aliases RevenueCat to the Supabase user id after auth (M2-11).
     func logIn(appUserID: String) async throws
+    /// Ends the RevenueCat identity session on sign-out / account deletion (M2-17).
+    func logOut() async throws
 
     #if DEBUG
     func enableDebugPaywallBypass()
