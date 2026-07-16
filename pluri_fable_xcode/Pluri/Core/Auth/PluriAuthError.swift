@@ -10,6 +10,8 @@ enum PluriAuthError: Error, Equatable, Sendable {
     case sessionRestoreFailed(String)
     case accountDeletionFailed(String)
     case networkUnavailable
+    case invalidOTP
+    case otpResendFailed(String)
     case unknown(String)
 
     var userFacingMessage: String {
@@ -36,6 +38,12 @@ enum PluriAuthError: Error, Equatable, Sendable {
                 : detail
         case .networkUnavailable:
             "Check your connection and try again."
+        case .invalidOTP:
+            "That code didn’t work. Check the email and try again."
+        case .otpResendFailed(let detail):
+            detail.isEmpty
+                ? "We couldn’t resend the code. Please try again in a moment."
+                : detail
         case .unknown(let detail):
             detail.isEmpty
                 ? "Something went wrong. Please try again."

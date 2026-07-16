@@ -35,7 +35,7 @@ struct PlanGeneratingView: View {
     var body: some View {
         Group {
             if let plan {
-                PlanReadyView(plan: plan, userName: answers.name)
+                PlanReadyView(plan: plan, userName: answers.name, answers: answers)
             } else {
                 switch phase {
                 case .generating:

@@ -16,6 +16,7 @@ final class SupabaseAuthService: SupabaseAuthServicing {
     private let logger = Logger(subsystem: "com.codewithmikey.pluri", category: "SupabaseAuthService")
 
     var user: User? { session?.user }
+    var appUserID: String? { user?.id.uuidString }
     var isSignedIn: Bool { session != nil }
 
     private var client: SupabaseClient { supabaseService.client }
@@ -90,13 +91,58 @@ final class SupabaseAuthService: SupabaseAuthServicing {
         }
     }
 
-    func signOut() async throws {
+    func verifyOTP(email: String, token: String, type: EmailOTPType) async throws {
         isLoading = true
         lastError = nil
         defer { isLoading = false }
 
         do {
+            let response = try await client.auth.verifyOTP(email: email, token: token, type: type)
+            guard let nextSession = response.session else {
+                let missing = PluriAuthError.invalidOTP
+                lastError = missing
+                throw missing
+            }
+            apply(session: nextSession)
+            logger.info("Verified email OTP")
+        } catch let error as PluriAuthError {
+            lastError = error
+            throw error
+        } catch {
+            let wrapped = mapAuthError(error, fallback: .invalidOTP)
+            lastError = wrapped
+            logger.error("OTP verify failed: \(error.localizedDescription)")
+            throw wrapped
+        }
+    }
+
+    func resendSignupOTP(email: String) async throws {
+        isLoading = true
+        lastError = nil
+        defer { isLoading = false }
+
+        do {
+            try await client.auth.resend(email: email, type: .signup)
+            logger.info("Resent signup OTP email")
+        } catch {
+            let wrapped = mapAuthError(error, fallback: .otpResendFailed(error.localizedDescription))
+            lastError = wrapped
+            logger.error("OTP resend failed: \(error.localizedDescription)")
+            throw wrapped
+        }
+    }
+
+    func signOut() async throws {
+        isLoading = true
+        lastError = nil
+        defer { isLoading = false }
+
+        let hintUserID = appUserID.flatMap(UUID.init(uuidString:))
+        do {
             try await client.auth.signOut()
+            if let hintUserID {
+                OnboardingCompletionHintStore.clear(userID: hintUserID)
+            }
             apply(session: nil)
             logger.info("Signed out")
         } catch {
@@ -143,7 +189,11 @@ final class SupabaseAuthService: SupabaseAuthServicing {
         defer { isLoading = false }
 
         do {
+            let hintUserID = appUserID.flatMap(UUID.init(uuidString:))
             try await client.functions.invoke("delete-account")
+            if let hintUserID {
+                OnboardingCompletionHintStore.clear(userID: hintUserID)
+            }
             apply(session: nil)
             try? await client.auth.signOut()
             logger.info("Account deleted via delete-account Edge Function")
@@ -197,6 +247,11 @@ final class SupabaseAuthService: SupabaseAuthServicing {
             || message.localizedStandardContains("offline")
             || message.localizedStandardContains("internet") {
             return .networkUnavailable
+        }
+        if message.localizedStandardContains("otp")
+            || message.localizedStandardContains("token")
+            || (message.localizedStandardContains("invalid") && message.localizedStandardContains("code")) {
+            return .invalidOTP
         }
         return fallback
     }

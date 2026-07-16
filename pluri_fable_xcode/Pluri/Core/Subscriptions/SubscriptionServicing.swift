@@ -47,6 +47,8 @@ protocol SubscriptionServicing: AnyObject {
     func purchase(_ package: Package) async throws
     func purchaseMonthly() async throws
     func purchaseYearly() async throws
+    /// Aliases RevenueCat to the Supabase user id after auth (M2-11).
+    func logIn(appUserID: String) async throws
 
     #if DEBUG
     func enableDebugPaywallBypass()

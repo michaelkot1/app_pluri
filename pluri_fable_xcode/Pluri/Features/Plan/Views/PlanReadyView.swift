@@ -3,13 +3,15 @@ import SwiftUI
 /// "Your plan is ready" screen (M1-18 / SPEC §3.3 → §4). Teases the generated
 /// plan — weeks, sessions per week, and a first-session preview — then presents
 /// the RevenueCat paywall (M2-09). Successful unlock (or DEBUG long-press bypass)
-/// advances to a temporary account-creation placeholder (M2-11).
+/// advances to a temporary post-unlock placeholder until flush (M2-14) and Main (M2-18).
+/// The user is already authenticated (auth after name — M2-11).
 ///
 /// In DEBUG builds a "View full plan" button opens `PlanDumpView`, the M1 exit
 /// check's plan-dump view.
 struct PlanReadyView: View {
     var plan: GeneratedPlan
     var userName: String
+    var answers: OnboardingAnswers
 
     @Environment(SubscriptionService.self) private var subscriptionService
 
@@ -30,7 +32,7 @@ struct PlanReadyView: View {
     var body: some View {
         Group {
             if isUnlocked || subscriptionService.isPluriProActive {
-                PaywallUnlockedPlaceholderView()
+                PaywallUnlockedPlaceholderView(answers: answers, plan: plan)
             } else {
                 planReadyContent
             }
@@ -145,7 +147,7 @@ struct PlanReadyView: View {
         seed: input.deterministicSeed
     )
     return NavigationStack {
-        PlanReadyView(plan: plan, userName: "Alex")
+        PlanReadyView(plan: plan, userName: "Alex", answers: OnboardingAnswers())
             .environment(SubscriptionService(configurePurchases: false))
     }
 }

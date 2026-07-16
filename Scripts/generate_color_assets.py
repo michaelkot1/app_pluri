@@ -9,7 +9,7 @@ import json
 import pathlib
 
 ASSETS = pathlib.Path(__file__).resolve().parent.parent / (
-    "pluri_fable_xcode/pluri_fable_xcode/Assets.xcassets"
+    "pluri_fable_xcode/Pluri/Assets.xcassets"
 )
 
 # name: (light hex, dark hex). Dark values are sensible inversions per M0-05;

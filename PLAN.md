@@ -32,14 +32,14 @@ Derived from [`SPEC.md`](SPEC.md). Ground rules in [`AGENTS.md`](AGENTS.md). Wor
 ### 1.2 iOS app structure
 
 - **Pattern:** MVVM. One feature module per tab/flow; each has `Views/`, `ViewModels/` (`@Observable`), and feature-local models. Shared code in `Core/` (networking, persistence, design system, extensions).
-- **Navigation:** a root `AppRouter` switches between phases — Splash → Onboarding → Paywall → Main (TabView). `NavigationStack` per tab; deep links (Today's Health tile → Insights section) via router.
+- **Navigation:** a root `AppRouter` switches between phases — Splash → Onboarding (name → **auth** → Q1–Q13 → plan gen) → Paywall → Main (TabView). `NavigationStack` per tab; deep links (Today's Health tile → Insights section) via router.
 - **Design system:** `Core/DesignSystem/` — `PluriColor`, `PluriFont`, `PluriSpacing`, `PluriRadius` mirroring `design.md` tokens 1:1, plus shared components (cards, pill buttons, progress bar, bottom sheets, rings/charts via Swift Charts).
-- **Persistence & sync:** SwiftData models for plan, workouts, sets, logs, recipes-favorites, cached WorkoutX exercises. A `SyncEngine` pushes local changes to Supabase (last-write-wins per record, queued while offline). Onboarding answers stay in-memory/local until account creation at the paywall, then flush to Supabase.
+- **Persistence & sync:** SwiftData models for plan, workouts, sets, logs, recipes-favorites, cached WorkoutX exercises. A `SyncEngine` pushes local changes to Supabase (last-write-wins per record, queued while offline). Onboarding answers stay in-memory/local until **flush after paywall unlock while signed in** (auth itself is earlier — after name), then write via `Core/Sync/` mappers + `OnboardingFlushService` (UserDefaults checkpoint until success; full SyncEngine is later). Remote restore hydrates returning users before Main (M2-15 / M2-18).
 - **Minimum iOS:** **iOS 17** (needed for `@Observable` + mature SwiftData; raise to 18 only if a required API demands it).
 
 ### 1.3 Backend (Supabase)
 
-- **Auth:** Sign in with Apple + email/password.
+- **Auth:** Sign in with Apple + email/password (blocking UI after name entry; email signup may require **6-digit OTP** confirmation before session; answers flush after paywall unlock while signed in).
 - **Core tables** (all with RLS = owner-only unless noted):
   - `profiles` — name, demographics, units, goal, maintenance calories, allergies, injuries (jsonb: area + pain level), equipment (text[]), schedule prefs.
   - `plans` — goal, start/end dates, weeks, schedule type, status.
@@ -85,8 +85,8 @@ Splash → name → 13-question flow with progress bar, WorkoutX integration, `g
 **Exit:** a new user can answer everything and get a real, sensible multi-week plan generated from WorkoutX data.
 
 ### M2 — Auth, Paywall & Accounts
-Supabase Auth (Apple + email), StoreKit 2 subscriptions with trial, restore purchases, profile page (settings, theme, sign out, delete account), onboarding data flush to Supabase on account creation.
-**Exit:** full funnel works end-to-end: onboard → pay (sandbox) → account created → plan persisted remotely.
+Supabase Auth (Apple + email) **after name entry**, RevenueCat subscriptions with trial, restore purchases, profile page (settings, theme, sign out, delete account), onboarding data flush to Supabase after paywall unlock while signed in.
+**Exit:** full funnel works end-to-end: name → auth → onboard → pay (sandbox) → profile + plan persisted remotely.
 
 ### M3 — Home, Plan & Calendar
 Home page (calendar dots, Pluri Score card *displaying a stub score*, Today's Health placeholders, record-workout button), tab bar, Plan page (plan card, week cards, Week Overview), Calendar/Rearrange page, Manage Plan, Plan Overview info page, notifications page shell + workout reminders.

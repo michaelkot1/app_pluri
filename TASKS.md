@@ -134,18 +134,18 @@ Tasks are generated **incrementally, one milestone at a time** (see `[PLAN.md](P
 ### Paywall UI & purchase flow
 
 - [x] **M2-09** `Features/Paywall/` module + `PluriPaywallView` wrapping RevenueCatUI `PaywallView` (dashboard-designed paywall), replacing `PlanReadyPaywallStubView`. App Review must-haves (restore, terms, trial disclosure) come from the RC paywall template when configured — **owner must enable them in the RC Paywall editor**. Gentle offerings-failure fallback (Retry + Restore) only; no parallel custom monthly/yearly chip UI unless fallback.
-- [x] **M2-10** Purchase flow: RevenueCat Paywall / `purchase(package:)` → on success dismiss paywall + unlock callback; temporary "You're in — account creation next (M2-11)" placeholder (full account screen not built). Gentle typed-error handling for cancelled / failed / pending purchases.
+- [x] **M2-10** Purchase flow: RevenueCat Paywall / `purchase(package:)` → on success dismiss paywall + unlock callback; temporary post-unlock placeholder until Main (M2-18). Gentle typed-error handling for cancelled / failed / pending purchases. *(Copy updated with M2-11 — unlock ≠ account creation.)*
 
-### Account creation & sign-in at the paywall
+### Account creation & sign-in after name entry
 
-- [ ] **M2-11** Post-purchase account-creation screen: Sign in with Apple (primary) + email/password (secondary) per SPEC §2, with validation and gentle error states; on success, continue to the data flush (M2-14) and then Main.
-- [ ] **M2-12** Returning-user path: "Already have an account?" sign-in entry from the paywall; on reinstall/new device, restore subscription via **RevenueCat** (`restorePurchases`) and plan/history via the M2-15 remote restore (SPEC §2).
+- [x] **M2-11** Post-name account screen (`AccountAuthView`): Sign in with Apple (primary) + email/password sign-up (secondary) per SPEC §2 / §3.1, with validation and gentle `PluriAuthError` surfaces; on new / incomplete success → advance to Q1 (not flush/Main). Auth is blocking; progress bar still name + Q1–Q13 only. RevenueCat `logIn(supabaseUserId)` after successful auth.
+- [x] **M2-12** Returning-user path: "Already have an account?" toggles sign-in mode on the same post-name auth screen; on entitled returning sign-in, interim welcome-back stub (full RevenueCat restore + M2-15 remote plan hydrate → Main is M2-15 / M2-18). Non-entitled returning users continue into Q1.
 
 ### Persist onboarding data & plan to Supabase
 
-- [ ] **M2-13** Mapping layer (pure, unit-testable): `OnboardingAnswers` → `profiles` row (display name, demographics, units, goal, maintenance calories, allergies, injuries jsonb, equipment, schedule prefs) and `GeneratedPlan` → `plans` + `plan_workouts` + `workout_exercises` rows (PLAN §1.3 — schema already fits, no migration expected).
-- [ ] **M2-14** Flush on account creation: after auth succeeds, write profile + plan through the authed session (verifying owner-only RLS from M0-09 works end-to-end), with retry on transient failure; answers/plan stay local until the flush is confirmed so nothing is lost if the app dies mid-write.
-- [ ] **M2-15** Remote restore: on sign-in with an existing account, fetch profile + active plan (`plans`/`plan_workouts`/`workout_exercises`) from Supabase and hydrate local state, so the returning user skips onboarding and lands on Main (SPEC §2).
+- [x] **M2-13** Mapping layer (pure, unit-testable): `OnboardingAnswers` → `profiles` row (display name, demographics, units, goal, maintenance calories, allergies, injuries jsonb, equipment, schedule prefs) and `GeneratedPlan` → `plans` + `plan_workouts` + `workout_exercises` rows (PLAN §1.3 — schema already fits, no migration expected).
+- [x] **M2-14** Flush after unlock while signed in: after paywall unlock (user already authenticated from M2-11), write profile + plan through the authed session (verifying owner-only RLS from M0-09 works end-to-end), with retry on transient failure; answers/plan stay local until the flush is confirmed so nothing is lost if the app dies mid-write.
+- [x] **M2-15** Remote restore: on sign-in with an existing account, fetch profile + active plan (`plans`/`plan_workouts`/`workout_exercises`) from Supabase and hydrate local state, so the returning user skips onboarding and lands on Main (SPEC §2). *Note: hydrate + welcome-back “plan restored” stub ship here; **Main TabView landing is M2-18** (SPEC §14 #32). Launch gate also skips questionnaire on cold launch when `onboarding_completed` or an active plan exists (SPEC §14 #33).*
 
 ### Profile screen
 
@@ -154,13 +154,13 @@ Tasks are generated **incrementally, one milestone at a time** (see `[PLAN.md](P
 
 ### App routing
 
-- [ ] **M2-18** Root `AppRouter` phase switching per PLAN §1.2: Splash → Onboarding → Paywall → Main; the paywall phase receives the generated plan + onboarding answers; Main is a minimal `TabView` shell (Home · Plan · Insights · Community · Recipe with placeholder screens — real tabs are M3+). Launch routing derives from auth session + entitlement state: fresh install → Onboarding; signed-in + entitled → Main; signed-in + lapsed → locked Paywall (SPEC §4).
+- [ ] **M2-18** Root `AppRouter` phase switching per PLAN §1.2: Splash → Onboarding → Paywall → Main; the paywall phase receives the generated plan + onboarding answers; Main is a minimal `TabView` shell (Home · Plan · Insights · Community · Recipe with placeholder screens — real tabs are M3+). Launch routing derives from auth session + entitlement state: fresh install → Onboarding; signed-in + entitled → Main; signed-in + lapsed → locked Paywall (SPEC §4). *Depends on M2-15 hydrate data being ready. Interim: cold-launch questionnaire skip + welcome-back stub already ship (SPEC §14 #33); this task still owns Main TabView / locked-paywall phases.*
 
 ### Tests
 
-- [ ] **M2-19** Unit tests (Swift Testing, in `PluriTests`, mocks for auth/**RevenueCat**): launch-routing state machine (fresh / signed-in+entitled / signed-in+lapsed / signed-out), entitlement + trial-state resolution logic, and the M2-13 mapping layer (representative personas round-trip answers/plan → rows).
+- [ ] **M2-19** Unit tests (Swift Testing, in `PluriTests`, mocks for auth/**RevenueCat**): launch-routing state machine (fresh / signed-in+entitled / signed-in+lapsed / signed-out), entitlement + trial-state resolution logic, and the M2-13 mapping layer (representative personas round-trip answers/plan → rows). *M2-13 mapper round-trips + OTP / flush mock tests already land under `OnboardingSyncMapperTests` / `AccountAuthTests` — expand personas + routing when M2-18 exists.*
 
-**M2 exit check** (PLAN M2): full funnel end-to-end — fresh install → onboard → paywall → RevenueCat sandbox / test-key purchase with trial → account created → profile + plan rows visible in Supabase under the new user → relaunch restores session and entitlement. Sign out and delete account both verified.
+**M2 exit check** (PLAN M2): full funnel end-to-end — fresh install → name → auth → questionnaire → paywall → RevenueCat sandbox / test-key purchase with trial → flush profile + plan rows visible in Supabase under the signed-in user → relaunch restores session and entitlement. Sign out and delete account both verified.
 
 **M2-06..10 learned/changed:**
 
@@ -169,6 +169,29 @@ Tasks are generated **incrementally, one milestone at a time** (see `[PLAN.md](P
 - `REVENUECAT_API_KEY` flows `.env` → `generate_secrets.sh` → `Secrets.xcconfig` → Info.plist → `Secrets.revenueCatAPIKey` (never hardcode / never commit the key).
 - Owner checklist: RC entitlement `Pluri Pro`, products `monthly`/`yearly`, default offering + Paywall (V2) with restore/terms/trial disclosure enabled; ASC products with **1-month free trial** intro offers on both (SPEC §14 #7); real IAP still requires M2-02.
 - Trial open question closed: **1-month ASC introductory offer** (not 10-day / not RC granted entitlement) — SPEC §4, §14 #7, §15 updated 2026-07-15.
+
+**M2-11 / M2-12 learned/changed:**
+
+- Owner product decision: auth is **after name**, blocking, not counted in the 14-step progress bar (SPEC §14 #29). Flush stays post-unlock (M2-14).
+- `OnboardingDestination.account` sits between `.name` and `.q1FitnessType`; already-signed-in users skip to Q1 from name.
+- Returning entitled sign-in → `WelcomeBackStubView` interim until M2-15/18; non-entitled continue questionnaire.
+- `Purchases.shared.logIn(supabaseUserId)` hosted on `SubscriptionService` after successful auth (non-blocking on failure).
+- SIWA still blocked on Apple Developer portal + Supabase Apple provider (SPEC §15).
+- **OTP UX (extends M2-11):** when email sign-up leaves session nil, show 6-digit OTP → `verifyOTP` → continue onboarding (SPEC §14 #30). Resend + gentle errors included.
+
+**M2-13 / M2-14 / M2-15 learned/changed:**
+
+- Pure mappers live under `Core/Sync/` (`DatabaseCodeMappings`, `OnboardingSyncMapper`, DTOs). Goal / injuries encoding in SPEC §14 #31.
+- Flush runs from `PaywallUnlockedPlaceholderView` with retries + UserDefaults checkpoint; local answers/plan retained on failure.
+- Remote restore hydrates welcome-back stub; Main routing still M2-18 (SPEC §14 #32).
+
+**M2-15 / M2-18 launch skip (interim, 2026-07-15):**
+
+- Cold launch now waits for `hasResolvedSession` + `hasResolvedCustomerInfo`, retries flush checkpoint, re-aliases RevenueCat, then restores remote profile/plan.
+- Skip criterion (owner): signed-in **and** (`onboarding_completed` **or** active plan) → `WelcomeBackStubView` (no Splash→Qs stack). Incomplete signed-in users still go through Qs (M2-12).
+- Lapsed entitlement still skips the questionnaire; locked Paywall Main remains M2-18 (SPEC §14 #33).
+- Optional UserDefaults completion hint (keyed by userID) for offline relaunch; cleared on sign-out; remote wins when online.
+- Full `AppRouter` / Main TabView still M2-18; M2-19 expands when that router lands.
 
 ---
 

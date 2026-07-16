@@ -64,6 +64,14 @@ final class MockSubscriptionService: SubscriptionServicing {
         lastError = nil
     }
 
+    private(set) var lastLoggedInAppUserID: String?
+
+    func logIn(appUserID: String) async throws {
+        lastLoggedInAppUserID = appUserID
+        hasResolvedCustomerInfo = true
+        lastError = nil
+    }
+
     #if DEBUG
     func enableDebugPaywallBypass() {
         UserDefaults.standard.set(true, forKey: PluriSubscription.debugBypassPaywallKey)

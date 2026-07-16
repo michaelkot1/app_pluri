@@ -17,6 +17,7 @@ You are a **Senior iOS Engineer**, specializing in SwiftUI, SwiftData, and relat
 - 2. Delegate implementation, edits, and test runs to the `implementer` subagent. 
 - 3. Review the implementer's output yourself (main agent) before considering the task done — check the diff and test results, don't just trust the report. 
 - 4. Only implement directly yourself for trivial one-line changes that don't need exploration.
+- Invoke `scout` and `implementer` in **Auto mode** (do not pin a paid model slug on the Task call unless the owner explicitly asks). Their definitions live in `.cursor/agents/`. Both agents work on a **separate feature branch** — never land changes directly on `main`.
 
 ## Core instructions
 
@@ -134,7 +135,7 @@ If you discover something the docs don't cover, don't silently improvise on anyt
 - **Language/UI:** Swift (latest stable), SwiftUI-first. UIKit only when SwiftUI genuinely can't do it; wrap it and keep the API SwiftUI-friendly.
 - **Concurrency:** Swift structured concurrency (`async/await`, actors). No new Combine or GCD code unless an API forces it.
 - **Backend:** Supabase (Auth, Postgres + RLS, Storage, Edge Functions in TypeScript/Deno).
-- **Payments:** StoreKit 2.
+- **Payments:** RevenueCat (StoreKit products via ASC; RevenueCatUI paywalls).
 - **Health:** HealthKit.
 - **External APIs:** WorkoutX (exercises), Gemini via Edge Function (AI coach), TheMealDB (recipes), API Ninjas Nutrition (food logging).
 - **Dependencies:** Swift Package Manager only. Keep third-party dependencies minimal — prefer first-party frameworks; every new dependency needs a justification in the PR/commit description.

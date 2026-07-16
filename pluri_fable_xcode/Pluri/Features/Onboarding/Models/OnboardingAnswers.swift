@@ -1,7 +1,7 @@
 import Foundation
 
 /// All onboarding answers, held in memory only (M1-04 / SPEC §2 — nothing
-/// persists remotely until account creation at the paywall milestone).
+/// persists remotely until flush after paywall unlock while signed in, M2-14).
 ///
 /// Height/weight are stored canonically in metric regardless of the
 /// locale-aware units shown on Q11 (SPEC §3.2), so downstream consumers

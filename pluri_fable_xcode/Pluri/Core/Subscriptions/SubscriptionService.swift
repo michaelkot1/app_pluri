@@ -81,6 +81,24 @@ final class SubscriptionService: SubscriptionServicing {
         }
     }
 
+    func logIn(appUserID: String) async throws {
+        isLoading = true
+        lastError = nil
+        defer { isLoading = false }
+
+        do {
+            let (info, _) = try await Purchases.shared.logIn(appUserID)
+            customerInfo = info
+            markCustomerInfoResolved()
+            logger.info("RevenueCat logged in with app user id")
+        } catch {
+            let wrapped = PluriSubscriptionError.restoreFailed(error.localizedDescription)
+            lastError = wrapped
+            logger.error("RevenueCat logIn failed: \(error.localizedDescription)")
+            throw wrapped
+        }
+    }
+
     func purchase(_ package: Package) async throws {
         isLoading = true
         lastError = nil

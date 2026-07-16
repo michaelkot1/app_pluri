@@ -1,11 +1,15 @@
 import SwiftUI
 
-/// Root of the onboarding flow (M1-04): owns the answers container and the
+/// Root of the onboarding flow (M1-04 / M2-11): owns the answers container and the
 /// router, and wires every screen into one `NavigationStack`. Splash is the
 /// stack's root content; everything else is pushed via `router.path`, which
 /// both a Continue tap and a back-swipe mutate identically — that's what
 /// lets the progress bar (M1-07) recede correctly on back navigation.
+///
+/// Auth sits between name and Q1 (SPEC §3.1 / §14 #29) and is not a progress step.
 struct OnboardingRootView: View {
+    @Environment(SupabaseAuthService.self) private var authService
+
     @State private var answers = OnboardingAnswers()
     @State private var router = OnboardingRouter()
 
@@ -24,7 +28,17 @@ struct OnboardingRootView: View {
     private func view(for destination: OnboardingDestination) -> some View {
         switch destination {
         case .name:
-            NameEntryView(answers: answers) { router.advance(from: destination) }
+            NameEntryView(answers: answers) {
+                if authService.isSignedIn {
+                    router.advance(to: .q1FitnessType)
+                } else {
+                    router.advance(to: .account)
+                }
+            }
+        case .account:
+            AccountAuthView(
+                onContinueOnboarding: { router.advance(to: .q1FitnessType) }
+            )
         case .q1FitnessType:
             Q1FitnessTypeView(answers: answers, progress: destination.progress) { router.advance(from: destination) }
         case .q2Goal:
@@ -59,4 +73,8 @@ struct OnboardingRootView: View {
 
 #Preview {
     OnboardingRootView()
+        .environment(SupabaseAuthService(supabaseService: SupabaseService(), restoreOnLaunch: false))
+        .environment(SubscriptionService(configurePurchases: false))
+        .environment(SupabaseOnboardingFlushService(supabaseService: SupabaseService()))
+        .environment(SupabaseRemotePlanRestoreService(supabaseService: SupabaseService()))
 }
