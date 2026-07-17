@@ -2,9 +2,9 @@ import SwiftUI
 
 /// Main TabView navigation skeleton (M3-06): Home · Plan · Insights ·
 /// Community · Recipe, one `NavigationStack` per tab, with a `MainRouter`
-/// driving programmatic tab selection, the Home tab's typed route path, and
-/// the health-tile deep link into Insights (PLAN §1.2). Plan / Community /
-/// Recipe stay honest placeholders until their milestones.
+/// driving programmatic tab selection, the Home and Plan tabs' typed route
+/// paths, and the health-tile deep link into Insights (PLAN §1.2).
+/// Community / Recipe stay honest placeholders until their milestones.
 struct MainTabView: View {
     /// Launch-restored profile + plan, kept as the Profile fallback.
     var restored: RestoredUserState?
@@ -30,12 +30,11 @@ struct MainTabView: View {
                 }
             }
             Tab("Plan", systemImage: "calendar", value: MainTab.plan) {
-                NavigationStack {
-                    MainTabPlaceholderView(
-                        title: "Plan",
-                        systemImage: "calendar",
-                        message: "Your full plan, week cards, and calendar arrive in the next update."
-                    )
+                NavigationStack(path: $router.planPath) {
+                    PlanView()
+                        .navigationDestination(for: PlanRoute.self) { route in
+                            PlanRouteDestinationView(route: route)
+                        }
                 }
             }
             Tab("Insights", systemImage: "chart.line.uptrend.xyaxis", value: MainTab.insights) {

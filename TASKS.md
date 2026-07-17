@@ -218,8 +218,11 @@ Tasks are generated **incrementally, one milestone at a time** (see `[PLAN.md](P
 
 ### Plan page & Calendar
 
-- [ ] **M3-10** Replace the Plan tab placeholder with the Plan page per SPEC §6: plan card (goal, end date, weeks-completed tracker), action buttons, and accessible week cards showing workout count, day, duration, type color, and completion checkmarks (design.md tokens).
-- [ ] **M3-11** Week Overview (SPEC §6.3): the selected week's complete schedule with workout selection; taps route to an honest Workout Detail placeholder owned by M4 (SPEC §7 — do not build ahead).
+- [x] **M3-10** Replace the Plan tab placeholder with the Plan page per SPEC §6: plan card (goal, end date, weeks-completed tracker), action buttons, and accessible week cards showing workout count, day, duration, type color, and completion checkmarks (design.md tokens).
+- [x] **M3-11** Week Overview (SPEC §6.3): the selected week's complete schedule with workout selection; taps route to an honest Workout Detail placeholder owned by M4 (SPEC §7 — do not build ahead).
+
+> **Learned during M3-10..11 (2026-07-17):** decisions recorded as SPEC §14 #42 (weeks-completed tracker = `PlanStore.completedWeekCount`, i.e. weeks with nothing still scheduled; flexible workouts stay on their week card labeled "Anytime this week" — no invented dates; the four action buttons route to honest placeholders until M3-12/13/14; Plan gets its own typed `PlanRoute` path and Workout Detail from Plan stays in the Plan stack). Display logic lives in a testable `PlanViewModel` (`Features/Plan/Page/`); the new page reuses `HomeMessageCard` for the failed/no-plan states and `WorkoutDetailStubView` for workout taps. The M1-18 plan-ready teaser already owned the name `PlanSummaryCard`, so the Plan page's top card is `PlanCardView`.
+
 - [ ] **M3-12** Plan Overview info page (SPEC §6.1) + Connected Apps shell: explain workout colors, the stub Pluri Score, Ask Pluri's future role, and current Apple Health/device status (display-only until M5).
 - [ ] **M3-13** Reusable Calendar/Rearrange page (SPEC §5.4), reachable from Home and Plan: week-by-week navigation, empty-day affordances, move-workout and add-workout flows, conflict validation, optimistic UI with gentle rollback on failure, remote persistence via M3-05, and reminder reconciliation (M3-15).
 - [ ] **M3-14** Manage Plan (SPEC §6.2): edit goal, dates/length, training days, session duration, and units; regenerate **only unfinished workouts**, preserving completed/skipped history and exercise-row integrity per the M3-01 decision; persist atomically enough that a failure never leaves a partially replaced remote plan.
