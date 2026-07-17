@@ -1,6 +1,7 @@
 import Foundation
 
-/// The five Main tabs (SPEC §5 tab bar — M2-18 shell; real tabs are M3+).
+/// The five Main tabs (SPEC §5 tab bar). Home and Insights have real M3
+/// content; Plan / Community / Recipe stay placeholders until their milestones.
 enum MainTab: Hashable, CaseIterable {
     case home
     case plan

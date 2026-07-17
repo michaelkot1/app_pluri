@@ -209,10 +209,12 @@ Tasks are generated **incrementally, one milestone at a time** (see `[PLAN.md](P
 
 ### Main navigation & Home
 
-- [ ] **M3-06** Evolve `MainTabView` from the M2-18 placeholder shell into the real M3 navigation skeleton: one `NavigationStack` per tab, typed `navigationDestination(for:)` routing, programmatic tab selection for cross-tab jumps, and Home health-tile deep links into the Insights placeholder (PLAN §1.2).
-- [ ] **M3-07** Replace `HomePlaceholderView` with the Home top bar + calendar strip/month summary per SPEC §5: one workout dot per day (v1), selected-day workout content, and navigation to Profile, Notifications (M3-15), and the full Calendar page (M3-13).
-- [ ] **M3-08** Home Pluri Score card *displaying a clearly-identified stub score* (SPEC §5.1 — real engine is M5) + Today's Health placeholder tiles for steps, sleep, and active heart rate (no HealthKit reads — live tiles are M5).
-- [ ] **M3-09** Floating Record Workout action menu (SPEC §5) offering today's scheduled workout + Outdoor Run; both route to honest M4/stub destinations — no workout execution in M3.
+- [x] **M3-06** Evolve `MainTabView` from the M2-18 placeholder shell into the real M3 navigation skeleton: one `NavigationStack` per tab, typed `navigationDestination(for:)` routing, programmatic tab selection for cross-tab jumps, and Home health-tile deep links into the Insights placeholder (PLAN §1.2).
+- [x] **M3-07** Replace `HomePlaceholderView` with the Home top bar + calendar strip/month summary per SPEC §5: one workout dot per day (v1), selected-day workout content, and navigation to Profile, Notifications (M3-15), and the full Calendar page (M3-13).
+- [x] **M3-08** Home Pluri Score card *displaying a clearly-identified stub score* (SPEC §5.1 — real engine is M5) + Today's Health placeholder tiles for steps, sleep, and active heart rate (no HealthKit reads — live tiles are M5).
+- [x] **M3-09** Floating Record Workout action menu (SPEC §5) offering today's scheduled workout + Outdoor Run; both route to honest M4/stub destinations — no workout execution in M3.
+
+> **Learned during M3-06..09 (2026-07-17):** decisions recorded as SPEC §14 #41 (month summary = name + "N of M done"; Home ignores flexible pool; `MainRouter` separate from `AppRouter`; workout color token mapping; hide empty today-option in Record menu; selected day defaults to today; sample Pluri Score = 72). Navigation skeleton uses typed `HomeRoute` + Insights section deep links; Calendar / Notifications / Workout Detail / Outdoor Run are honest stubs until M3-13 / M3-15 / M4. Calendar strip currently spans only the current month — month paging belongs with the real Calendar page (M3-13).
 
 ### Plan page & Calendar
 

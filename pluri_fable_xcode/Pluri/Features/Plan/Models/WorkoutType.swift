@@ -8,4 +8,13 @@ nonisolated enum WorkoutType: String, CaseIterable, Sendable, Hashable {
     case weights
     case cardio
     case flexibility
+
+    /// User-facing discipline name (Home day cards, week cards).
+    var title: String {
+        switch self {
+        case .weights: "Weights"
+        case .cardio: "Cardio"
+        case .flexibility: "Flexibility"
+        }
+    }
 }

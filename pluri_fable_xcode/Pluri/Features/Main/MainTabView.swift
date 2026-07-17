@@ -1,21 +1,32 @@
 import SwiftUI
 
-/// Minimal Main TabView shell (M2-18): Home · Plan · Insights · Community ·
-/// Recipe, each with its own `NavigationStack`. Real tab content is M3+ —
-/// placeholders stay honest about what's coming.
+/// Main TabView navigation skeleton (M3-06): Home · Plan · Insights ·
+/// Community · Recipe, one `NavigationStack` per tab, with a `MainRouter`
+/// driving programmatic tab selection, the Home tab's typed route path, and
+/// the health-tile deep link into Insights (PLAN §1.2). Plan / Community /
+/// Recipe stay honest placeholders until their milestones.
 struct MainTabView: View {
-    /// Restored (or just-flushed) profile + plan feeding Home and Profile.
+    /// Launch-restored profile + plan, kept as the Profile fallback.
     var restored: RestoredUserState?
     /// Root reroute after sign-out / account deletion from Profile (M2-17).
     var onAccountEnded: @MainActor @Sendable () -> Void = {}
 
-    @State private var selection: MainTab = .home
+    @State private var router = MainRouter()
 
     var body: some View {
-        TabView(selection: $selection) {
+        @Bindable var router = router
+
+        TabView(selection: $router.selectedTab) {
             Tab("Home", systemImage: "house.fill", value: MainTab.home) {
-                NavigationStack {
-                    HomePlaceholderView(restored: restored, onAccountEnded: { onAccountEnded() })
+                NavigationStack(path: $router.homePath) {
+                    HomeView()
+                        .navigationDestination(for: HomeRoute.self) { route in
+                            HomeRouteDestinationView(
+                                route: route,
+                                restored: restored,
+                                onAccountEnded: { onAccountEnded() }
+                            )
+                        }
                 }
             }
             Tab("Plan", systemImage: "calendar", value: MainTab.plan) {
@@ -29,11 +40,7 @@ struct MainTabView: View {
             }
             Tab("Insights", systemImage: "chart.line.uptrend.xyaxis", value: MainTab.insights) {
                 NavigationStack {
-                    MainTabPlaceholderView(
-                        title: "Insights",
-                        systemImage: "chart.line.uptrend.xyaxis",
-                        message: "Performance trends and health insights are on their way."
-                    )
+                    InsightsPlaceholderView()
                 }
             }
             Tab("Community", systemImage: "person.3.fill", value: MainTab.community) {
@@ -56,6 +63,7 @@ struct MainTabView: View {
             }
         }
         .tint(PluriColor.brandOrange)
+        .environment(router)
     }
 }
 
@@ -63,6 +71,6 @@ struct MainTabView: View {
     MainTabView(restored: nil)
         .environment(SupabaseAuthService(supabaseService: SupabaseService(), restoreOnLaunch: false))
         .environment(SubscriptionService(configurePurchases: false))
-        .environment(PlanStore(mutationService: MockPlanMutationService()))
+        .environment(HomePreviewData.readyStore())
         .environment(ThemeStore())
 }
