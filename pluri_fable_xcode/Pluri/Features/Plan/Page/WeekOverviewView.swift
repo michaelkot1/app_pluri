@@ -77,3 +77,25 @@ private struct WeekOverviewSummary: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("Scheduled week") {
+    let store = HomePreviewData.readyStore()
+    let week = store.plan?.weeks.first ?? PlanWeek(number: 1, sessions: [])
+    NavigationStack {
+        WeekOverviewView(week: week)
+    }
+    .environment(store)
+    .environment(MainRouter())
+}
+
+#Preview("Flexible week") {
+    let store = HomePreviewData.flexibleStore()
+    let week = store.plan?.weeks.first ?? PlanWeek(number: 1, sessions: [])
+    NavigationStack {
+        WeekOverviewView(week: week)
+    }
+    .environment(store)
+    .environment(MainRouter())
+}
+#endif

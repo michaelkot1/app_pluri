@@ -46,8 +46,9 @@ final class PlanStore {
 
     private let mutationService: any PlanMutationServicing
     /// Reconciles workout reminders after a successful remote plan change
-    /// (M3-13 hook; the real service is M3-15). Deliberately non-throwing —
-    /// a reminder problem never rolls back a persisted plan change.
+    /// (M3-13 hook; production injects `WorkoutReminderService`). Deliberately
+    /// non-throwing — a reminder problem never rolls back a persisted plan
+    /// change.
     private let reminderReconciler: any WorkoutReminderReconciling
     private let calendar: Calendar
 

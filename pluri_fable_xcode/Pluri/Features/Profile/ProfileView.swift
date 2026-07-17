@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Profile screen per SPEC §5.2 (M2-16): plan info, connected apps, notification
-/// / language stubs, theme, subscription management, terms, and account actions.
+/// Profile screen per SPEC §5.2 (M2-16): plan info, connected apps, a link to
+/// the Notifications page (M3-15), language stub, theme, subscription
+/// management, terms, and account actions.
 /// Receives the restored state from the caller — missing profile/plan renders
 /// honest empty states rather than invented data.
 struct ProfileView: View {
@@ -33,7 +34,7 @@ struct ProfileView: View {
             }
 
             Section {
-                LabeledContent("Notifications", value: "Coming soon")
+                NavigationLink("Notifications", value: HomeRoute.notifications)
                 LabeledContent("Language", value: currentLanguageName)
                 Picker("Theme", selection: $themeStore.selection) {
                     ForEach(PluriTheme.allCases) { theme in
@@ -43,7 +44,7 @@ struct ProfileView: View {
             } header: {
                 Text("Preferences")
             } footer: {
-                Text("Notification settings arrive in a later update. Language follows your device setting for now.")
+                Text("Language follows your device setting for now.")
             }
 
             Section("Subscription") {

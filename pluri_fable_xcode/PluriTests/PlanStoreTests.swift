@@ -532,6 +532,26 @@ struct PlanStoreTests {
         // Add fires the hook too.
         try await store.addWorkout(cloning: moved.id, on: day(10))
         #expect(reconciler.reconciledPlans.count == 2)
+
+        // Replace-remaining fires the hook too (M3-16 thin coverage).
+        let regenerated = GeneratedPlan(
+            goal: .buildMuscle,
+            scheduleType: .scheduled,
+            sessionDurationMinutes: 45,
+            startDate: monday,
+            weeks: [
+                PlanWeek(number: 1, sessions: [
+                    makeSession(title: "R1 Tue", indexInWeek: 1, dayOffset: 1, orderIndex: 0),
+                ]),
+                PlanWeek(number: 2, sessions: [
+                    makeSession(title: "R2 Tue", indexInWeek: 1, dayOffset: 8, orderIndex: 1),
+                ]),
+            ],
+            seed: 9
+        )
+        try await store.replaceRemainingWorkouts(withRegenerated: regenerated)
+        #expect(reconciler.reconciledPlans.count == 3)
+        #expect(reconciler.reconciledPlans.last == store.plan)
     }
 
     // MARK: - Manage Plan (M3-14)

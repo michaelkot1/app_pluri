@@ -380,6 +380,13 @@ private struct CalendarLoadingIndicator: View {
     .environment(HomePreviewData.readyStore())
 }
 
+#Preview("Flexible") {
+    NavigationStack {
+        CalendarView(title: "Rearrange Workouts")
+    }
+    .environment(HomePreviewData.flexibleStore())
+}
+
 #Preview("Empty") {
     NavigationStack {
         CalendarView(title: "Rearrange Workouts")

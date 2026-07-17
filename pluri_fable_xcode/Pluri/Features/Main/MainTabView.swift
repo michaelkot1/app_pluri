@@ -71,5 +71,6 @@ struct MainTabView: View {
         .environment(SupabaseAuthService(supabaseService: SupabaseService(), restoreOnLaunch: false))
         .environment(SubscriptionService(configurePurchases: false))
         .environment(HomePreviewData.readyStore())
+        .environment(WorkoutReminderService.preview())
         .environment(ThemeStore())
 }

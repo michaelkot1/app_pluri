@@ -1,19 +1,32 @@
 #if DEBUG
 import Foundation
 
-/// Preview-only `PlanStore` fixtures for the Home states (M3-07): ready,
-/// empty (no plan), and failed restore.
+/// Preview-only `PlanStore` fixtures for the Home / Plan / Calendar states
+/// (M3-07 / M3-17): ready (scheduled), flexible, empty (no plan), and failed restore.
 @MainActor
 enum HomePreviewData {
     static func readyStore() -> PlanStore {
         let store = PlanStore(mutationService: MockPlanMutationService())
-        store.configure(from: RestoredUserState(profile: profile, plan: plan))
+        store.configure(from: RestoredUserState(profile: profile(scheduleType: .scheduled), plan: plan))
+        return store
+    }
+
+    /// Flexible-plan persona (SPEC §14 #37): undated weekly pool — Home shows
+    /// no calendar dots; Plan / Calendar label workouts "Anytime this week".
+    static func flexibleStore() -> PlanStore {
+        let store = PlanStore(mutationService: MockPlanMutationService())
+        store.configure(
+            from: RestoredUserState(
+                profile: profile(scheduleType: .flexible),
+                plan: flexiblePlan
+            )
+        )
         return store
     }
 
     static func emptyStore() -> PlanStore {
         let store = PlanStore(mutationService: MockPlanMutationService())
-        store.configure(from: RestoredUserState(profile: profile, plan: nil))
+        store.configure(from: RestoredUserState(profile: profile(scheduleType: .scheduled), plan: nil))
         return store
     }
 
@@ -25,7 +38,7 @@ enum HomePreviewData {
 
     // MARK: - Fixtures
 
-    private static var profile: RestoredProfile {
+    private static func profile(scheduleType: ScheduleType) -> RestoredProfile {
         RestoredProfile(
             displayName: "Alex",
             goal: .buildMuscle,
@@ -34,7 +47,7 @@ enum HomePreviewData {
             location: .commercialGym,
             injuries: [:],
             trainingDays: [.monday, .wednesday, .friday],
-            scheduleType: .scheduled,
+            scheduleType: scheduleType,
             planLengthWeeks: 2,
             sessionDuration: .fortyFiveMinutes,
             age: 28,
@@ -109,6 +122,53 @@ enum HomePreviewData {
                 ]),
             ],
             seed: 1
+        )
+    }
+
+    private static var flexiblePlan: GeneratedPlan {
+        func undatedSession(title: String, index: Int, orderIndex: Int, status: WorkoutStatus = .scheduled) -> PlannedSession {
+            PlannedSession(
+                title: title,
+                indexInWeek: index,
+                weekday: nil,
+                date: nil,
+                status: status,
+                workoutType: .weights,
+                orderIndex: orderIndex,
+                durationMinutes: 30,
+                exercises: [
+                    PlannedExercise(
+                        exerciseID: "0001",
+                        name: "Bodyweight Squat",
+                        bodyPart: "Legs",
+                        equipment: "Body Weight",
+                        targetMuscle: "Quadriceps",
+                        secondaryMuscles: [],
+                        imageURL: nil,
+                        order: 0,
+                        sets: 3,
+                        reps: 12
+                    ),
+                ]
+            )
+        }
+
+        return GeneratedPlan(
+            goal: .loseFatToneUp,
+            scheduleType: .flexible,
+            sessionDurationMinutes: 30,
+            startDate: weekStart,
+            weeks: [
+                PlanWeek(number: 1, sessions: [
+                    undatedSession(title: "Full Body A", index: 1, orderIndex: 0, status: .completed),
+                    undatedSession(title: "Full Body B", index: 2, orderIndex: 1),
+                ]),
+                PlanWeek(number: 2, sessions: [
+                    undatedSession(title: "Full Body A", index: 1, orderIndex: 2),
+                    undatedSession(title: "Full Body B", index: 2, orderIndex: 3),
+                ]),
+            ],
+            seed: 2
         )
     }
 }

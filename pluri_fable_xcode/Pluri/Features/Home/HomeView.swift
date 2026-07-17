@@ -167,6 +167,14 @@ private struct HomeLoadingIndicator: View {
     .environment(MainRouter())
 }
 
+#Preview("Flexible") {
+    NavigationStack {
+        HomeView()
+    }
+    .environment(HomePreviewData.flexibleStore())
+    .environment(MainRouter())
+}
+
 #Preview("Empty") {
     NavigationStack {
         HomeView()

@@ -3,12 +3,15 @@ import SwiftUI
 /// Root of the app (M2-18): `AppRouter` phase switching per PLAN §1.2 —
 /// Splash → Onboarding → Paywall → Main. Owns shared services so entitlement
 /// (M2-08) and auth session (M2-04) hydrate behind the splash, with no
-/// onboarding/paywall flash before launch routing is known.
+/// onboarding/paywall flash before launch routing is known. Also owns the
+/// live `WorkoutReminderService` (M3-15) so the same instance reconciles
+/// reminders after plan mutations and powers the Notifications toggle.
 struct AppRootView: View {
     @State private var authService: SupabaseAuthService
     @State private var subscriptionService: SubscriptionService
     @State private var flushService: SupabaseOnboardingFlushService
     @State private var restoreService: SupabaseRemotePlanRestoreService
+    @State private var reminderService: WorkoutReminderService
     @State private var planStore: PlanStore
     @State private var router = AppRouter()
     @State private var themeStore = ThemeStore()
@@ -19,13 +22,23 @@ struct AppRootView: View {
 
     init() {
         let supabase = SupabaseService()
-        _authService = State(initialValue: SupabaseAuthService(supabaseService: supabase))
+        let auth = SupabaseAuthService(supabaseService: supabase)
+        _authService = State(initialValue: auth)
         _subscriptionService = State(initialValue: SubscriptionService())
         _flushService = State(initialValue: SupabaseOnboardingFlushService(supabaseService: supabase))
         _restoreService = State(initialValue: SupabaseRemotePlanRestoreService(supabaseService: supabase))
+
+        // One reminder service instance owns both the Notifications page's
+        // opt-in state and the PlanStore reconcile hook (M3-15).
+        let reminders = WorkoutReminderService(
+            center: LiveUserNotificationCenterClient(),
+            userIDProvider: { auth.appUserID }
+        )
+        _reminderService = State(initialValue: reminders)
         _planStore = State(
             initialValue: PlanStore(
-                mutationService: SupabasePlanMutationService(supabaseService: supabase)
+                mutationService: SupabasePlanMutationService(supabaseService: supabase),
+                reminderReconciler: reminders
             )
         )
     }
@@ -73,6 +86,7 @@ struct AppRootView: View {
         .environment(authService)
         .environment(flushService)
         .environment(restoreService)
+        .environment(reminderService)
         .environment(planStore)
         .environment(themeStore)
         .onChange(of: router.phase) { _, newPhase in

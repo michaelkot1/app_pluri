@@ -89,6 +89,14 @@ private struct PlanLoadingIndicator: View {
     .environment(MainRouter())
 }
 
+#Preview("Flexible") {
+    NavigationStack {
+        PlanView()
+    }
+    .environment(HomePreviewData.flexibleStore())
+    .environment(MainRouter())
+}
+
 #Preview("Empty") {
     NavigationStack {
         PlanView()

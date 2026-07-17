@@ -1,8 +1,8 @@
 import Foundation
 
-/// Placeholder reminder reconciler until the M3-15 local notification
-/// service exists: does nothing, on purpose. Keeping the hook wired now
-/// means M3-15 only swaps the injected implementation.
+/// No-op reminder reconciler used as the `PlanStore` default for previews
+/// and tests that don't care about reminders. Production injects the live
+/// `WorkoutReminderService` from `AppRootView`.
 @MainActor
 final class NoopWorkoutReminderReconciler: WorkoutReminderReconciling {
     // Nonisolated so the type can be a default argument of `PlanStore.init`,
