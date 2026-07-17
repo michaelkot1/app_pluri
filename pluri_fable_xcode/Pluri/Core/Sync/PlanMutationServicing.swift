@@ -43,4 +43,19 @@ protocol PlanMutationServicing: AnyObject {
         updatingWorkouts: [PlanWorkoutInsertRow],
         deletingWorkoutIDs: [UUID]
     ) async throws
+
+    /// Persists a full Manage Plan save (M3-14 / §6.2) **atomically**: plan
+    /// settings, profile settings, and the workout replacement (insert →
+    /// update → delete, same semantics as `replaceRemainingWorkouts`) run in
+    /// one database transaction via the `replace_remaining_plan` RPC, so a
+    /// failure never leaves a partially replaced remote plan.
+    func applyManagePlan(
+        planID: UUID,
+        planUpdate: PlanSettingsUpdateRow,
+        profileUpdate: ProfileSettingsUpdateRow,
+        insertingWorkouts: [PlanWorkoutInsertRow],
+        insertingExercises: [WorkoutExerciseInsertRow],
+        updatingWorkouts: [PlanWorkoutInsertRow],
+        deletingWorkoutIDs: [UUID]
+    ) async throws
 }

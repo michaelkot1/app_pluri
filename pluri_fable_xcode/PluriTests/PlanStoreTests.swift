@@ -137,10 +137,15 @@ struct PlanStoreTests {
     private func makeStore(
         plan: GeneratedPlan?,
         service: MockPlanMutationService? = nil,
+        reminderReconciler: MockWorkoutReminderReconciler? = nil,
         nowOffsetDays: Int = 8
     ) -> (store: PlanStore, service: MockPlanMutationService) {
         let mutationService = service ?? MockPlanMutationService()
-        let store = PlanStore(mutationService: mutationService, calendar: calendar)
+        let store = PlanStore(
+            mutationService: mutationService,
+            reminderReconciler: reminderReconciler ?? MockWorkoutReminderReconciler(),
+            calendar: calendar
+        )
         let nowDate = day(nowOffsetDays)
         store.now = { nowDate }
         store.configure(from: RestoredUserState(profile: makeProfile(), plan: plan))
@@ -290,6 +295,23 @@ struct PlanStoreTests {
 
         await #expect(throws: PlanMutationError.dateOutsidePlan) {
             try await store.moveWorkout(id: moved.id, to: day(20))
+        }
+        #expect(store.plan == plan)
+        #expect(service.moveCalls.isEmpty)
+    }
+
+    @Test("Moving a completed or skipped workout is rejected — history is immutable (M3-13)")
+    func moveRejectsFinishedWorkouts() async throws {
+        let plan = makeScheduledPlan()
+        let (store, service) = makeStore(plan: plan)
+        let completed = plan.weeks[0].sessions[0] // W1 Mon, completed
+        let skipped = plan.weeks[0].sessions[1] // W1 Wed, skipped
+
+        await #expect(throws: PlanMutationError.workoutFinished) {
+            try await store.moveWorkout(id: completed.id, to: day(8))
+        }
+        await #expect(throws: PlanMutationError.workoutFinished) {
+            try await store.moveWorkout(id: skipped.id, to: day(8))
         }
         #expect(store.plan == plan)
         #expect(service.moveCalls.isEmpty)
@@ -477,6 +499,176 @@ struct PlanStoreTests {
             try await store.replaceRemainingWorkouts(withRegenerated: regenerated)
         }
         #expect(store.plan == plan)
+    }
+
+    // MARK: - Reminder reconciliation hook (M3-13)
+
+    @Test("The reminder hook fires only after a successful remote mutation")
+    func reminderHookFiresOnSuccessOnly() async throws {
+        let plan = makeScheduledPlan()
+        let reconciler = MockWorkoutReminderReconciler()
+        let service = MockPlanMutationService()
+        let (store, _) = makeStore(plan: plan, service: service, reminderReconciler: reconciler)
+        let moved = plan.weeks[1].sessions[0]
+
+        // Validation rejection: no reconcile.
+        await #expect(throws: PlanMutationError.dayOccupied) {
+            try await store.moveWorkout(id: moved.id, to: day(9))
+        }
+        #expect(reconciler.reconciledPlans.isEmpty)
+
+        // Remote failure (rolled back): no reconcile.
+        service.nextError = .networkUnavailable
+        await #expect(throws: PluriSyncError.networkUnavailable) {
+            try await store.moveWorkout(id: moved.id, to: day(8))
+        }
+        #expect(reconciler.reconciledPlans.isEmpty)
+
+        // Success: reconciled with the updated plan.
+        try await store.moveWorkout(id: moved.id, to: day(8))
+        #expect(reconciler.reconciledPlans.count == 1)
+        #expect(reconciler.reconciledPlans.first == store.plan)
+
+        // Add fires the hook too.
+        try await store.addWorkout(cloning: moved.id, on: day(10))
+        #expect(reconciler.reconciledPlans.count == 2)
+    }
+
+    // MARK: - Manage Plan (M3-14)
+
+    /// Regenerated stand-in for a Manage Plan save: one-week plan, Tue/Thu.
+    private func makeRegeneratedPlan() -> GeneratedPlan {
+        GeneratedPlan(
+            goal: .getStronger,
+            scheduleType: .scheduled,
+            sessionDurationMinutes: 30,
+            startDate: monday,
+            weeks: [
+                PlanWeek(number: 1, sessions: [
+                    makeSession(title: "R1 Tue", indexInWeek: 1, dayOffset: 1, orderIndex: 0),
+                    makeSession(title: "R1 Thu", indexInWeek: 2, dayOffset: 3, orderIndex: 1),
+                ]),
+            ],
+            seed: 9
+        )
+    }
+
+    @Test("Manage Plan save merges the regenerated plan, swaps the profile, and calls the atomic RPC path")
+    func applyManagePlanSucceeds() async throws {
+        let plan = makeScheduledPlan()
+        let reconciler = MockWorkoutReminderReconciler()
+        let service = MockPlanMutationService()
+        let (store, _) = makeStore(plan: plan, service: service, reminderReconciler: reconciler)
+
+        var edited = makeProfile()
+        edited.goal = .getStronger
+        edited.units = "imperial"
+        edited.sessionDuration = .thirtyMinutes
+
+        try await store.applyManagePlan(editedProfile: edited, regenerated: makeRegeneratedPlan())
+
+        // Local plan merged: same identity, regenerated metadata, history kept.
+        let updated = try #require(store.plan)
+        #expect(updated.id == plan.id)
+        #expect(updated.goal == .getStronger)
+        let preservedIDs = Set(plan.weeks[0].sessions.map(\.id))
+        let updatedIDs = Set(updated.weeks.flatMap { $0.sessions.map(\.id) })
+        #expect(preservedIDs.isSubset(of: updatedIDs))
+
+        // Local profile refreshed.
+        #expect(store.profile == edited)
+
+        // One atomic call carrying plan + profile settings and the row sets.
+        #expect(service.managePlanCalls.count == 1)
+        #expect(service.replaceCalls.isEmpty)
+        let call = try #require(service.managePlanCalls.first)
+        #expect(call.planID == plan.id)
+        #expect(call.planUpdate.goal == "build_strength")
+        #expect(call.planUpdate.weeks == updated.weekCount)
+        #expect(call.profileUpdate.units == "imperial")
+        #expect(call.profileUpdate.sessionMinutes == 30)
+        #expect(Set(call.deletingWorkoutIDs) == Set(plan.weeks[1].sessions.map(\.id)))
+        #expect(call.insertingWorkouts.allSatisfy { !preservedIDs.contains($0.id) })
+
+        // Reminder hook fired once, with the merged plan.
+        #expect(reconciler.reconciledPlans == [updated])
+    }
+
+    @Test("A failed Manage Plan save rolls back both the plan and the profile")
+    func applyManagePlanRollsBackOnFailure() async throws {
+        let plan = makeScheduledPlan()
+        let reconciler = MockWorkoutReminderReconciler()
+        let service = MockPlanMutationService()
+        service.nextError = .networkUnavailable
+        let (store, _) = makeStore(plan: plan, service: service, reminderReconciler: reconciler)
+        let originalProfile = store.profile
+
+        var edited = makeProfile()
+        edited.goal = .getStronger
+
+        await #expect(throws: PluriSyncError.networkUnavailable) {
+            try await store.applyManagePlan(editedProfile: edited, regenerated: makeRegeneratedPlan())
+        }
+        #expect(store.plan == plan)
+        #expect(store.profile == originalProfile)
+        #expect(reconciler.reconciledPlans.isEmpty)
+    }
+
+    @Test("A units-only profile update persists and rolls back on failure")
+    func updateProfileSettingsOptimism() async throws {
+        let plan = makeScheduledPlan()
+        let service = MockPlanMutationService()
+        let (store, _) = makeStore(plan: plan, service: service)
+        let userID = UUID()
+
+        var edited = makeProfile()
+        edited.units = "imperial"
+
+        try await store.updateProfileSettings(userID: userID, editedProfile: edited)
+        #expect(store.profile?.units == "imperial")
+        #expect(service.profileSettingsCalls.count == 1)
+        #expect(service.profileSettingsCalls.first?.userID == userID)
+        #expect(service.profileSettingsCalls.first?.update.units == "imperial")
+        // The plan is untouched by a settings-only save.
+        #expect(store.plan == plan)
+
+        var reverted = edited
+        reverted.units = "metric"
+        service.nextError = .networkUnavailable
+        await #expect(throws: PluriSyncError.networkUnavailable) {
+            try await store.updateProfileSettings(userID: userID, editedProfile: reverted)
+        }
+        #expect(store.profile?.units == "imperial")
+    }
+
+    @Test("A plan-settings-only update persists and rolls back on failure")
+    func updatePlanSettingsOptimism() async throws {
+        let plan = makeScheduledPlan()
+        let service = MockPlanMutationService()
+        let (store, _) = makeStore(plan: plan, service: service)
+
+        let renamed = GeneratedPlan(
+            id: plan.id,
+            goal: plan.goal,
+            scheduleType: plan.scheduleType,
+            sessionDurationMinutes: plan.sessionDurationMinutes,
+            startDate: plan.startDate,
+            weeks: plan.weeks,
+            seed: plan.seed,
+            name: "Summer block",
+            status: plan.status
+        )
+
+        try await store.updatePlanSettings(to: renamed)
+        #expect(store.plan?.name == "Summer block")
+        #expect(service.planSettingsCalls.count == 1)
+        #expect(service.planSettingsCalls.first?.update.name == "Summer block")
+
+        service.nextError = .flushFailed("boom")
+        await #expect(throws: PluriSyncError.flushFailed("boom")) {
+            try await store.updatePlanSettings(to: plan)
+        }
+        #expect(store.plan?.name == "Summer block")
     }
 
     // MARK: - Mutations without a plan

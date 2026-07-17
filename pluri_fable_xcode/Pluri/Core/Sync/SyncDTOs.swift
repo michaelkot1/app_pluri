@@ -183,6 +183,32 @@ nonisolated struct PlanSettingsUpdateRow: Codable, Hashable, Sendable, Equatable
     }
 }
 
+/// The single `payload jsonb` argument of the `replace_remaining_plan`
+/// Postgres function (M3-14): plan settings + profile settings + the
+/// insert / update / delete workout row sets, applied in **one database
+/// transaction** so a mid-sequence failure can never leave a partially
+/// replaced remote plan. Ownership is enforced inside the function via
+/// `auth.uid()` (SECURITY INVOKER, RLS applies).
+nonisolated struct ManagePlanRPCPayload: Codable, Hashable, Sendable, Equatable {
+    var planId: UUID
+    var planUpdate: PlanSettingsUpdateRow
+    var profileUpdate: ProfileSettingsUpdateRow
+    var insertWorkouts: [PlanWorkoutInsertRow]
+    var insertExercises: [WorkoutExerciseInsertRow]
+    var updateWorkouts: [PlanWorkoutInsertRow]
+    var deleteWorkoutIds: [UUID]
+
+    enum CodingKeys: String, CodingKey {
+        case planId = "plan_id"
+        case planUpdate = "plan_update"
+        case profileUpdate = "profile_update"
+        case insertWorkouts = "insert_workouts"
+        case insertExercises = "insert_exercises"
+        case updateWorkouts = "update_workouts"
+        case deleteWorkoutIds = "delete_workout_ids"
+    }
+}
+
 /// Partial update payload for `public.profiles` (M3-05, Manage Plan §6.2:
 /// goal, dates/length, training days, session duration, units).
 nonisolated struct ProfileSettingsUpdateRow: Codable, Hashable, Sendable, Equatable {

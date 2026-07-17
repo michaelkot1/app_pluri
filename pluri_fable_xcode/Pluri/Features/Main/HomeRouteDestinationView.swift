@@ -2,8 +2,8 @@ import SwiftUI
 
 /// Resolves a pushed `HomeRoute` to its destination view (M3-06). Profile is
 /// the real M2-16 screen fed from the live `PlanStore` (falling back to the
-/// launch-restored state); Notifications, Calendar, Workout Detail, and
-/// Outdoor Run are honest stubs until M3-15 / M3-13 / M4.
+/// launch-restored state) and Calendar is the real M3-13 page; Notifications,
+/// Workout Detail, and Outdoor Run are honest stubs until M3-15 / M4.
 struct HomeRouteDestinationView: View {
     var route: HomeRoute
     /// Launch-restored state, kept as the Profile fallback before the store
@@ -33,12 +33,8 @@ struct HomeRouteDestinationView: View {
                 systemImage: "bell",
                 message: "Workout reminders and community messages arrive in a later update."
             )
-        case .calendarStub:
-            MainTabPlaceholderView(
-                title: "Calendar",
-                systemImage: "calendar",
-                message: "The full calendar — moving workouts and adding to empty days — arrives in a later update."
-            )
+        case .calendar:
+            CalendarView(title: "Calendar")
         case .workoutDetail(let sessionID):
             WorkoutDetailStubView(session: session(withID: sessionID))
         case .outdoorRunStub:

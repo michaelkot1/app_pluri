@@ -36,6 +36,16 @@ final class MockPlanMutationService: PlanMutationServicing {
         var deletingWorkoutIDs: [UUID]
     }
 
+    struct ManagePlanCall: Equatable {
+        var planID: UUID
+        var planUpdate: PlanSettingsUpdateRow
+        var profileUpdate: ProfileSettingsUpdateRow
+        var insertingWorkouts: [PlanWorkoutInsertRow]
+        var insertingExercises: [WorkoutExerciseInsertRow]
+        var updatingWorkouts: [PlanWorkoutInsertRow]
+        var deletingWorkoutIDs: [UUID]
+    }
+
     /// Thrown by the next call, then cleared (matches the flush/restore mocks).
     var nextError: PluriSyncError?
 
@@ -44,6 +54,7 @@ final class MockPlanMutationService: PlanMutationServicing {
     private(set) var planSettingsCalls: [PlanSettingsCall] = []
     private(set) var profileSettingsCalls: [ProfileSettingsCall] = []
     private(set) var replaceCalls: [ReplaceCall] = []
+    private(set) var managePlanCalls: [ManagePlanCall] = []
 
     func moveWorkout(planID: UUID, changedWorkouts: [PlanWorkoutInsertRow]) async throws {
         try throwIfNeeded()
@@ -88,6 +99,29 @@ final class MockPlanMutationService: PlanMutationServicing {
         replaceCalls.append(
             ReplaceCall(
                 planID: planID,
+                insertingWorkouts: insertingWorkouts,
+                insertingExercises: insertingExercises,
+                updatingWorkouts: updatingWorkouts,
+                deletingWorkoutIDs: deletingWorkoutIDs
+            )
+        )
+    }
+
+    func applyManagePlan(
+        planID: UUID,
+        planUpdate: PlanSettingsUpdateRow,
+        profileUpdate: ProfileSettingsUpdateRow,
+        insertingWorkouts: [PlanWorkoutInsertRow],
+        insertingExercises: [WorkoutExerciseInsertRow],
+        updatingWorkouts: [PlanWorkoutInsertRow],
+        deletingWorkoutIDs: [UUID]
+    ) async throws {
+        try throwIfNeeded()
+        managePlanCalls.append(
+            ManagePlanCall(
+                planID: planID,
+                planUpdate: planUpdate,
+                profileUpdate: profileUpdate,
                 insertingWorkouts: insertingWorkouts,
                 insertingExercises: insertingExercises,
                 updatingWorkouts: updatingWorkouts,

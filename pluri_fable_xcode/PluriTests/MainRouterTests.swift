@@ -51,7 +51,7 @@ struct MainRouterTests {
         #expect(router.homePath == [
             .profile,
             .notifications,
-            .calendarStub,
+            .calendar,
             .workoutDetail(sessionID: sessionID),
             .outdoorRunStub,
         ])
@@ -68,7 +68,7 @@ struct MainRouterTests {
         #expect(router.homePath == [.profile])
     }
 
-    // MARK: - Plan tab (M3-10/11)
+    // MARK: - Plan tab (M3-10..14)
 
     @Test("Plan destinations push typed routes onto the Plan path")
     func planPushes() {
@@ -77,21 +77,36 @@ struct MainRouterTests {
         let sessionID = UUID()
 
         router.openWeekOverview(weekID: weekID)
-        router.openPlanOverviewStub()
-        router.openRearrangeWorkoutsStub()
-        router.openConnectedAppsStub()
-        router.openManagePlanStub()
+        router.openPlanOverview()
+        router.openRearrangeWorkouts()
+        router.openConnectedApps()
+        router.openManagePlan()
         router.openPlanWorkoutDetail(sessionID: sessionID)
 
         #expect(router.planPath == [
             .weekOverview(weekID: weekID),
-            .planOverviewStub,
-            .rearrangeWorkoutsStub,
-            .connectedAppsStub,
-            .managePlanStub,
+            .planOverview,
+            .rearrangeWorkouts,
+            .connectedApps,
+            .managePlan,
             .workoutDetail(sessionID: sessionID),
         ])
         #expect(router.homePath.isEmpty)
+    }
+
+    @Test("Rearrange Workouts stays in the Plan stack; Home's Calendar stays in Home's")
+    func calendarStaysInOriginatingStack() {
+        let router = MainRouter()
+
+        router.openRearrangeWorkouts()
+        #expect(router.selectedTab == .plan)
+        #expect(router.planPath == [.rearrangeWorkouts])
+        #expect(router.homePath.isEmpty)
+
+        router.openCalendar()
+        #expect(router.selectedTab == .home)
+        #expect(router.homePath == [.calendar])
+        #expect(router.planPath == [.rearrangeWorkouts])
     }
 
     @Test("Pushing a Plan route from another tab switches to Plan")

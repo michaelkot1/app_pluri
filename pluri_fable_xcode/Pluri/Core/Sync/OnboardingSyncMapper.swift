@@ -100,6 +100,40 @@ nonisolated enum OnboardingSyncMapper {
         )
     }
 
+    /// Maps a plan's editable metadata to the Manage Plan `plans` update row
+    /// (M3-14 / §6.2). All fields are filled so the row is also usable as the
+    /// complete `plan_update` object of the `replace_remaining_plan` RPC.
+    static func planSettingsUpdate(for plan: GeneratedPlan) -> PlanSettingsUpdateRow {
+        PlanSettingsUpdateRow(
+            goal: DatabaseCodeMappings.goalCode(plan.goal),
+            name: plan.name ?? plan.goal.rawValue,
+            startDate: DatabaseCodeMappings.dateString(plan.startDate),
+            endDate: DatabaseCodeMappings.dateString(plan.endDate),
+            weeks: plan.weekCount,
+            scheduleType: DatabaseCodeMappings.scheduleTypeCode(plan.scheduleType),
+            status: plan.status.rawValue
+        )
+    }
+
+    /// Maps the profile fields Manage Plan edits (goal, dates/length,
+    /// training days, session duration, units — §6.2) to a `profiles`
+    /// update row (M3-14).
+    static func profileSettingsUpdate(for profile: RestoredProfile) -> ProfileSettingsUpdateRow {
+        let days = profile.trainingDays
+            .sorted { $0.rawValue < $1.rawValue }
+            .map(DatabaseCodeMappings.weekdayCode)
+        return ProfileSettingsUpdateRow(
+            goal: profile.goal.map(DatabaseCodeMappings.goalCode),
+            daysPerWeek: min(6, max(2, profile.trainingDays.count)),
+            workoutDays: days,
+            scheduleType: DatabaseCodeMappings.scheduleTypeCode(profile.scheduleType),
+            programWeeks: profile.planLengthWeeks,
+            sessionMinutes: profile.sessionDuration.rawValue,
+            startDate: profile.startDate.map(DatabaseCodeMappings.dateString),
+            units: profile.units
+        )
+    }
+
     /// Maps a session's exercises to their `workout_exercises` rows.
     static func exerciseRows(for session: PlannedSession) -> [WorkoutExerciseInsertRow] {
         session.exercises.map { exercise in

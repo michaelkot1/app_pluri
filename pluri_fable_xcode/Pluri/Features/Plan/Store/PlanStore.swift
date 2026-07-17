@@ -45,13 +45,22 @@ final class PlanStore {
     private(set) var plan: GeneratedPlan?
 
     private let mutationService: any PlanMutationServicing
+    /// Reconciles workout reminders after a successful remote plan change
+    /// (M3-13 hook; the real service is M3-15). Deliberately non-throwing —
+    /// a reminder problem never rolls back a persisted plan change.
+    private let reminderReconciler: any WorkoutReminderReconciling
     private let calendar: Calendar
 
     /// Injectable clock so "today"-derived helpers are testable.
     var now: () -> Date = { .now }
 
-    init(mutationService: any PlanMutationServicing, calendar: Calendar = .current) {
+    init(
+        mutationService: any PlanMutationServicing,
+        reminderReconciler: any WorkoutReminderReconciling = NoopWorkoutReminderReconciler(),
+        calendar: Calendar = .current
+    ) {
         self.mutationService = mutationService
+        self.reminderReconciler = reminderReconciler
         self.calendar = calendar
     }
 
@@ -184,6 +193,7 @@ final class PlanStore {
             applyPlan(snapshot)
             throw error
         }
+        await reconcileReminders()
     }
 
     /// Adds a workout to an empty day by cloning `sourceID` (SPEC §14 #38):
@@ -205,6 +215,7 @@ final class PlanStore {
             applyPlan(snapshot)
             throw error
         }
+        await reconcileReminders()
     }
 
     /// Replaces the remaining unfinished workouts with a regenerated plan,
@@ -235,6 +246,81 @@ final class PlanStore {
             applyPlan(snapshot)
             throw error
         }
+        await reconcileReminders()
+    }
+
+    // MARK: - Manage Plan (M3-14)
+
+    /// Applies a full Manage Plan save: merges the regenerated plan into the
+    /// current one (preserving completed/skipped history, SPEC §14 #39),
+    /// swaps the local plan + profile optimistically, and persists plan
+    /// settings + profile settings + the workout replacement **atomically**
+    /// via the `replace_remaining_plan` RPC. A failure rolls both back.
+    func applyManagePlan(editedProfile: RestoredProfile, regenerated: GeneratedPlan) async throws {
+        guard let plan else { throw PlanMutationError.noPlan }
+        let planSnapshot = plan
+        let profileSnapshot = profile
+        let result = PlanMutator.replacingRemainingWorkouts(
+            in: plan,
+            withRegenerated: regenerated,
+            calendar: calendar
+        )
+
+        applyPlan(result.plan)
+        profile = editedProfile
+        do {
+            let exercises = result.insertedSessions.flatMap {
+                OnboardingSyncMapper.exerciseRows(for: $0.session)
+            }
+            try await mutationService.applyManagePlan(
+                planID: plan.id,
+                planUpdate: OnboardingSyncMapper.planSettingsUpdate(for: result.plan),
+                profileUpdate: OnboardingSyncMapper.profileSettingsUpdate(for: editedProfile),
+                insertingWorkouts: result.insertedSessions.map(workoutRow),
+                insertingExercises: exercises,
+                updatingWorkouts: result.updatedPreservedSessions.map(workoutRow),
+                deletingWorkoutIDs: result.deletedWorkoutIDs
+            )
+        } catch {
+            applyPlan(planSnapshot)
+            profile = profileSnapshot
+            throw error
+        }
+        await reconcileReminders()
+    }
+
+    /// Persists profile settings edits that don't need regeneration (e.g. a
+    /// units change): swaps the local profile optimistically, persists via
+    /// the authed service, and rolls back + rethrows on failure.
+    func updateProfileSettings(userID: UUID, editedProfile: RestoredProfile) async throws {
+        let snapshot = profile
+        profile = editedProfile
+        do {
+            try await mutationService.updateProfileSettings(
+                userID: userID,
+                update: OnboardingSyncMapper.profileSettingsUpdate(for: editedProfile)
+            )
+        } catch {
+            profile = snapshot
+            throw error
+        }
+    }
+
+    /// Persists plan metadata edits alone (no workout regeneration): swaps
+    /// the local plan optimistically and rolls back + rethrows on failure.
+    func updatePlanSettings(to updatedPlan: GeneratedPlan) async throws {
+        guard let plan else { throw PlanMutationError.noPlan }
+        let snapshot = plan
+        applyPlan(updatedPlan)
+        do {
+            try await mutationService.updatePlanSettings(
+                planID: plan.id,
+                update: OnboardingSyncMapper.planSettingsUpdate(for: updatedPlan)
+            )
+        } catch {
+            applyPlan(snapshot)
+            throw error
+        }
     }
 
     // MARK: - Private
@@ -242,6 +328,13 @@ final class PlanStore {
     private func applyPlan(_ newPlan: GeneratedPlan) {
         plan = newPlan
         loadState = .ready
+    }
+
+    /// Fires the reminder hook after a successful remote write. Never
+    /// throws — reminder trouble must not undo a persisted plan change.
+    private func reconcileReminders() async {
+        guard let plan else { return }
+        await reminderReconciler.reconcileReminders(for: plan)
     }
 
     private func workoutRow(for placed: PlanMutator.PlacedSession) -> PlanWorkoutInsertRow {

@@ -84,6 +84,8 @@ nonisolated enum PlanMutator {
     /// Moves a workout to a (conflict-free) date inside the plan window,
     /// assigning its `scheduledDate` + weekday — this is also how a flexible
     /// workout graduates from the weekly pool onto the calendar (SPEC §14 #37).
+    /// Only `scheduled` workouts may move — completed/skipped history is
+    /// immutable (M3-13).
     static func movingWorkout(
         id: UUID,
         to date: Date,
@@ -91,6 +93,7 @@ nonisolated enum PlanMutator {
         calendar: Calendar = .current
     ) throws -> MoveResult {
         guard let existing = session(withID: id, in: plan) else { throw PlanMutationError.workoutNotFound }
+        guard existing.status == .scheduled else { throw PlanMutationError.workoutFinished }
         guard let targetWeek = weekNumber(containing: date, in: plan, calendar: calendar) else {
             throw PlanMutationError.dateOutsidePlan
         }

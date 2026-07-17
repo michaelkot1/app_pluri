@@ -12,6 +12,11 @@ nonisolated enum PlanMutationError: Error, Equatable, Sendable {
     /// The target day already has a workout (one workout per day in v1,
     /// SPEC §14 #38).
     case dayOccupied
+    /// The workout is already completed or skipped — history is immutable,
+    /// so finished workouts can't be moved (M3-13).
+    case workoutFinished
+    /// The signed-in user id couldn't be resolved for a profile write.
+    case missingUser
 
     var userFacingMessage: String {
         switch self {
@@ -23,6 +28,10 @@ nonisolated enum PlanMutationError: Error, Equatable, Sendable {
             "That day is outside your current plan. Try a date within the plan."
         case .dayOccupied:
             "That day already has a workout. Pick an empty day, or move the other workout first."
+        case .workoutFinished:
+            "That workout is already part of your history, so it stays where it happened."
+        case .missingUser:
+            "We couldn't confirm your account just now. Please try again in a moment."
         }
     }
 }

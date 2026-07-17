@@ -82,8 +82,9 @@ final class SupabasePlanMutationService: PlanMutationServicing {
             // Failure-safe sequencing (SPEC §14 #39): insert the replacement
             // rows first, then delete the replaced scheduled rows by explicit
             // ID. A mid-sequence failure can leave extra rows for a retry to
-            // clean up, but never a half-deleted plan. A transactional RPC is
-            // deferred to M3-14.
+            // clean up, but never a half-deleted plan. Manage Plan saves use
+            // the fully transactional `applyManagePlan` RPC path instead
+            // (M3-14).
             try await upsertWorkouts(insertingWorkouts)
             try await upsertExercises(insertingExercises)
             try await upsertWorkouts(updatingWorkouts)
@@ -104,6 +105,38 @@ final class SupabasePlanMutationService: PlanMutationServicing {
                     .execute()
             }
             logger.info("Replaced remaining workouts for plan \(planID.uuidString, privacy: .public)")
+        } catch {
+            throw mapError(error)
+        }
+    }
+
+    func applyManagePlan(
+        planID: UUID,
+        planUpdate: PlanSettingsUpdateRow,
+        profileUpdate: ProfileSettingsUpdateRow,
+        insertingWorkouts: [PlanWorkoutInsertRow],
+        insertingExercises: [WorkoutExerciseInsertRow],
+        updatingWorkouts: [PlanWorkoutInsertRow],
+        deletingWorkoutIDs: [UUID]
+    ) async throws {
+        do {
+            // One transactional RPC (M3-14, supersedes the client-sequenced
+            // path for Manage Plan): the SECURITY INVOKER function verifies
+            // ownership via auth.uid(), applies plan + profile settings, and
+            // performs the insert-then-delete workout replacement atomically.
+            let payload = ManagePlanRPCPayload(
+                planId: planID,
+                planUpdate: planUpdate,
+                profileUpdate: profileUpdate,
+                insertWorkouts: insertingWorkouts,
+                insertExercises: insertingExercises,
+                updateWorkouts: updatingWorkouts,
+                deleteWorkoutIds: deletingWorkoutIDs
+            )
+            try await client
+                .rpc("replace_remaining_plan", params: ["payload": payload])
+                .execute()
+            logger.info("Applied Manage Plan save for plan \(planID.uuidString, privacy: .public)")
         } catch {
             throw mapError(error)
         }

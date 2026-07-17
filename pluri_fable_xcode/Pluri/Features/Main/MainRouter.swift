@@ -42,8 +42,9 @@ final class MainRouter {
         pushOnHome(.notifications)
     }
 
+    /// The real Calendar page (M3-13) pushed inside the Home stack.
     func openCalendar() {
-        pushOnHome(.calendarStub)
+        pushOnHome(.calendar)
     }
 
     func openWorkoutDetail(sessionID: UUID) {
@@ -54,26 +55,28 @@ final class MainRouter {
         pushOnHome(.outdoorRunStub)
     }
 
-    // MARK: - Plan tab (M3-10/11)
+    // MARK: - Plan tab (M3-10..14)
 
     func openWeekOverview(weekID: UUID) {
         pushOnPlan(.weekOverview(weekID: weekID))
     }
 
-    func openPlanOverviewStub() {
-        pushOnPlan(.planOverviewStub)
+    func openPlanOverview() {
+        pushOnPlan(.planOverview)
     }
 
-    func openRearrangeWorkoutsStub() {
-        pushOnPlan(.rearrangeWorkoutsStub)
+    /// The shared Calendar page as "Rearrange Workouts" (§5.4/§6), pushed
+    /// inside the Plan stack — no cross-tab jump.
+    func openRearrangeWorkouts() {
+        pushOnPlan(.rearrangeWorkouts)
     }
 
-    func openConnectedAppsStub() {
-        pushOnPlan(.connectedAppsStub)
+    func openConnectedApps() {
+        pushOnPlan(.connectedApps)
     }
 
-    func openManagePlanStub() {
-        pushOnPlan(.managePlanStub)
+    func openManagePlan() {
+        pushOnPlan(.managePlan)
     }
 
     /// Workout Detail pushed inside the Plan tab's stack — unlike

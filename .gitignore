@@ -29,3 +29,6 @@ xcuserdata/
 fastlane/report.xml
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# Supabase CLI local cache
+supabase/.temp/

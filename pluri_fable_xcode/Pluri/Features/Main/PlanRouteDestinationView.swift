@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// Resolves a pushed `PlanRoute` to its destination view (M3-10/11). Week
-/// Overview is the real §6.3 page fed from the live `PlanStore`; Plan
-/// Overview, Rearrange Workouts, Connected Apps, and Manage Plan are honest
-/// stubs until M3-12/13/14, and Workout Detail is the shared M4 stub.
+/// Resolves a pushed `PlanRoute` to its destination view (M3-10..14). Week
+/// Overview (§6.3), Plan Overview (§6.1), Rearrange Workouts (the shared
+/// §5.4 Calendar page), Connected Apps, and Manage Plan (§6.2) are all real;
+/// Workout Detail is the shared M4 stub.
 struct PlanRouteDestinationView: View {
     var route: PlanRoute
 
@@ -21,30 +21,14 @@ struct PlanRouteDestinationView: View {
                     message: "We couldn't find that week in your plan. Head back and pick a week card."
                 )
             }
-        case .planOverviewStub:
-            MainTabPlaceholderView(
-                title: "Plan Overview",
-                systemImage: "info.circle",
-                message: "What each workout color means, how your Pluri Score works, and how to talk to Pluri arrive in a later update."
-            )
-        case .rearrangeWorkoutsStub:
-            MainTabPlaceholderView(
-                title: "Rearrange Workouts",
-                systemImage: "arrow.up.arrow.down",
-                message: "The full calendar — moving workouts and adding to empty days — arrives in a later update."
-            )
-        case .connectedAppsStub:
-            MainTabPlaceholderView(
-                title: "Connected Apps",
-                systemImage: "applewatch",
-                message: "Connected apps and devices — Apple Health, your watch, and more — arrive in a later update."
-            )
-        case .managePlanStub:
-            MainTabPlaceholderView(
-                title: "Manage Plan",
-                systemImage: "slider.horizontal.3",
-                message: "Editing your goal, dates, training days, and workout length arrives in a later update."
-            )
+        case .planOverview:
+            PlanOverviewView()
+        case .rearrangeWorkouts:
+            CalendarView(title: "Rearrange Workouts")
+        case .connectedApps:
+            ConnectedAppsView()
+        case .managePlan:
+            ManagePlanView()
         case .workoutDetail(let sessionID):
             WorkoutDetailStubView(session: session(withID: sessionID))
         }
