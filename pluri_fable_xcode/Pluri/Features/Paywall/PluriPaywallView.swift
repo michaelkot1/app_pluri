@@ -5,10 +5,15 @@ import SwiftUI
 /// RevenueCatUI paywall hosting the dashboard-designed Paywall (M2-09 / M2-10).
 /// App Review must-haves (restore, terms, trial disclosure) come from the RC
 /// Paywall editor template when the owner enables them.
+///
+/// `isDismissable: false` is the locked lapsed-entitlement context (M2-18):
+/// no close affordance anywhere — restore or purchase are the only ways out,
+/// and the user's content stays preserved behind it (SPEC §4).
 struct PluriPaywallView: View {
     @Environment(SubscriptionService.self) private var subscriptionService
     @Environment(\.dismiss) private var dismiss
 
+    var isDismissable = true
     var onUnlocked: (() -> Void)?
 
     @State private var isRestoring = false
@@ -20,7 +25,7 @@ struct PluriPaywallView: View {
             if showFallback {
                 fallbackContent
             } else {
-                PaywallView(displayCloseButton: true)
+                PaywallView(displayCloseButton: isDismissable)
                     .onPurchaseCompleted { customerInfo in
                         handleEntitled(customerInfo)
                     }
@@ -86,8 +91,10 @@ struct PluriPaywallView: View {
             .buttonStyle(.pluriSecondary)
             .disabled(isRestoring || subscriptionService.isLoading)
 
-            Button("Close", action: { dismiss() })
-                .buttonStyle(.pluriSecondary)
+            if isDismissable {
+                Button("Close", action: { dismiss() })
+                    .buttonStyle(.pluriSecondary)
+            }
         }
         .padding(.horizontal, PluriSpacing.lg)
         .padding(.bottom, PluriSpacing.md)

@@ -209,6 +209,101 @@ struct PlanEngineTests {
         }
     }
 
+    @Test(
+        "Session order and dates stay chronological for every start weekday (M3-02)",
+        arguments: 0..<7
+    )
+    func schedulingIsChronologicalForEveryStartWeekday(startOffset: Int) throws {
+        let calendar = Calendar.current
+        let baseStart = Date(timeIntervalSince1970: 1_752_364_800)
+        let startDate = try #require(calendar.date(byAdding: .day, value: startOffset, to: baseStart))
+        let days: [Weekday] = [.monday, .wednesday, .friday]
+        let input = PlanInput(
+            goal: .generalFitness,
+            experience: .notYet,
+            regularity: nil,
+            equipment: Set(EquipmentCatalog.all),
+            injuries: [:],
+            trainingDays: days,
+            scheduleType: .scheduled,
+            planLengthWeeks: 4,
+            sessionDurationMinutes: 60,
+            startDate: startDate
+        )
+        let plan = try PlanEngine.generate(input: input, catalog: Self.makeCatalog(), seed: 21)
+
+        let chosen = Set(days.map(\.rawValue))
+        var previousDate: Date?
+        for week in plan.weeks {
+            // Each rolling 7-day week carries the expected session count,
+            // all inside its own window.
+            #expect(week.sessions.count == 3)
+            let weekStart = try #require(
+                calendar.date(byAdding: .day, value: (week.number - 1) * 7, to: startDate)
+            )
+            let weekEnd = try #require(calendar.date(byAdding: .day, value: 7, to: weekStart))
+
+            for session in week.sessions {
+                let date = try #require(session.date)
+                let weekday = try #require(session.weekday)
+
+                // Dates land on the selected training weekdays.
+                #expect(chosen.contains(weekday.rawValue))
+                #expect(calendar.component(.weekday, from: date) == weekday.rawValue)
+                #expect(date >= calendar.startOfDay(for: weekStart))
+                #expect(date < weekEnd)
+
+                // Dates strictly ascend within and across weeks, in
+                // indexInWeek order — order and dates must agree.
+                if let previousDate {
+                    #expect(date > previousDate)
+                }
+                previousDate = date
+            }
+
+            // indexInWeek follows date order.
+            #expect(week.sessions.map(\.indexInWeek) == Array(1...week.sessions.count))
+            let weekDates = week.sessions.compactMap(\.date)
+            #expect(weekDates == weekDates.sorted())
+        }
+
+        // Global orderIndex ascends with the chronology too (M3-03).
+        let orderIndexes = plan.weeks.flatMap { $0.sessions.map(\.orderIndex) }
+        #expect(orderIndexes == Array(0..<orderIndexes.count))
+    }
+
+    @Test("A mid-week start begins with the first upcoming training day, not the sorted-first weekday")
+    func midWeekStartBeginsWithFirstUpcomingTrainingDay() throws {
+        let calendar = Calendar.current
+        // Walk forward from the fixed base date to a Wednesday.
+        var start = Date(timeIntervalSince1970: 1_752_364_800)
+        while calendar.component(.weekday, from: start) != Weekday.wednesday.rawValue {
+            start = try #require(calendar.date(byAdding: .day, value: 1, to: start))
+        }
+        let input = PlanInput(
+            goal: .generalFitness,
+            experience: .notYet,
+            regularity: nil,
+            equipment: Set(EquipmentCatalog.all),
+            injuries: [:],
+            trainingDays: [.monday, .wednesday, .friday],
+            scheduleType: .scheduled,
+            planLengthWeeks: 2,
+            sessionDurationMinutes: 60,
+            startDate: start
+        )
+        let plan = try PlanEngine.generate(input: input, catalog: Self.makeCatalog(), seed: 3)
+
+        let firstWeek = try #require(plan.weeks.first)
+        // Start Wednesday with Mon/Wed/Fri → Workout 1 is Wednesday (the
+        // start date itself), then Friday, then the following Monday.
+        #expect(firstWeek.sessions.map(\.weekday) == [.wednesday, .friday, .monday])
+        let dates = firstWeek.sessions.compactMap(\.date)
+        #expect(dates.count == 3)
+        #expect(dates == dates.sorted())
+        #expect(calendar.isDate(dates[0], inSameDayAs: start))
+    }
+
     @Test("Flexible plans carry no fixed weekday or date")
     func flexiblePlansHaveNoWeekday() throws {
         let input = Self.makeInput(equipment: Set(EquipmentCatalog.all), scheduleType: .flexible)

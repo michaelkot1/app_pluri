@@ -4,23 +4,20 @@ import SwiftUI
 /// Post-name auth screen (M2-11 / M2-12): SIWA primary, email/password secondary.
 /// Sign-up vs sign-in toggles with “Already have an account?”. Pending email
 /// confirmation shows a 6-digit OTP step. On success, either continues to Q1 or
-/// shows the welcome-back stub for entitled returning users.
+/// hands entitled returning users to the root router for reclassification (M2-18).
 struct AccountAuthView: View {
     @Environment(SupabaseAuthService.self) private var authService
     @Environment(SubscriptionService.self) private var subscriptionService
-    @Environment(SupabaseRemotePlanRestoreService.self) private var restoreService
 
     var onContinueOnboarding: () -> Void
+    var onReturningEntitledSignIn: () -> Void = {}
 
     @State private var viewModel: AccountAuthViewModel?
     @State private var currentNonce: String?
-    @State private var showsWelcomeBack = false
 
     var body: some View {
         Group {
-            if showsWelcomeBack {
-                WelcomeBackStubView(restoreService: restoreService)
-            } else if let viewModel {
+            if let viewModel {
                 if viewModel.step == .emailOTP {
                     EmailOTPConfirmationView(viewModel: viewModel, onVerified: apply)
                 } else {
@@ -214,7 +211,7 @@ struct AccountAuthView: View {
         case .continueOnboarding:
             onContinueOnboarding()
         case .welcomeBackEntitled:
-            showsWelcomeBack = true
+            onReturningEntitledSignIn()
         }
     }
 }
@@ -224,6 +221,5 @@ struct AccountAuthView: View {
         AccountAuthView(onContinueOnboarding: {})
             .environment(SupabaseAuthService(supabaseService: SupabaseService(), restoreOnLaunch: false))
             .environment(SubscriptionService(configurePurchases: false))
-            .environment(SupabaseRemotePlanRestoreService(supabaseService: SupabaseService()))
     }
 }

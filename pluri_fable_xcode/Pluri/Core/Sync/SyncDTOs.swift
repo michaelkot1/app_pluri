@@ -159,3 +159,50 @@ nonisolated struct PlanTreeInsert: Sendable, Equatable {
     var workouts: [PlanWorkoutInsertRow]
     var exercises: [WorkoutExerciseInsertRow]
 }
+
+/// Partial update payload for `public.plans` (M3-05, Manage Plan §6.2).
+/// Optionals encode with `encodeIfPresent`, so `nil` fields are simply
+/// omitted from the PATCH body rather than nulling columns.
+nonisolated struct PlanSettingsUpdateRow: Codable, Hashable, Sendable, Equatable {
+    var goal: String?
+    var name: String?
+    var startDate: String?
+    var endDate: String?
+    var weeks: Int?
+    var scheduleType: String?
+    var status: String?
+
+    enum CodingKeys: String, CodingKey {
+        case goal
+        case name
+        case startDate = "start_date"
+        case endDate = "end_date"
+        case weeks
+        case scheduleType = "schedule_type"
+        case status
+    }
+}
+
+/// Partial update payload for `public.profiles` (M3-05, Manage Plan §6.2:
+/// goal, dates/length, training days, session duration, units).
+nonisolated struct ProfileSettingsUpdateRow: Codable, Hashable, Sendable, Equatable {
+    var goal: String?
+    var daysPerWeek: Int?
+    var workoutDays: [String]?
+    var scheduleType: String?
+    var programWeeks: Int?
+    var sessionMinutes: Int?
+    var startDate: String?
+    var units: String?
+
+    enum CodingKeys: String, CodingKey {
+        case goal
+        case daysPerWeek = "days_per_week"
+        case workoutDays = "workout_days"
+        case scheduleType = "schedule_type"
+        case programWeeks = "program_weeks"
+        case sessionMinutes = "session_minutes"
+        case startDate = "start_date"
+        case units
+    }
+}

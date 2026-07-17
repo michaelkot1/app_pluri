@@ -1,15 +1,16 @@
 import SwiftUI
 
-/// Root of the app: launch gate → Onboarding **or** welcome-back (pre–M2-18).
-/// Later milestones extend this into Splash → Onboarding → Paywall → Main (PLAN §1.2).
-/// Owns shared services so entitlement (M2-08) and auth session (M2-04) hydrate
-/// at launch — skips the questionnaire when the account already has a completed onboarding/plan.
+/// Root of the app (M2-18): `AppRouter` phase switching per PLAN §1.2 —
+/// Splash → Onboarding → Paywall → Main. Owns shared services so entitlement
+/// (M2-08) and auth session (M2-04) hydrate behind the splash, with no
+/// onboarding/paywall flash before launch routing is known.
 struct AppRootView: View {
     @State private var authService: SupabaseAuthService
     @State private var subscriptionService: SubscriptionService
     @State private var flushService: SupabaseOnboardingFlushService
     @State private var restoreService: SupabaseRemotePlanRestoreService
-    @State private var launchGate = AppLaunchGate()
+    @State private var planStore: PlanStore
+    @State private var router = AppRouter()
     @State private var themeStore = ThemeStore()
 
     #if DEBUG
@@ -22,25 +23,49 @@ struct AppRootView: View {
         _subscriptionService = State(initialValue: SubscriptionService())
         _flushService = State(initialValue: SupabaseOnboardingFlushService(supabaseService: supabase))
         _restoreService = State(initialValue: SupabaseRemotePlanRestoreService(supabaseService: supabase))
+        _planStore = State(
+            initialValue: PlanStore(
+                mutationService: SupabasePlanMutationService(supabaseService: supabase)
+            )
+        )
     }
 
     var body: some View {
         Group {
-            switch launchGate.route {
-            case .resolving:
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(PluriColor.bgCanvas)
+            switch router.phase {
+            case .splash:
+                SplashView { router.finishSplash() }
             case .onboarding:
-                OnboardingRootView()
-            case .welcomeBack(let restored):
-                NavigationStack {
-                    WelcomeBackStubView(
-                        restoreService: restoreService,
-                        preloadedState: restored,
-                        onAccountEnded: { launchGate.resetToOnboarding() }
-                    )
+                OnboardingRootView(
+                    onPlanReady: { answers, plan in
+                        router.showPaywall(answers: answers, plan: plan)
+                    },
+                    onReturningEntitledSignIn: {
+                        Task { await reclassifyReturningUser() }
+                    }
+                )
+            case .paywall:
+                if let payload = router.paywallPayload {
+                    // End-of-onboarding paywall: answers + plan → unlock → flush → Main.
+                    NavigationStack {
+                        PlanReadyView(
+                            plan: payload.plan,
+                            userName: payload.answers.name,
+                            answers: payload.answers,
+                            onFlushSucceeded: { router.completeOnboardingFlush() }
+                        )
+                    }
+                } else {
+                    // Lapsed entitlement: locked paywall, restored content preserved (SPEC §4).
+                    PluriPaywallView(isDismissable: false) {
+                        router.unlockFromLockedPaywall()
+                    }
                 }
+            case .main:
+                MainTabView(
+                    restored: router.restoredState,
+                    onAccountEnded: { router.resetToOnboarding() }
+                )
             }
         }
         .preferredColorScheme(themeStore.selection.colorScheme)
@@ -48,9 +73,23 @@ struct AppRootView: View {
         .environment(authService)
         .environment(flushService)
         .environment(restoreService)
+        .environment(planStore)
         .environment(themeStore)
+        .onChange(of: router.phase) { _, newPhase in
+            // The shared plan store (M3-04) tracks the Main phase: hydrate it
+            // from the router's restored state on entry, blank it on reroute
+            // back to onboarding (sign-out / delete account).
+            switch newPhase {
+            case .main:
+                planStore.configure(from: router.restoredState)
+            case .onboarding:
+                planStore.reset()
+            case .splash, .paywall:
+                break
+            }
+        }
         .task {
-            await launchGate.resolve(
+            await router.resolve(
                 authService: authService,
                 subscriptionService: subscriptionService,
                 flushService: flushService,
@@ -71,6 +110,15 @@ struct AppRootView: View {
             ComponentGalleryView()
         }
         #endif
+    }
+
+    private func reclassifyReturningUser() async {
+        await router.reclassifyAfterReturningSignIn(
+            authService: authService,
+            subscriptionService: subscriptionService,
+            flushService: flushService,
+            restoreService: restoreService
+        )
     }
 }
 

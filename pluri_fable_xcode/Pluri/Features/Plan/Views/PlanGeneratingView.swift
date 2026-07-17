@@ -5,18 +5,16 @@ import os.log
 /// M1-18 — the terminal onboarding screen. Runs `PlanEngine` (via
 /// `PlanGenerationService`) with a deliberate progress animation (SPEC §3.3),
 /// silently retries on failure, and only then shows a gentle "try again"
-/// state. On success it swaps to `PlanReadyView`.
-///
-/// This view coordinates the whole generate → ready flow itself rather than
-/// pushing more `OnboardingDestination`s, because the generated `GeneratedPlan`
-/// is a value that the `Hashable` destination enum can't carry.
+/// state. On success it hands the plan up via `onPlanReady` so the root
+/// `AppRouter` can enter the paywall phase with answers + plan (M2-18).
 struct PlanGeneratingView: View {
     var answers: OnboardingAnswers
+    /// Called once when generation succeeds; the parent owns the transition.
+    var onPlanReady: (GeneratedPlan) -> Void
 
     @Environment(\.modelContext) private var modelContext
 
     @State private var phase: Phase = .generating
-    @State private var plan: GeneratedPlan?
     @State private var attempt = 0
 
     private let logger = Logger(subsystem: "com.codewithmikey.pluri", category: "PlanGeneratingView")
@@ -34,18 +32,14 @@ struct PlanGeneratingView: View {
 
     var body: some View {
         Group {
-            if let plan {
-                PlanReadyView(plan: plan, userName: answers.name, answers: answers)
-            } else {
-                switch phase {
-                case .generating:
-                    PlanGeneratingProgressView(userName: answers.name)
-                case .failed:
-                    PlanGenerationFailedView { retry() }
-                }
+            switch phase {
+            case .generating:
+                PlanGeneratingProgressView(userName: answers.name)
+            case .failed:
+                PlanGenerationFailedView { retry() }
             }
         }
-        .navigationBarBackButtonHidden(plan != nil || phase == .generating)
+        .navigationBarBackButtonHidden(phase == .generating)
         .task(id: attempt) { await generate() }
     }
 
@@ -71,7 +65,7 @@ struct PlanGeneratingView: View {
                 let generated = try await service.generatePlan(for: input)
                 await enforceMinimumDisplay(since: started, clock: clock)
                 guard !Task.isCancelled else { return }
-                withAnimation(.easeInOut) { plan = generated }
+                onPlanReady(generated)
                 return
             } catch {
                 logger.error("Plan generation attempt \(tryIndex + 1) failed: \(error.localizedDescription)")
@@ -96,7 +90,7 @@ struct PlanGeneratingView: View {
 
 #Preview {
     NavigationStack {
-        PlanGeneratingView(answers: OnboardingAnswers())
+        PlanGeneratingView(answers: OnboardingAnswers(), onPlanReady: { _ in })
     }
     .modelContainer(for: [CachedExercise.self, ExerciseCatalogSyncState.self], inMemory: true)
 }

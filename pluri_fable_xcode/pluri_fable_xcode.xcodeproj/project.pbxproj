@@ -27,6 +27,7 @@
 		70E38E503004B00000BC4AE7 /* Shared.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Shared.xcconfig; sourceTree = "<group>"; };
 		70E38E513004B00000BC4AE7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		70E38E543004B00000BC4AE7 /* Pluri.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Pluri.entitlements; sourceTree = "<group>"; };
+		70E38E553004B00000BC4AE7 /* Pluri-Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Pluri-Debug.entitlements"; sourceTree = "<group>"; };
 		AA0000000000000000000005 /* PluriTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PluriTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -112,6 +113,7 @@
 				70E38E503004B00000BC4AE7 /* Shared.xcconfig */,
 				70E38E513004B00000BC4AE7 /* Info.plist */,
 				70E38E543004B00000BC4AE7 /* Pluri.entitlements */,
+				70E38E553004B00000BC4AE7 /* Pluri-Debug.entitlements */,
 			);
 			path = Config;
 			sourceTree = "<group>";
@@ -403,7 +405,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Config/Pluri.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "Config/Pluri-Debug.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Y8SDGALAMG;

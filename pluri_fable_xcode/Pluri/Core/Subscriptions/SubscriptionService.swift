@@ -28,13 +28,18 @@ final class SubscriptionService: SubscriptionServicing {
             .isActive == true
     }
 
+    /// Pure entitlement + trial resolution over the RevenueCat entitlement (M2-19).
+    var entitlementState: EntitlementState {
+        let entitlement = customerInfo?.entitlements[PluriSubscription.entitlementID]
+        return EntitlementResolver.state(
+            isActive: entitlement?.isActive == true,
+            period: entitlement.map { Self.entitlementPeriod(from: $0.periodType) }
+        )
+    }
+
     /// Whether the active entitlement looks trial-like (`periodType` / intro).
     var isInTrialPeriod: Bool {
-        guard let entitlement = customerInfo?.entitlements[PluriSubscription.entitlementID],
-              entitlement.isActive else {
-            return false
-        }
-        return entitlement.periodType == .trial || entitlement.periodType == .intro
+        entitlementState.isInTrialPeriod
     }
 
     init(configurePurchases: Bool = true) {
@@ -174,6 +179,14 @@ final class SubscriptionService: SubscriptionServicing {
     }
 
     // MARK: - Private
+
+    private static func entitlementPeriod(from periodType: PeriodType) -> EntitlementPeriod {
+        switch periodType {
+        case .trial: .trial
+        case .intro: .introductory
+        default: .regular
+        }
+    }
 
     private static func configureSharedPurchases() {
         #if DEBUG

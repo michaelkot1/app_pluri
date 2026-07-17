@@ -50,67 +50,77 @@ nonisolated enum OnboardingSyncMapper {
     }
 
     static func planTree(userID: UUID, plan: GeneratedPlan) -> PlanTreeInsert {
-        let planRow = PlanInsertRow(
-            id: plan.id,
-            userId: userID,
-            goal: DatabaseCodeMappings.goalCode(plan.goal),
-            name: plan.goal.rawValue,
-            startDate: DatabaseCodeMappings.dateString(plan.startDate),
-            endDate: DatabaseCodeMappings.dateString(plan.endDate),
-            weeks: plan.weekCount,
-            scheduleType: DatabaseCodeMappings.scheduleTypeCode(plan.scheduleType),
-            status: "active"
-        )
+        let planRow = planRow(userID: userID, plan: plan)
 
         var workouts: [PlanWorkoutInsertRow] = []
         var exercises: [WorkoutExerciseInsertRow] = []
-        var globalOrder = 0
 
         for week in plan.weeks {
             for session in week.sessions {
-                let workoutID = session.id
-                workouts.append(
-                    PlanWorkoutInsertRow(
-                        id: workoutID,
-                        planId: plan.id,
-                        weekNumber: week.number,
-                        scheduledDate: session.date.map(DatabaseCodeMappings.dateString),
-                        scheduledDay: session.weekday.map(DatabaseCodeMappings.weekdayCode),
-                        name: session.title,
-                        workoutType: "weights",
-                        color: nil,
-                        durationMinutes: max(10, min(240, session.estimatedMinutes)),
-                        status: "scheduled",
-                        orderIndex: globalOrder
-                    )
-                )
-                globalOrder += 1
-
-                for exercise in session.exercises {
-                    exercises.append(
-                        WorkoutExerciseInsertRow(
-                            id: exercise.id,
-                            planWorkoutId: workoutID,
-                            workoutxExerciseId: exercise.exerciseID,
-                            cachedMetadata: ExerciseCachedMetadata(
-                                name: exercise.name,
-                                bodyPart: exercise.bodyPart,
-                                equipment: exercise.equipment,
-                                targetMuscle: exercise.targetMuscle,
-                                secondaryMuscles: exercise.secondaryMuscles,
-                                imageURL: exercise.imageURL?.absoluteString
-                            ),
-                            targetSets: exercise.sets,
-                            targetReps: String(exercise.reps),
-                            targetDurationSeconds: nil,
-                            orderIndex: exercise.order
-                        )
-                    )
-                }
+                workouts.append(workoutRow(for: session, planID: plan.id, weekNumber: week.number))
+                exercises.append(contentsOf: exerciseRows(for: session))
             }
         }
 
         return PlanTreeInsert(plan: planRow, workouts: workouts, exercises: exercises)
+    }
+
+    /// Maps a plan's own metadata to its `plans` row (M3-03: name, status,
+    /// and end date come from the domain instead of being reinvented).
+    static func planRow(userID: UUID, plan: GeneratedPlan) -> PlanInsertRow {
+        PlanInsertRow(
+            id: plan.id,
+            userId: userID,
+            goal: DatabaseCodeMappings.goalCode(plan.goal),
+            name: plan.name ?? plan.goal.rawValue,
+            startDate: DatabaseCodeMappings.dateString(plan.startDate),
+            endDate: DatabaseCodeMappings.dateString(plan.endDate),
+            weeks: plan.weekCount,
+            scheduleType: DatabaseCodeMappings.scheduleTypeCode(plan.scheduleType),
+            status: plan.status.rawValue
+        )
+    }
+
+    /// Maps one session to its `plan_workouts` row. M3-03: status / type /
+    /// color / order / duration are carried by the domain model, so flush and
+    /// the M3-05 mutation services write exactly what hydrate reads back.
+    static func workoutRow(for session: PlannedSession, planID: UUID, weekNumber: Int) -> PlanWorkoutInsertRow {
+        PlanWorkoutInsertRow(
+            id: session.id,
+            planId: planID,
+            weekNumber: weekNumber,
+            scheduledDate: session.date.map(DatabaseCodeMappings.dateString),
+            scheduledDay: session.weekday.map(DatabaseCodeMappings.weekdayCode),
+            name: session.title,
+            workoutType: session.workoutType.rawValue,
+            color: session.color,
+            durationMinutes: PlannedSession.clampedDuration(session.durationMinutes),
+            status: session.status.rawValue,
+            orderIndex: session.orderIndex
+        )
+    }
+
+    /// Maps a session's exercises to their `workout_exercises` rows.
+    static func exerciseRows(for session: PlannedSession) -> [WorkoutExerciseInsertRow] {
+        session.exercises.map { exercise in
+            WorkoutExerciseInsertRow(
+                id: exercise.id,
+                planWorkoutId: session.id,
+                workoutxExerciseId: exercise.exerciseID,
+                cachedMetadata: ExerciseCachedMetadata(
+                    name: exercise.name,
+                    bodyPart: exercise.bodyPart,
+                    equipment: exercise.equipment,
+                    targetMuscle: exercise.targetMuscle,
+                    secondaryMuscles: exercise.secondaryMuscles,
+                    imageURL: exercise.imageURL?.absoluteString
+                ),
+                targetSets: exercise.sets,
+                targetReps: String(exercise.reps),
+                targetDurationSeconds: nil,
+                orderIndex: exercise.order
+            )
+        }
     }
 
     /// Reverse-maps a fetched profile row into fields usable to hydrate onboarding-ish state.
@@ -144,7 +154,10 @@ nonisolated enum OnboardingSyncMapper {
         )
     }
 
-    /// Rebuilds a `GeneratedPlan` from persisted plan tree rows (best-effort for M2-15 stub).
+    /// Rebuilds a `GeneratedPlan` from persisted plan tree rows (M2-15).
+    /// M3-03: workout status / type / color / order / duration and the plan's
+    /// name, status, end date, and full week count survive the round-trip.
+    /// The seed isn't persisted by the schema, so restored plans carry `0`.
     static func hydratePlan(
         plan: PlanInsertRow,
         workouts: [PlanWorkoutInsertRow],
@@ -160,7 +173,12 @@ nonisolated enum OnboardingSyncMapper {
         let exercisesByWorkout = Dictionary(grouping: exercises, by: \.planWorkoutId)
         let workoutsByWeek = Dictionary(grouping: workouts, by: \.weekNumber)
 
-        let weeks: [PlanWeek] = workoutsByWeek.keys.sorted().map { weekNumber in
+        // Preserve the declared week count even when trailing weeks have no
+        // workouts yet, so trackers ("Weeks Completed 1/6") stay honest.
+        let lastWeekNumber = max(plan.weeks, workoutsByWeek.keys.max() ?? 0)
+        guard lastWeekNumber >= 1 else { return nil }
+
+        let weeks: [PlanWeek] = (1...lastWeekNumber).map { weekNumber in
             let weekWorkouts = (workoutsByWeek[weekNumber] ?? [])
                 .sorted { $0.orderIndex < $1.orderIndex }
             let sessions: [PlannedSession] = weekWorkouts.enumerated().map { index, workout in
@@ -187,6 +205,11 @@ nonisolated enum OnboardingSyncMapper {
                     indexInWeek: index + 1,
                     weekday: workout.scheduledDay.flatMap(DatabaseCodeMappings.weekday),
                     date: workout.scheduledDate.flatMap(DatabaseCodeMappings.date),
+                    status: WorkoutStatus(rawValue: workout.status) ?? .scheduled,
+                    workoutType: WorkoutType(rawValue: workout.workoutType) ?? .weights,
+                    color: workout.color,
+                    orderIndex: workout.orderIndex,
+                    durationMinutes: workout.durationMinutes,
                     exercises: plannedExercises
                 )
             }
@@ -200,7 +223,10 @@ nonisolated enum OnboardingSyncMapper {
             sessionDurationMinutes: workouts.first?.durationMinutes ?? 60,
             startDate: startDate,
             weeks: weeks,
-            seed: 0
+            seed: 0,
+            name: plan.name,
+            status: PlanStatus(rawValue: plan.status) ?? .active,
+            endDate: DatabaseCodeMappings.date(from: plan.endDate)
         )
     }
 }

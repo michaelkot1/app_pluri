@@ -2,16 +2,22 @@ import SwiftUI
 
 /// Post-paywall confirmation + onboarding flush (M2-14). Unlock does **not**
 /// imply account creation — the user is already authenticated (SPEC §14 #29).
-/// Main TabView remains M2-18.
+/// A successful flush hands off to Main via `onFlushSucceeded` (M2-18); a
+/// failed flush keeps the payload local with retry.
 struct PaywallUnlockedPlaceholderView: View {
     var answers: OnboardingAnswers
     var plan: GeneratedPlan
+    /// Called after the flush confirms — the root router advances to Main.
+    var onFlushSucceeded: () -> Void = {}
 
     @Environment(SupabaseAuthService.self) private var authService
     @Environment(SupabaseOnboardingFlushService.self) private var flushService
 
     @State private var phase: Phase = .flushing
     @State private var errorMessage: String?
+
+    /// Brief success beat before Main so the confirmation registers.
+    private let successDisplay: Duration = .seconds(1.2)
 
     private enum Phase {
         case flushing
@@ -87,7 +93,7 @@ struct PaywallUnlockedPlaceholderView: View {
         case .flushing:
             "We’re writing your profile and plan to your account."
         case .success:
-            "Your plan is unlocked and saved. Home lands with Main routing next (M2-18)."
+            "Your plan is unlocked and saved. Taking you home…"
         case .failed:
             "Your plan is still on this device. We’ll keep it until saving succeeds."
         }
@@ -106,6 +112,8 @@ struct PaywallUnlockedPlaceholderView: View {
         do {
             try await flushService.flush(userID: userID, answers: answers, plan: plan)
             phase = .success
+            try? await Task.sleep(for: successDisplay)
+            onFlushSucceeded()
         } catch let error as PluriSyncError {
             phase = .failed
             errorMessage = error.userFacingMessage

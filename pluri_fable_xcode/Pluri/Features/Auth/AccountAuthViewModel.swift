@@ -11,7 +11,7 @@ enum AccountAuthMode: Equatable, Sendable {
 enum AccountAuthSuccessRoute: Equatable, Sendable {
     /// New sign-up or incomplete returning user → continue questionnaire at Q1.
     case continueOnboarding
-    /// Entitled returning user — remote restore lands on welcome-back stub until Main (M2-18).
+    /// Entitled returning user — the root router reclassifies (restore → Main / locked paywall).
     case welcomeBackEntitled
 }
 

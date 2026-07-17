@@ -146,12 +146,12 @@ nonisolated enum PlanEngine {
         let base = baseSetsReps(goal: input.goal)
         let target = progression(base: base, week: weekNumber)
         let calendar = Calendar.current
+        let trainingDates = orderedTrainingDates(weekNumber: weekNumber, input: input, calendar: calendar)
 
         let sessions = templates.enumerated().map { sessionIndex, exercises in
-            let weekday = scheduledWeekday(sessionIndex: sessionIndex, input: input)
-            let date = weekday.map {
-                scheduledDate(startDate: input.startDate, weekNumber: weekNumber, weekday: $0, calendar: calendar)
-            }
+            // Sessions map onto the week's training-day dates in chronological
+            // order (M3-02), so indexInWeek, order, and dates ascend together.
+            let slot = sessionIndex < trainingDates.count ? trainingDates[sessionIndex] : nil
             let planned = exercises.enumerated().map { order, exercise in
                 PlannedExercise(
                     exerciseID: exercise.id,
@@ -169,8 +169,12 @@ nonisolated enum PlanEngine {
             return PlannedSession(
                 title: sessionTitle(for: exercises),
                 indexInWeek: sessionIndex + 1,
-                weekday: weekday,
-                date: date,
+                weekday: slot?.weekday,
+                date: slot?.date,
+                status: .scheduled,
+                workoutType: .weights,
+                color: nil,
+                orderIndex: (weekNumber - 1) * templates.count + sessionIndex,
                 exercises: planned
             )
         }
@@ -198,27 +202,35 @@ nonisolated enum PlanEngine {
         return (sets, reps)
     }
 
-    /// The weekday a session is pinned to for scheduled plans, or `nil` for
-    /// flexible plans (SPEC §3.2 Q9). Sessions map 1:1 onto the sorted
-    /// training days.
-    static func scheduledWeekday(sessionIndex: Int, input: PlanInput) -> Weekday? {
-        guard input.scheduleType == .scheduled,
-              sessionIndex < input.trainingDays.count else { return nil }
-        return input.trainingDays[sessionIndex]
-    }
+    /// The concrete `(weekday, date)` slots for a scheduled plan week, in
+    /// **chronological order** within the rolling 7-day window that starts
+    /// `weekNumber − 1` weeks after the plan's start date (M3-02).
+    ///
+    /// Anchoring the scan at the week's start date — rather than mapping
+    /// sessions onto Sunday-first-sorted training days — is what keeps
+    /// mid-week starts correct: a plan starting Wednesday with Mon/Wed/Fri
+    /// yields Wed → Fri → *next* Mon, so "Workout 1" is always the earliest
+    /// date. Flexible plans return an empty array (no pinned days, SPEC §3.2
+    /// Q9 / §14 #37).
+    static func orderedTrainingDates(
+        weekNumber: Int,
+        input: PlanInput,
+        calendar: Calendar
+    ) -> [(weekday: Weekday, date: Date)] {
+        guard input.scheduleType == .scheduled else { return [] }
+        let weekStart = calendar.date(byAdding: .day, value: (weekNumber - 1) * 7, to: input.startDate)
+            ?? input.startDate
+        let wanted = Set(input.trainingDays.map(\.rawValue))
 
-    /// The concrete date for a scheduled session: the first day matching
-    /// `weekday` within the 7-day window starting `weekNumber - 1` weeks after
-    /// the plan's start date.
-    static func scheduledDate(startDate: Date, weekNumber: Int, weekday: Weekday, calendar: Calendar) -> Date {
-        let weekStart = calendar.date(byAdding: .day, value: (weekNumber - 1) * 7, to: startDate) ?? startDate
+        var slots: [(weekday: Weekday, date: Date)] = []
         for offset in 0..<7 {
             guard let candidate = calendar.date(byAdding: .day, value: offset, to: weekStart) else { continue }
-            if calendar.component(.weekday, from: candidate) == weekday.rawValue {
-                return candidate
+            let component = calendar.component(.weekday, from: candidate)
+            if wanted.contains(component), let weekday = Weekday(rawValue: component) {
+                slots.append((weekday, candidate))
             }
         }
-        return weekStart
+        return slots
     }
 
     /// A friendly session title from its body parts: the one or two most

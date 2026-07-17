@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import Pluri
 
@@ -19,6 +20,9 @@ struct MockSubscriptionServiceTests {
     @Test("Inactive entitlement stays inactive after resolve")
     @MainActor
     func inactiveEntitlementAfterResolve() async {
+        // A leftover DEBUG paywall bypass (long-press unlock in a previous manual
+        // run) would otherwise force `isPluriProActive` to true on this simulator.
+        UserDefaults.standard.removeObject(forKey: PluriSubscription.debugBypassPaywallKey)
         let mock = MockSubscriptionService(isPluriProActive: false)
         await mock.refresh()
         #expect(mock.hasResolvedCustomerInfo == true)

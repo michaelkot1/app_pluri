@@ -7,8 +7,19 @@ import SwiftUI
 /// lets the progress bar (M1-07) recede correctly on back navigation.
 ///
 /// Auth sits between name and Q1 (SPEC §3.1 / §14 #29) and is not a progress step.
+///
+/// The brand splash pause now lives at the root `AppRouter` phase (M2-18), so
+/// this stack keeps the splash canvas as its root only as a visual base and
+/// advances to name entry immediately on appear.
 struct OnboardingRootView: View {
     @Environment(SupabaseAuthService.self) private var authService
+
+    /// End of onboarding: hands the answers + generated plan to the root router
+    /// so the paywall phase can take over (M2-18).
+    var onPlanReady: (OnboardingAnswers, GeneratedPlan) -> Void = { _, _ in }
+    /// Returning entitled sign-in — the root router reclassifies (restore → Main
+    /// or locked paywall) instead of continuing the questionnaire (M2-15/M2-18).
+    var onReturningEntitledSignIn: () -> Void = {}
 
     @State private var answers = OnboardingAnswers()
     @State private var router = OnboardingRouter()
@@ -16,11 +27,21 @@ struct OnboardingRootView: View {
     var body: some View {
         NavigationStack(path: $router.path) {
             SplashView {
-                router.start()
+                startIfNeeded()
+            }
+            .onAppear {
+                startIfNeeded()
             }
             .navigationDestination(for: OnboardingDestination.self) { destination in
                 view(for: destination)
             }
+        }
+    }
+
+    /// Guarded so the splash's delayed auto-advance can't reset an in-progress path.
+    private func startIfNeeded() {
+        if router.path.isEmpty {
+            router.start()
         }
     }
 
@@ -37,7 +58,8 @@ struct OnboardingRootView: View {
             }
         case .account:
             AccountAuthView(
-                onContinueOnboarding: { router.advance(to: .q1FitnessType) }
+                onContinueOnboarding: { router.advance(to: .q1FitnessType) },
+                onReturningEntitledSignIn: onReturningEntitledSignIn
             )
         case .q1FitnessType:
             Q1FitnessTypeView(answers: answers, progress: destination.progress) { router.advance(from: destination) }
@@ -66,7 +88,9 @@ struct OnboardingRootView: View {
         case .q13StartDate:
             Q13StartDateView(answers: answers, progress: destination.progress) { router.advance(from: destination) }
         case .planGeneration:
-            PlanGeneratingView(answers: answers)
+            PlanGeneratingView(answers: answers) { plan in
+                onPlanReady(answers, plan)
+            }
         }
     }
 }
