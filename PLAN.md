@@ -60,7 +60,7 @@ Derived from [`SPEC.md`](SPEC.md). Ground rules in [`AGENTS.md`](AGENTS.md). Wor
 
 ### 1.4 Key algorithms (owned by `PlanEngine` / `ScoreEngine`)
 
-- **Plan generation:** filter WorkoutX catalog by equipment ∩ not-injured, bucket by muscle group, build balanced sessions fitting the chosen duration (est. time per set), distribute across chosen days for N weeks with simple progression (reps→weight ramp). Deterministic given a seed, so it's testable.
+- **Plan generation (focus-first, SPEC §14 #46/#47):** derive a weekly **split** from days/week + experience/goal (2 days → Full Body A/B; 3 → Push/Pull/Legs or Upper/Lower/Full Body; 4 → PPL+Upper or a body-part split; 5–6 → PPL + accessories or classic body-part split) — each training day gets a **session focus** defining primary/secondary target muscles, its display title, and a design-token color. Filter the WorkoutX catalog by equipment, then select against each focus via `targetMuscle`/`secondaryMuscles` (majority primary movements + 1–2 secondary), fitting the chosen duration (est. time per set). Injuries apply **graded by pain level** (1–2 no-primary/light-secondary, 3 no-primary/load-capped-secondary, 4–5 hard exclusion) through a `BodyArea` → target-muscle mapping; "Full Body" is used only when earned (2-day plans or a too-small eligible pool). Distribute across chosen days for N weeks with simple progression (reps→weight ramp). Deterministic given a seed, so it's testable.
 - **Pluri Score:** start simple — 70% consistency (completed ÷ scheduled over trailing 4 weeks, with streak bonus and gentle decay) + 30% health trend vs. the user's own 30-day baseline. Clamped daily delta (e.g., ±3) so it "moves slowly and kindly." Tune later; formula lives in one tested module.
 - **Maintenance calories:** Mifflin-St Jeor + activity multiplier from training frequency.
 
@@ -89,7 +89,7 @@ Supabase Auth (Apple + email) **after name entry**, RevenueCat subscriptions wit
 **Exit:** full funnel works end-to-end: name → auth → onboard → pay (sandbox) → profile + plan persisted remotely.
 
 ### M3 — Home, Plan & Calendar
-Home page (calendar dots, Pluri Score card *displaying a stub score*, Today's Health placeholders, record-workout button), tab bar, Plan page (plan card, week cards, Week Overview), Calendar/Rearrange page, Manage Plan, Plan Overview info page, notifications page shell + workout reminders.
+Home page (calendar dots, Pluri Score card *displaying a stub score*, Today's Health placeholders, record-workout button), tab bar, Plan page (plan card, week cards, Week Overview), Calendar/Rearrange page, Manage Plan, Plan Overview info page, notifications page shell + workout reminders. Also lands the **focus-first `PlanEngine` rework** (SPEC §14 #46/#47): split-derived session focuses with focus-based titles/colors, graded injury-aware selection, focus persisted on `plan_workouts` and carried through sync and regeneration.
 **Exit:** user can browse and rearrange their entire plan; navigation skeleton complete.
 
 ### M4 — Workout Experience (core of the app)
