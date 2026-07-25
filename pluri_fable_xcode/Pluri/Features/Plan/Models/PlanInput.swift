@@ -13,8 +13,8 @@ nonisolated struct PlanInput: Hashable, Sendable {
     /// catalog `equipment` via `EquipmentMatcher` normalization (SPEC §14).
     let equipment: Set<String>
 
-    /// Injured body areas → pain level (Q7). In v1 any listed area is
-    /// excluded regardless of pain level (SPEC §14).
+    /// Injured body areas → pain level (Q7). Graded by pain via
+    /// `BodyAreaMuscleMapping` (SPEC §14 #47) — not coarse body-part drops.
     let injuries: [BodyArea: Int]
 
     /// Chosen training weekdays (Q8), sorted for deterministic scheduling.
@@ -38,11 +38,17 @@ nonisolated struct PlanInput: Hashable, Sendable {
     /// launches. This is a plain FNV-1a over a canonical description.
     var deterministicSeed: UInt64 {
         let startDay = Int(startDate.timeIntervalSince1970 / 86_400)
+        // Pain levels are part of the seed so graded injury rules (#47) stay
+        // deterministic across regenerations with the same answers (#49).
+        let injuryCanonical = injuries
+            .map { "\($0.key.rawValue):\($0.value)" }
+            .sorted()
+            .joined(separator: ",")
         let canonical = [
             goal.rawValue,
             experience.rawValue,
             equipment.sorted().joined(separator: ","),
-            injuries.keys.map(\.rawValue).sorted().joined(separator: ","),
+            injuryCanonical,
             trainingDays.map { String($0.rawValue) }.joined(separator: ","),
             scheduleType.rawValue,
             String(planLengthWeeks),

@@ -34,6 +34,10 @@ nonisolated struct PlannedSession: Identifiable, Hashable, Sendable {
     /// (`plan_workouts.color`); `nil` means "use the type's default color".
     let color: String?
 
+    /// Session focus code (`plan_workouts.focus`). `nil` for legacy rows
+    /// written before M3-20 — UI then falls back to title/type color (#41d).
+    let focus: SessionFocusCode?
+
     /// Stable global position across the whole plan (`plan_workouts.order_index`).
     let orderIndex: Int
 
@@ -51,6 +55,7 @@ nonisolated struct PlannedSession: Identifiable, Hashable, Sendable {
         status: WorkoutStatus = .scheduled,
         workoutType: WorkoutType = .weights,
         color: String? = nil,
+        focus: SessionFocusCode? = nil,
         orderIndex: Int? = nil,
         durationMinutes: Int? = nil,
         exercises: [PlannedExercise]
@@ -63,6 +68,7 @@ nonisolated struct PlannedSession: Identifiable, Hashable, Sendable {
         self.status = status
         self.workoutType = workoutType
         self.color = color
+        self.focus = focus
         self.orderIndex = orderIndex ?? max(indexInWeek - 1, 0)
         self.durationMinutes = durationMinutes
             ?? Self.clampedDuration(Self.estimatedMinutes(for: exercises))

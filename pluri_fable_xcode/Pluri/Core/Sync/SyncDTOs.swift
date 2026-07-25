@@ -92,6 +92,8 @@ nonisolated struct PlanWorkoutInsertRow: Codable, Hashable, Sendable, Equatable 
     var name: String
     var workoutType: String
     var color: String?
+    /// Session focus code (`SessionFocusCode.rawValue`); `nil` for legacy rows.
+    var focus: String?
     var durationMinutes: Int
     var status: String
     var orderIndex: Int
@@ -105,6 +107,7 @@ nonisolated struct PlanWorkoutInsertRow: Codable, Hashable, Sendable, Equatable 
         case name
         case workoutType = "workout_type"
         case color
+        case focus
         case durationMinutes = "duration_minutes"
         case status
         case orderIndex = "order_index"

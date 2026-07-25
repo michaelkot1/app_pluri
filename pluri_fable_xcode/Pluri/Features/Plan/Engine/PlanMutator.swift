@@ -165,6 +165,7 @@ nonisolated enum PlanMutator {
             status: .scheduled,
             workoutType: source.workoutType,
             color: source.color,
+            focus: source.focus,
             orderIndex: source.orderIndex,
             durationMinutes: source.durationMinutes,
             exercises: clonedExercises
@@ -374,6 +375,7 @@ nonisolated enum PlanMutator {
             status: session.status,
             workoutType: session.workoutType,
             color: session.color,
+            focus: session.focus,
             orderIndex: orderIndex,
             durationMinutes: session.durationMinutes,
             exercises: session.exercises

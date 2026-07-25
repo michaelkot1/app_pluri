@@ -47,7 +47,9 @@ struct PlanStoreTests {
         indexInWeek: Int,
         dayOffset: Int?,
         status: WorkoutStatus = .scheduled,
-        orderIndex: Int
+        orderIndex: Int,
+        focus: SessionFocusCode? = nil,
+        color: String? = nil
     ) -> PlannedSession {
         let date = dayOffset.map(day)
         return PlannedSession(
@@ -57,7 +59,8 @@ struct PlanStoreTests {
             date: date,
             status: status,
             workoutType: .weights,
-            color: nil,
+            color: color,
+            focus: focus,
             orderIndex: orderIndex,
             durationMinutes: 45,
             exercises: [makeExercise(order: 0), makeExercise(order: 1)]
@@ -74,14 +77,22 @@ struct PlanStoreTests {
             startDate: monday,
             weeks: [
                 PlanWeek(number: 1, sessions: [
-                    makeSession(title: "W1 Mon", indexInWeek: 1, dayOffset: 0, status: .completed, orderIndex: 0),
-                    makeSession(title: "W1 Wed", indexInWeek: 2, dayOffset: 2, status: .skipped, orderIndex: 1),
-                    makeSession(title: "W1 Fri", indexInWeek: 3, dayOffset: 4, status: .completed, orderIndex: 2),
+                    makeSession(
+                        title: "W1 Mon",
+                        indexInWeek: 1,
+                        dayOffset: 0,
+                        status: .completed,
+                        orderIndex: 0,
+                        focus: .push,
+                        color: SessionFocus.push.colorToken.rawValue
+                    ),
+                    makeSession(title: "W1 Wed", indexInWeek: 2, dayOffset: 2, status: .skipped, orderIndex: 1, focus: .pull),
+                    makeSession(title: "W1 Fri", indexInWeek: 3, dayOffset: 4, status: .completed, orderIndex: 2, focus: .legs),
                 ]),
                 PlanWeek(number: 2, sessions: [
-                    makeSession(title: "W2 Mon", indexInWeek: 1, dayOffset: 7, orderIndex: 3),
-                    makeSession(title: "W2 Wed", indexInWeek: 2, dayOffset: 9, orderIndex: 4),
-                    makeSession(title: "W2 Fri", indexInWeek: 3, dayOffset: 11, orderIndex: 5),
+                    makeSession(title: "W2 Mon", indexInWeek: 1, dayOffset: 7, orderIndex: 3, focus: .push),
+                    makeSession(title: "W2 Wed", indexInWeek: 2, dayOffset: 9, orderIndex: 4, focus: .pull),
+                    makeSession(title: "W2 Fri", indexInWeek: 3, dayOffset: 11, orderIndex: 5, focus: .legs),
                 ]),
             ],
             seed: 1
@@ -351,6 +362,14 @@ struct PlanStoreTests {
         #expect(call.newWorkout.durationMinutes == source.durationMinutes)
         #expect(call.newWorkout.scheduledDate == DatabaseCodeMappings.dateString(day(8)))
         #expect(call.newWorkout.weekNumber == 2)
+        #expect(call.newWorkout.focus == source.focus?.rawValue)
+        #expect(call.newWorkout.color == source.color)
+
+        let clone = try #require(
+            updated.weeks.flatMap(\.sessions).first { $0.id == call.newWorkout.id }
+        )
+        #expect(clone.focus == source.focus)
+        #expect(clone.color == source.color)
 
         // Cloned exercises: new row IDs, same catalog exercises.
         #expect(call.newExercises.count == source.exercises.count)
@@ -362,6 +381,7 @@ struct PlanStoreTests {
         let stillThere = try #require(PlanMutator.session(withID: source.id, in: updated))
         #expect(stillThere.status == .completed)
         #expect(stillThere.date == day(0))
+        #expect(stillThere.focus == .push)
     }
 
     @Test("Adding onto an occupied day is rejected without a service call")

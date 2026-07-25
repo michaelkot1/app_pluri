@@ -347,10 +347,11 @@ struct OnboardingSyncMapperTests {
                         == originalSession.date.map(DatabaseCodeMappings.dateString)
                 )
 
-                // M3-03: workout metadata survives the round-trip.
+                // M3-03 / M3-20: workout metadata survives the round-trip.
                 #expect(restoredSession.status == originalSession.status)
                 #expect(restoredSession.workoutType == originalSession.workoutType)
                 #expect(restoredSession.color == originalSession.color)
+                #expect(restoredSession.focus == originalSession.focus)
                 #expect(restoredSession.orderIndex == originalSession.orderIndex)
                 #expect(
                     restoredSession.durationMinutes
@@ -370,7 +371,7 @@ struct OnboardingSyncMapperTests {
         }
     }
 
-    @Test("Progress statuses, colors, and plan metadata survive hydrate")
+    @Test("Progress statuses, colors, focus, and plan metadata survive hydrate")
     @MainActor
     func progressMetadataRoundTrip() throws {
         let answers = makeCommercialGymPersona()
@@ -400,6 +401,32 @@ struct OnboardingSyncMapperTests {
         #expect(sessions.count(where: { $0.status == .scheduled }) == sessions.count - 2)
         #expect(restored.status == .completed)
         #expect(restored.name == "Summer Strength")
+
+        // Engine-generated plans flush a focus code on every workout.
+        #expect(tree.workouts.allSatisfy { $0.focus != nil })
+        #expect(sessions.allSatisfy { $0.focus != nil })
+    }
+
+    @Test("Legacy workouts with nil focus hydrate without inventing a code (M3-20)")
+    @MainActor
+    func legacyNilFocusHydrates() throws {
+        let answers = makeCommercialGymPersona()
+        let plan = try generatePlan(for: answers)
+        var tree = OnboardingSyncMapper.planTree(userID: UUID(), plan: plan)
+        for index in tree.workouts.indices {
+            tree.workouts[index].focus = nil
+        }
+
+        let restored = try #require(
+            OnboardingSyncMapper.hydratePlan(
+                plan: tree.plan,
+                workouts: tree.workouts,
+                exercises: tree.exercises
+            )
+        )
+
+        #expect(restored.weeks.flatMap(\.sessions).allSatisfy { $0.focus == nil })
+        #expect(tree.workouts.map(\.name) == restored.weeks.flatMap(\.sessions).map(\.title))
     }
 
     @Test("Hydrate preserves the declared week count when trailing weeks are empty")

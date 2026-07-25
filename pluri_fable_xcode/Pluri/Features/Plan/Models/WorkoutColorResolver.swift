@@ -29,15 +29,19 @@ extension WorkoutColorToken {
     }
 }
 
-/// Maps a workout to its display color token (SPEC §14 #41): the persisted
+/// Maps a workout to its display color token (SPEC §14 #41d): the persisted
 /// `PlannedSession.color` wins when it names a known token (matched after
-/// normalization, so `status_blue` and `statusBlue` both resolve); otherwise
-/// the workout type's default applies — weights → brand orange, cardio →
-/// status blue, flexibility → accent lavender. Tokens only, never ad-hoc hex.
+/// normalization, so `status_blue` and `statusBlue` both resolve); else the
+/// session focus's design-token color when `focus` is set; otherwise the
+/// workout type's default — weights → brand orange, cardio → status blue,
+/// flexibility → accent lavender. Tokens only, never ad-hoc hex.
 nonisolated enum WorkoutColorResolver {
     static func token(for session: PlannedSession) -> WorkoutColorToken {
         if let raw = session.color, let match = token(named: raw) {
             return match
+        }
+        if let focus = session.focus {
+            return SessionFocus.focus(for: focus).colorToken
         }
         return defaultToken(for: session.workoutType)
     }

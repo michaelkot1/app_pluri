@@ -94,6 +94,7 @@ nonisolated enum OnboardingSyncMapper {
             name: session.title,
             workoutType: session.workoutType.rawValue,
             color: session.color,
+            focus: session.focus?.rawValue,
             durationMinutes: PlannedSession.clampedDuration(session.durationMinutes),
             status: session.status.rawValue,
             orderIndex: session.orderIndex
@@ -242,6 +243,7 @@ nonisolated enum OnboardingSyncMapper {
                     status: WorkoutStatus(rawValue: workout.status) ?? .scheduled,
                     workoutType: WorkoutType(rawValue: workout.workoutType) ?? .weights,
                     color: workout.color,
+                    focus: workout.focus.flatMap(SessionFocusCode.init(rawValue:)),
                     orderIndex: workout.orderIndex,
                     durationMinutes: workout.durationMinutes,
                     exercises: plannedExercises

@@ -1,29 +1,26 @@
 import Foundation
 
-/// Pure, deterministic v1 plan generator (M1-16).
+/// Pure, deterministic plan generator (M1-16; focus-first rework M3-19).
 ///
 /// Modeled on `CalorieCalculator`: a `nonisolated enum` of static functions
 /// with no `@MainActor`/SwiftData coupling, so it is trivially unit-testable
-/// (M1-17) and can later be ported almost verbatim to the `generate-plan`
-/// Edge Function (PLAN §1.3). Given the same `(input, catalog, seed)` it always
+/// and can later be ported almost verbatim to the `generate-plan` Edge
+/// Function (PLAN §1.3). Given the same `(input, catalog, seed)` it always
 /// produces the same `GeneratedPlan`.
 ///
-/// Algorithm (SPEC §3.3, PLAN §1.4 — kept intentionally simple for v1, with
-/// the concrete choices recorded in SPEC §14):
-/// 1. Filter the catalog to weight-training exercises the user can do —
-///    equipment they selected, excluding any injured body area, excluding the
-///    `"Cardio"` body part (v1 is Workout-only, SPEC §1.1).
-/// 2. Bucket by body part, seed-shuffle within each bucket, and round-robin
-///    across buckets into one balanced pool.
-/// 3. Chunk the balanced pool into `sessionsPerWeek` sessions of a size that
-///    fits the chosen session duration.
-/// 4. Repeat those session templates for every week, applying simple
-///    rep-then-set progression, and pin them to weekdays/dates for scheduled
-///    plans.
+/// Algorithm (SPEC §3.3, PLAN §1.4, SPEC §14 #46/#47):
+/// 1. Filter the catalog to weight-training exercises the user can do
+///    (equipment match; drop `"Cardio"` — v1 is Workout-only).
+/// 2. Derive a weekly **session-focus** split from days/week + experience/goal.
+/// 3. For each focus, select majority primary-target movements + 1–2
+///    secondary via `targetMuscle`/`secondaryMuscles`, applying graded pain
+///    rules. Fall back to Full Body only when earned (2-day split or a
+///    too-small primary pool).
+/// 4. Repeat those session templates for every week with simple progression
+///    and pin them to weekdays/dates for scheduled plans.
 ///
 /// Marked `nonisolated` so it opts out of the project's main-actor default
-/// isolation (`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`) — the engine must
-/// run off the main actor and be callable from tests without hopping actors.
+/// isolation (`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`).
 nonisolated enum PlanEngine {
     // MARK: Tunable constants (SPEC §14)
 
@@ -38,6 +35,13 @@ nonisolated enum PlanEngine {
 
     static let minExercisesPerSession = 3
     static let maxExercisesPerSession = 8
+
+    /// Secondary / supporting movements to include per focused session.
+    static let secondaryExercisesPerSession = 2
+
+    /// When a focus's graded primary pool has fewer than this many exercises,
+    /// the session falls back to an earned Full Body focus (SPEC §14 #46/#49).
+    static let smallPoolFullBodyThreshold = 3
 
     /// How many exercises fit in a session of `minutes` length, clamped to a
     /// sane range so very short/long picks still yield a coherent workout.
@@ -56,7 +60,9 @@ nonisolated enum PlanEngine {
 
         var rng = SeededGenerator(seed: seed)
         let templates = buildSessionTemplates(from: eligible, input: input, rng: &rng)
-        guard templates.contains(where: { !$0.isEmpty }) else { throw PlanEngineError.noEligibleExercises }
+        guard templates.contains(where: { !$0.exercises.isEmpty }) else {
+            throw PlanEngineError.noEligibleExercises
+        }
 
         let weekCount = max(input.planLengthWeeks, 1)
         let weeks = (1...weekCount).map { weekNumber in
@@ -75,84 +81,240 @@ nonisolated enum PlanEngine {
 
     // MARK: Step 1 — filtering
 
-    /// Weight-training exercises the user can actually perform: available
-    /// equipment (normalized match, SPEC §14), no injured body area (v1
-    /// excludes the whole `bodyPart` regardless of pain level, SPEC §14), and
-    /// no `"Cardio"` body part (v1 is Workout-only, SPEC §1.1). Sorted by id
-    /// for a deterministic base ordering before any shuffling.
+    /// Weight-training exercises the user can perform on their equipment.
+    /// Injury grading happens later per focus (SPEC §14 #47) — this step only
+    /// drops `"Cardio"` (v1 Workout-only) and unmatched equipment. Sorted by
+    /// id for a deterministic base ordering before any shuffling.
     static func filteredCatalog(_ catalog: [Exercise], input: PlanInput) -> [Exercise] {
         let selection = EquipmentMatcher.normalizedKeys(for: input.equipment)
-        let injuredParts = Set(input.injuries.keys.map(\.rawValue))
 
         return catalog
             .filter { exercise in
                 exercise.bodyPart != "Cardio"
-                    && !injuredParts.contains(exercise.bodyPart)
                     && EquipmentMatcher.isAvailable(exercise.equipment, in: selection)
             }
             .sorted { $0.id < $1.id }
     }
 
-    // MARK: Step 2 & 3 — balanced selection into session templates
+    // MARK: Step 2 & 3 — focus-first session templates
 
-    /// Builds `sessionsPerWeek` balanced session templates. Exercises are
-    /// grouped by body part, seed-shuffled within each group, then drawn
-    /// round-robin across groups into one balanced pool; contiguous chunks of
-    /// that pool become sessions, so each session spans varied muscle groups.
-    ///
-    /// If the eligible pool is smaller than the plan needs (e.g. a very
-    /// restricted bodyweight/injury combination), the pool is cycled — some
-    /// exercises then recur across the week, which is acceptable for a v1
-    /// plan and only happens for unusually small catalogs.
+    /// One session template: the focus assigned to that training day and the
+    /// exercises selected against it.
+    struct SessionTemplate: Sendable {
+        let focus: SessionFocus
+        let exercises: [Exercise]
+    }
+
+    /// Builds `sessionsPerWeek` focus-first templates from the weekly split
+    /// (SPEC §14 #46). Each session is majority primary-target movements plus
+    /// up to `secondaryExercisesPerSession` supporting ones; seed-shuffled
+    /// within each pool. Falls back to Full Body when the graded primary pool
+    /// is below `smallPoolFullBodyThreshold`.
     static func buildSessionTemplates(
         from eligible: [Exercise],
         input: PlanInput,
         rng: inout SeededGenerator
-    ) -> [[Exercise]] {
+    ) -> [SessionTemplate] {
         let sessionCount = input.sessionsPerWeek
         let perSession = exercisesPerSession(forDurationMinutes: input.sessionDurationMinutes)
+        let split = SessionFocus.split(
+            daysPerWeek: sessionCount,
+            experience: input.experience,
+            goal: input.goal
+        )
 
-        let grouped = Dictionary(grouping: eligible, by: \.bodyPart)
-        let buckets = grouped.keys.sorted().map { part in
-            (grouped[part] ?? []).shuffled(using: &rng)
-        }
-
-        var pool: [Exercise] = []
-        var moreRemaining = true
-        var depth = 0
-        while moreRemaining {
-            moreRemaining = false
-            for bucketIndex in buckets.indices where depth < buckets[bucketIndex].count {
-                pool.append(buckets[bucketIndex][depth])
-                moreRemaining = true
-            }
-            depth += 1
-        }
-
-        guard !pool.isEmpty else { return [] }
-
-        let needed = sessionCount * perSession
-        let selection = (0..<needed).map { pool[$0 % pool.count] }
-
+        var fullBodyToggle = 0
         return (0..<sessionCount).map { sessionIndex in
-            let start = sessionIndex * perSession
-            return Array(selection[start..<start + perSession])
+            let requested = split[sessionIndex % split.count]
+            let resolved = resolveFocus(
+                requested,
+                eligible: eligible,
+                injuries: input.injuries,
+                fullBodyToggle: &fullBodyToggle
+            )
+            let exercises = selectExercises(
+                for: resolved,
+                from: eligible,
+                count: perSession,
+                injuries: input.injuries,
+                rng: &rng
+            )
+            return SessionTemplate(focus: resolved, exercises: exercises)
         }
+    }
+
+    /// Chooses the focus that will actually drive selection: the requested
+    /// split focus, or an earned Full Body when the primary pool is too small.
+    static func resolveFocus(
+        _ requested: SessionFocus,
+        eligible: [Exercise],
+        injuries: [BodyArea: Int],
+        fullBodyToggle: inout Int
+    ) -> SessionFocus {
+        if requested.isFullBody { return requested }
+
+        let primaryPool = eligible.filter { exercise in
+            role(of: exercise, in: requested, injuries: injuries) == .primary
+        }
+        guard primaryPool.count < smallPoolFullBodyThreshold else { return requested }
+
+        let fallback = fullBodyToggle.isMultiple(of: 2) ? SessionFocus.fullBodyA : SessionFocus.fullBodyB
+        fullBodyToggle += 1
+        return fallback
+    }
+
+    /// Graded role of an exercise inside a focus (exposed for unit tests).
+    enum FocusRole: Equatable, Sendable {
+        case primary
+        case secondary
+        case excluded
+    }
+
+    /// Graded pain rules (SPEC §14 #47) applied against a focus:
+    /// - Pain 1–2: no primary targeting of the injured muscle; secondary OK.
+    /// - Pain 3: no primary; secondary only on supported/machine equipment.
+    /// - Pain 4–5: hard exclude as primary **and** as secondary involvement.
+    static func role(
+        of exercise: Exercise,
+        in focus: SessionFocus,
+        injuries: [BodyArea: Int]
+    ) -> FocusRole {
+        let primarySet = Set(focus.primaryMuscles)
+        let secondarySet = Set(focus.secondaryMuscles)
+        let isPrimaryTarget = primarySet.contains(exercise.targetMuscle)
+        let isSecondaryTarget = secondarySet.contains(exercise.targetMuscle)
+            || exercise.secondaryMuscles.contains(where: { primarySet.contains($0) || secondarySet.contains($0) })
+
+        if isPrimaryTarget {
+            if let pain = BodyAreaMuscleMapping.painLevel(for: exercise.targetMuscle, injuries: injuries),
+               pain >= 1 {
+                return .excluded
+            }
+            let secondaryPains = exercise.secondaryMuscles.compactMap {
+                BodyAreaMuscleMapping.painLevel(for: $0, injuries: injuries)
+            }
+            // Pain 4–5 on listed secondary muscles: hard-exclude the lift.
+            // Pain 3 load-cap applies when the injured muscle is the exercise's
+            // own target in a secondary slot (below), not when it merely
+            // appears on a healthy primary-target lift (SPEC §14 #47/#49).
+            if secondaryPains.contains(where: { $0 >= 4 }) {
+                return .excluded
+            }
+            return .primary
+        }
+
+        if isSecondaryTarget {
+            let implicatedPain = implicatedSecondaryPain(exercise: exercise, focus: focus, injuries: injuries)
+            if let pain = implicatedPain {
+                if pain >= 4 { return .excluded }
+                if pain == 3 {
+                    return BodyAreaMuscleMapping.isSupportedOrMachine(exercise.equipment)
+                        ? .secondary
+                        : .excluded
+                }
+                // Pain 1–2: light secondary OK.
+                return .secondary
+            }
+            return .secondary
+        }
+
+        // Full Body fallback may also pull from any non-hard-excluded lift.
+        if focus.isFullBody {
+            if let pain = BodyAreaMuscleMapping.painLevel(for: exercise.targetMuscle, injuries: injuries),
+               pain >= 4 {
+                return .excluded
+            }
+            if exercise.secondaryMuscles.contains(where: { muscle in
+                (BodyAreaMuscleMapping.painLevel(for: muscle, injuries: injuries) ?? 0) >= 4
+            }) {
+                return .excluded
+            }
+            if let pain = BodyAreaMuscleMapping.painLevel(for: exercise.targetMuscle, injuries: injuries),
+               pain >= 1 {
+                return .secondary
+            }
+            return .primary
+        }
+
+        return .excluded
+    }
+
+    private static func implicatedSecondaryPain(
+        exercise: Exercise,
+        focus: SessionFocus,
+        injuries: [BodyArea: Int]
+    ) -> Int? {
+        var highest: Int?
+        let relevant = Set(focus.primaryMuscles).union(focus.secondaryMuscles)
+        let muscles = [exercise.targetMuscle] + exercise.secondaryMuscles
+        for muscle in muscles where relevant.contains(muscle) {
+            if let pain = BodyAreaMuscleMapping.painLevel(for: muscle, injuries: injuries) {
+                highest = max(highest ?? pain, pain)
+            }
+        }
+        return highest
+    }
+
+    /// Majority primary + up to `secondaryExercisesPerSession` secondary,
+    /// seed-shuffled within each pool. Cycles the pool when it is smaller
+    /// than needed (same v1 compromise as the old round-robin engine).
+    static func selectExercises(
+        for focus: SessionFocus,
+        from eligible: [Exercise],
+        count: Int,
+        injuries: [BodyArea: Int],
+        rng: inout SeededGenerator
+    ) -> [Exercise] {
+        var primary = eligible.filter { role(of: $0, in: focus, injuries: injuries) == .primary }
+            .shuffled(using: &rng)
+        var secondary = eligible.filter { role(of: $0, in: focus, injuries: injuries) == .secondary }
+            .shuffled(using: &rng)
+
+        let secondaryCount = min(secondaryExercisesPerSession, max(0, count - 1), secondary.count)
+        let primaryCount = count - secondaryCount
+
+        var selected: [Exercise] = []
+        selected.append(contentsOf: takeCycling(from: &primary, count: primaryCount))
+        selected.append(contentsOf: takeCycling(from: &secondary, count: secondaryCount))
+
+        // If primaries were short, backfill from any non-excluded lifts so the
+        // session still fills (small catalogs / heavy injury filters).
+        if selected.count < count {
+            var backfill = eligible.filter { role(of: $0, in: focus, injuries: injuries) != .excluded }
+                .shuffled(using: &rng)
+            var existingIDs = Set(selected.map(\.id))
+            for exercise in backfill where selected.count < count {
+                if existingIDs.insert(exercise.id).inserted {
+                    selected.append(exercise)
+                }
+            }
+            if selected.count < count {
+                let needed = count - selected.count
+                selected.append(contentsOf: takeCycling(from: &backfill, count: needed))
+            }
+        }
+
+        return Array(selected.prefix(count))
+    }
+
+    private static func takeCycling(from pool: inout [Exercise], count: Int) -> [Exercise] {
+        guard count > 0, !pool.isEmpty else { return [] }
+        return (0..<count).map { pool[$0 % pool.count] }
     }
 
     // MARK: Step 4 — weeks, progression, scheduling
 
-    static func buildWeek(weekNumber: Int, templates: [[Exercise]], input: PlanInput) -> PlanWeek {
+    static func buildWeek(weekNumber: Int, templates: [SessionTemplate], input: PlanInput) -> PlanWeek {
         let base = baseSetsReps(goal: input.goal)
         let target = progression(base: base, week: weekNumber)
         let calendar = Calendar.current
         let trainingDates = orderedTrainingDates(weekNumber: weekNumber, input: input, calendar: calendar)
 
-        let sessions = templates.enumerated().map { sessionIndex, exercises in
+        let sessions = templates.enumerated().map { sessionIndex, template in
             // Sessions map onto the week's training-day dates in chronological
             // order (M3-02), so indexInWeek, order, and dates ascend together.
             let slot = sessionIndex < trainingDates.count ? trainingDates[sessionIndex] : nil
-            let planned = exercises.enumerated().map { order, exercise in
+            let planned = template.exercises.enumerated().map { order, exercise in
                 PlannedExercise(
                     exerciseID: exercise.id,
                     name: exercise.name,
@@ -167,13 +329,14 @@ nonisolated enum PlanEngine {
                 )
             }
             return PlannedSession(
-                title: sessionTitle(for: exercises),
+                title: template.focus.displayTitle,
                 indexInWeek: sessionIndex + 1,
                 weekday: slot?.weekday,
                 date: slot?.date,
                 status: .scheduled,
                 workoutType: .weights,
-                color: nil,
+                color: template.focus.colorToken.rawValue,
+                focus: template.focus.code,
                 orderIndex: (weekNumber - 1) * templates.count + sessionIndex,
                 exercises: planned
             )
@@ -205,13 +368,6 @@ nonisolated enum PlanEngine {
     /// The concrete `(weekday, date)` slots for a scheduled plan week, in
     /// **chronological order** within the rolling 7-day window that starts
     /// `weekNumber − 1` weeks after the plan's start date (M3-02).
-    ///
-    /// Anchoring the scan at the week's start date — rather than mapping
-    /// sessions onto Sunday-first-sorted training days — is what keeps
-    /// mid-week starts correct: a plan starting Wednesday with Mon/Wed/Fri
-    /// yields Wed → Fri → *next* Mon, so "Workout 1" is always the earliest
-    /// date. Flexible plans return an empty array (no pinned days, SPEC §3.2
-    /// Q9 / §14 #37).
     static func orderedTrainingDates(
         weekNumber: Int,
         input: PlanInput,
@@ -231,21 +387,5 @@ nonisolated enum PlanEngine {
             }
         }
         return slots
-    }
-
-    /// A friendly session title from its body parts: the one or two most
-    /// common (tie-broken alphabetically for determinism), or "Full Body" when
-    /// it spans four or more.
-    static func sessionTitle(for exercises: [Exercise]) -> String {
-        let parts = exercises.map(\.bodyPart)
-        let distinct = Set(parts)
-        guard !distinct.isEmpty else { return "Workout" }
-        if distinct.count >= 4 { return "Full Body" }
-
-        let counts = Dictionary(grouping: parts, by: { $0 }).mapValues(\.count)
-        let ordered = counts.sorted { lhs, rhs in
-            lhs.value != rhs.value ? lhs.value > rhs.value : lhs.key < rhs.key
-        }
-        return ordered.prefix(2).map(\.key).joined(separator: " & ")
     }
 }

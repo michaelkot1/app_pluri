@@ -76,15 +76,22 @@ enum HomePreviewData {
         let calendar = Calendar.current
         let start = weekStart
 
-        func session(title: String, dayOffset: Int, status: WorkoutStatus, index: Int) -> PlannedSession {
+        func session(
+            focus: SessionFocus,
+            dayOffset: Int,
+            status: WorkoutStatus,
+            index: Int
+        ) -> PlannedSession {
             let date = calendar.date(byAdding: .day, value: dayOffset, to: start) ?? start
             return PlannedSession(
-                title: title,
+                title: focus.displayTitle,
                 indexInWeek: index,
                 weekday: Weekday(rawValue: calendar.component(.weekday, from: date)),
                 date: date,
                 status: status,
                 workoutType: .weights,
+                color: focus.colorToken.rawValue,
+                focus: focus.code,
                 orderIndex: dayOffset,
                 durationMinutes: 45,
                 exercises: [
@@ -111,14 +118,14 @@ enum HomePreviewData {
             startDate: start,
             weeks: [
                 PlanWeek(number: 1, sessions: [
-                    session(title: "Upper Body Push", dayOffset: 0, status: .completed, index: 1),
-                    session(title: "Lower Body", dayOffset: 2, status: .scheduled, index: 2),
-                    session(title: "Upper Body Pull", dayOffset: 4, status: .scheduled, index: 3),
+                    session(focus: .push, dayOffset: 0, status: .completed, index: 1),
+                    session(focus: .lower, dayOffset: 2, status: .scheduled, index: 2),
+                    session(focus: .pull, dayOffset: 4, status: .scheduled, index: 3),
                 ]),
                 PlanWeek(number: 2, sessions: [
-                    session(title: "Upper Body Push", dayOffset: 7, status: .scheduled, index: 1),
-                    session(title: "Lower Body", dayOffset: 9, status: .scheduled, index: 2),
-                    session(title: "Upper Body Pull", dayOffset: 11, status: .scheduled, index: 3),
+                    session(focus: .push, dayOffset: 7, status: .scheduled, index: 1),
+                    session(focus: .lower, dayOffset: 9, status: .scheduled, index: 2),
+                    session(focus: .pull, dayOffset: 11, status: .scheduled, index: 3),
                 ]),
             ],
             seed: 1
@@ -126,14 +133,21 @@ enum HomePreviewData {
     }
 
     private static var flexiblePlan: GeneratedPlan {
-        func undatedSession(title: String, index: Int, orderIndex: Int, status: WorkoutStatus = .scheduled) -> PlannedSession {
+        func undatedSession(
+            focus: SessionFocus,
+            index: Int,
+            orderIndex: Int,
+            status: WorkoutStatus = .scheduled
+        ) -> PlannedSession {
             PlannedSession(
-                title: title,
+                title: focus.displayTitle,
                 indexInWeek: index,
                 weekday: nil,
                 date: nil,
                 status: status,
                 workoutType: .weights,
+                color: focus.colorToken.rawValue,
+                focus: focus.code,
                 orderIndex: orderIndex,
                 durationMinutes: 30,
                 exercises: [
@@ -160,12 +174,12 @@ enum HomePreviewData {
             startDate: weekStart,
             weeks: [
                 PlanWeek(number: 1, sessions: [
-                    undatedSession(title: "Full Body A", index: 1, orderIndex: 0, status: .completed),
-                    undatedSession(title: "Full Body B", index: 2, orderIndex: 1),
+                    undatedSession(focus: .fullBodyA, index: 1, orderIndex: 0, status: .completed),
+                    undatedSession(focus: .fullBodyB, index: 2, orderIndex: 1),
                 ]),
                 PlanWeek(number: 2, sessions: [
-                    undatedSession(title: "Full Body A", index: 1, orderIndex: 2),
-                    undatedSession(title: "Full Body B", index: 2, orderIndex: 3),
+                    undatedSession(focus: .fullBodyA, index: 1, orderIndex: 2),
+                    undatedSession(focus: .fullBodyB, index: 2, orderIndex: 3),
                 ]),
             ],
             seed: 2
