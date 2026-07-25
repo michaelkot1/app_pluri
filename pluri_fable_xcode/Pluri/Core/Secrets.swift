@@ -5,16 +5,21 @@ import Foundation
 /// Values flow: `.env` → `Scripts/generate_secrets.sh` → `Config/Secrets.xcconfig`
 /// → Info.plist (`Config/Info.plist` merged into the generated plist) → here.
 ///
-/// Only client-safe keys ever reach the bundle (Supabase URL + publishable key,
+/// Only client-safe keys ever reach the bundle (Supabase URL + anon JWT key,
 /// WorkoutX, Nutrition, RevenueCat public Apple SDK key). Gemini and Supabase
-/// service-role keys are server-side only — see AGENTS.md §2.
+/// service-role / secret keys are server-side only — see AGENTS.md §2.
+///
+/// Prefer `SUPABASE_ANON_KEY` (legacy JWT) for supabase-swift until the SDK
+/// fully supports `sb_publishable_…` without placing it in `Authorization: Bearer`.
 enum Secrets {
     static var supabaseURL: URL {
         url(for: "SUPABASE_URL")
     }
 
-    static var supabasePublishableKey: String {
-        value(for: "SUPABASE_PUBLISHABLE_KEY")
+    /// Legacy JWT anon key (`eyJ…`). Safe to ship; RLS-protected. Used as
+    /// `SupabaseClient`'s `supabaseKey`.
+    static var supabaseAnonKey: String {
+        value(for: "SUPABASE_ANON_KEY")
     }
 
     static var workoutXAPIKey: String {

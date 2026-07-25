@@ -24,7 +24,7 @@ final class SupabaseService {
     init() {
         client = SupabaseClient(
             supabaseURL: Secrets.supabaseURL,
-            supabaseKey: Secrets.supabasePublishableKey
+            supabaseKey: Secrets.supabaseAnonKey
         )
     }
 

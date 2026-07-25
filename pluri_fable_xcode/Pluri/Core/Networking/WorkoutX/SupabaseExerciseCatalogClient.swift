@@ -18,7 +18,7 @@ struct SupabaseExerciseCatalogClient: WorkoutXClient {
     /// don't each spin up a fresh Supabase stack.
     private static let sharedClient = SupabaseClient(
         supabaseURL: Secrets.supabaseURL,
-        supabaseKey: Secrets.supabasePublishableKey
+        supabaseKey: Secrets.supabaseAnonKey
     )
 
     private let client: SupabaseClient

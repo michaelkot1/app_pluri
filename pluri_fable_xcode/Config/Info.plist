@@ -4,8 +4,8 @@
 <dict>
 	<key>SUPABASE_URL</key>
 	<string>$(PLURI_SUPABASE_URL)</string>
-	<key>SUPABASE_PUBLISHABLE_KEY</key>
-	<string>$(PLURI_SUPABASE_PUBLISHABLE_KEY)</string>
+	<key>SUPABASE_ANON_KEY</key>
+	<string>$(PLURI_SUPABASE_ANON_KEY)</string>
 	<key>WORKOUTX_API_KEY</key>
 	<string>$(PLURI_WORKOUTX_API_KEY)</string>
 	<key>WORKOUTX_ENDPOINT</key>

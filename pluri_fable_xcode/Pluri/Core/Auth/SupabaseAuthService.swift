@@ -229,6 +229,10 @@ final class SupabaseAuthService: SupabaseAuthServicing {
 
     private func mapAuthError(_ error: Error, fallback: PluriAuthError) -> PluriAuthError {
         let message = error.localizedDescription.lowercased()
+        // Misconfigured API key (e.g. non-JWT publishable key as Bearer) — not a user typo.
+        if message.localizedStandardContains("invalid jwt") {
+            return .unknown("Sign-in isn’t available right now. Please try again in a moment.")
+        }
         if message.localizedStandardContains("invalid login")
             || message.localizedStandardContains("invalid credentials") {
             return .invalidCredentials

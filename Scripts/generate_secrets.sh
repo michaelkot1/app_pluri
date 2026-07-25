@@ -6,6 +6,11 @@
 #
 # Only CLIENT-SAFE keys are injected into the app bundle. Server-side keys
 # (Gemini, Supabase secret/service-role) must never appear here — AGENTS.md §2.
+#
+# Supabase: inject the legacy JWT anon key (SUPABASE_ANON_KEY / eyJ…). supabase-swift
+# 2.51.x still puts supabaseKey in Authorization: Bearer, which rejects non-JWT
+# sb_publishable_… keys as Invalid JWT. Keep SUPABASE_PUBLISHABLE_KEY in .env for
+# dashboard/docs; do not ship it to the iOS client until the SDK handles it.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -44,7 +49,7 @@ escape_slashes() {
 
 CLIENT_KEYS=(
     SUPABASE_URL
-    SUPABASE_PUBLISHABLE_KEY
+    SUPABASE_ANON_KEY
     WORKOUTX_API_KEY
     WORKOUTX_ENDPOINT
     NUTRITION_API_KEY
