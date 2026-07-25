@@ -246,17 +246,68 @@ Tasks are generated **incrementally, one milestone at a time** (see `[PLAN.md](P
 - [x] **M3-20** Persist the session focus (SPEC §14 #46): Supabase migration adding a `focus` code column on `plan_workouts`; extend sync DTOs + `OnboardingSyncMapper` (and `OnboardingSyncMapperTests` round-trips) so focus flushes and restores; existing plans without a focus stay valid — hydrate/UI treat missing focus as legacy and fall back to current name/color behavior (no backfill required; next regeneration writes it).
 - [x] **M3-21** Focus-driven UI: resolve workout colors from the persisted focus token through the existing `WorkoutColorResolver` path (#41d — persisted color still wins, type defaults remain the legacy fallback), plumb focus-based titles/labels through Home, Plan, and Calendar rows, and ensure every regeneration path (Manage Plan M3-14, calendar add/move clones per #38) carries the focus through `PlanStore` mutations.
 
+> **Learned during M3-18..21 (2026-07-25):** focus-first plan generation shipped per SPEC §14 #46/#47 — `SessionFocus` + `BodyAreaMuscleMapping` (pure, unit-tested), `PlanEngine` assigns split-derived focuses then fills sessions from `targetMuscle`/`secondaryMuscles` with graded pain rules, and titles/colors come from the focus (not body-part counting). Algorithm forks recorded as §14 #49 (beginner 3-day Upper/Lower/Full Body; body-part vs PPL by goal/experience; pain-3 supported/machine secondary filter; small-pool Full Body fallback). Persistence: `plan_workouts.focus` column + CHECK (migrations `20260717211519` / `20260725203245`), sync DTOs + `OnboardingSyncMapper` round-trip; legacy rows without focus keep name/type color fallbacks. `WorkoutColorResolver` order is now persisted color → focus token → type default (#41d updated). Manage Plan / calendar clone paths carry focus. Remaining honest stubs (`WorkoutDetailStubView`, Outdoor Run, late-day nudge) stay deferred to M4.
+
 **Dependencies:** M3-01 → 02/03 → 04/05 → UI tasks (06–12); 02/04/05 → 13/14; 13/14 → 15; 18 → 19 → 20 → 21; everything → 16/17.
 
-**M3 exit check** (PLAN M3): user can browse and rearrange their entire plan; navigation skeleton complete. Specifically: the M2 routing matrix stays green; mid-week scheduled plans are chronological; flexible-plan behavior matches the M3-01 decision; calendar moves/additions survive relaunch under owner-only RLS; Manage Plan preserves completed/skipped and replaces only the remaining range with no partial remote state; week cards reflect persisted status/type/color; Home/Plan handle no-plan, offline-restore, and mutation failures gently; reminder opt-in/denial/reschedule/cancel is deterministic and tested; stub Score/Health/Workout Detail/Outdoor Run can't be mistaken for live functionality; build + Swift Testing suite pass with no new warnings; Dynamic Type/VoiceOver/dark mode/contrast/44pt targets manually checked.
+**M3 exit check** (PLAN M3): user can browse and rearrange their entire plan; navigation skeleton complete. Specifically: the M2 routing matrix stays green; mid-week scheduled plans are chronological; flexible-plan behavior matches the M3-01 decision; calendar moves/additions survive relaunch under owner-only RLS; Manage Plan preserves completed/skipped and replaces only the remaining range with no partial remote state; week cards reflect persisted status/type/color/focus; Home/Plan handle no-plan, offline-restore, and mutation failures gently; reminder opt-in/denial/reschedule/cancel is deterministic and tested; stub Score/Health/Workout Detail/Outdoor Run can't be mistaken for live functionality; build + Swift Testing suite pass with no new warnings; Dynamic Type/VoiceOver/dark mode/contrast/44pt targets manually checked. ✅ verified 2026-07-25 — M3-01..21 complete (focus-first engine + persistence + UI); Workout Detail / Outdoor Run / late-day nudge remain honest stubs owned by M4.
+
+**M3 learned/changed:** plan domain now carries session `focus` through engine → Supabase → hydrate → Home/Plan/Calendar; color resolution prefers focus tokens when no explicit color is stored; injury programming is graded by pain (#47/#49) instead of coarse body-part exclusion (#20). No change to M3 exit scope — live workout execution, SyncEngine, Apple Health workout write, and the late-day nudge were correctly left for M4.
 
 **Deferred out of M3 (don't build ahead):** real Workout Detail + live workout and the late-day reschedule nudge (M4); real HealthKit reads + Pluri Score engine (M5); Outdoor Run stays a stub; Community notification rows stay placeholders until M8.
 
 ---
 
-## M4+ — not yet generated
+## M4 — Workout Experience
 
-Tasks for M4 (Workout Experience) will be generated when M3 is near completion, incorporating what M3 taught us (plan store shape, mutation services, calendar/reminder behavior).
+Core of the app (PLAN M4): Workout Detail, live Workout Screen, completion summary, offline-first `SyncEngine`, Apple Health workout sync, late-day reschedule nudge. Builds on M3's `PlanStore` / mutation services / reminder reconcile. **Exit:** user completes a real workout start-to-finish, offline, with data synced and the plan workout checked off.
+
+### Scope & decisions (do first — unblock UI + sync semantics)
+
+- [x] **M4-01** Resolve and record M4 behavior decisions in SPEC §14/§15 before building UI: late-day nudge fire time + reschedule UX (SPEC §5.3); skip vs discard semantics (Detail skip checks off as skipped; completion Discard drops in-progress without check-off); crash/kill recovery for in-progress sessions (resume after relaunch — never lose offline progress); weight unit display (profile metric/imperial from Manage Plan); Ask Pluri = honest stub labeled for M6 (no fake coach); HealthKit usage strings and the write-only Apple Health workout sync boundary vs live HR/calories during an active session (Insights HealthKit *reads* stay M5). Pick the most reversible interim option where the owner is unavailable (AGENTS §7).
+
+> **Learned during M4-01 (2026-07-25):** decisions recorded as SPEC §14 **#50** (late-day nudge = 21:00 local, no catch-up, separate opt-in from #48, notification → day picker / Move to tomorrow via `PlanStore.move`; Detail Skip → `skipped`, completion Discard → drop in-progress, plan stays `scheduled`; crash/kill resume, one in-progress session per `plan_workout_id`; weight UI from profile units, canonical `weight_kg`; Ask Pluri honest M6 stub; HealthKit — live HR/active energy only while session active in M4, workout write only on Save when toggle on, Insights reads stay M5; Start does not complete — Save links session + sets `completed`). §5.3 / §8.1 / #48e point at #50; §15 M4 behavior question resolved. No Swift/UI/HealthKit code in this task — M4-02+ implements against these decisions.
+
+### Offline domain & sync
+
+- [ ] **M4-02** SwiftData models + repository for in-progress/completed `WorkoutSession` + `SetLog` (+ workout/exercise notes); local-first writes; resume an in-progress session after relaunch/kill. Cardinal rule: never lose an in-progress workout while offline. Unit tests for create/resume/complete/discard persistence.
+- [ ] **M4-03** `SyncEngine`: queue session / set_log upserts to Supabase (`workout_sessions` / `set_logs`), last-write-wins, retry when online; update `plan_workouts.status` → `completed` (and session link) per the M4-01 decision. Protocol + mock for tests; never block local save on network.
+- [ ] **M4-04** Extend `PlanStore` / `PlanMutator` / plan mutation service: skip workout; mark completed with session link; optimistic UI + rollback on remote failure; reminder reconcile after success (extends M3-15 / #44/#48).
+
+### Workout Detail (SPEC §7)
+
+- [ ] **M4-05** Replace `WorkoutDetailStubView` with the real Detail page: focus-driven title/type/color, equipment rollup for the whole session, exercise list + set counts, **View Workout** → live Screen. Reachable from Home Record menu, selected-day card, and Week Overview (typed routes already stubbed in M3).
+- [ ] **M4-06** Skip workout action + Workout Notes bottom sheet on Detail (SPEC §7); skip persists via M4-04 and stays gentle (no scolding).
+
+### Live Workout Screen (SPEC §8)
+
+- [ ] **M4-07** Pre-start layout: idle timer, empty metric slots, one exercise card per exercise (image/animation, name, equipment, primary/secondary muscle, sets×reps or time), **Start** + Ask Pluri stub (M4-01 / M6).
+- [ ] **M4-08** Expanded exercise sheet: longer description, per-exercise notes, media (image/animation; **hide video toggle** per SPEC §14 #11 until a video source exists); media caching path so offline sessions still show previously seen assets.
+- [ ] **M4-09** After Start: running timer; Pause / Stop; hold-to-finish gesture; Stop → completion path (M4-12). Persist session state continuously (M4-02).
+- [ ] **M4-10** Inline Log (reps/weight) and timed-exercise timer on cards; log UI expands inline but stays compact; <100 ms feedback; write `SetLog` to SwiftData immediately (M4-02) — sync is opportunistic (M4-03).
+- [ ] **M4-11** Live HealthKit heart rate + calories during an *active* workout (display only; graceful empty state if unauthorized). Full Insights HealthKit reads and Pluri Score remain M5.
+
+### Completion (SPEC §8.1) & Apple Health
+
+- [ ] **M4-12** Completion summary: workout name, date performed, planned vs actual duration, total reps, notes field, **Discard** / **Save** (per M4-01 semantics).
+- [ ] **M4-13** Toggle sync to Apple Health on Save; persist `synced_to_health`; a Health write failure must not lose the local session (gentle retry / leave unsynced).
+- [ ] **M4-14** Save path: mark plan workout completed + session link (M4-04), enqueue SyncEngine (M4-03), reconcile reminders; Discard drops the in-progress session without check-off. Exit-path acceptance: complete a workout in airplane mode → relaunch → sync when online.
+
+### Late-day nudge (SPEC §5.3)
+
+- [ ] **M4-15** Late-day reschedule nudge near midnight for unfinished `.scheduled` dated sessions (fire time + UX from M4-01); reuse `PlanStore` move; make the Notifications page late-day row live; opt-in / permission rules consistent with M3-15 (#48).
+
+### Navigation & verification
+
+- [ ] **M4-16** Wire `MainRouter` / Record menu → real Detail → Screen; keep Outdoor Run as an honest stub (tracking deferred through M9); Ask Pluri entry points are clearly labeled stubs owned by M6.
+- [ ] **M4-17** Swift Testing (`PluriTests`): session lifecycle (start/pause/resume/complete/discard), set logging, skip/complete plan mutations, SyncEngine queue/retry + LWW, reminder reconcile after complete/skip, hold-to-finish, weight units from profile.
+- [ ] **M4-18** M4 UI QA: previews for Detail / Screen (pre-start + active) / completion / offline-resume; Dynamic Type, VoiceOver, dark mode, 44pt targets; airplane-mode complete → relaunch → online sync click-through.
+
+**Dependencies:** M4-01 → 02/03/04 (domain + sync semantics); 02 → 07–11 (live logging); 03/04 → 12–14 (completion + check-off); 05/06 → 16 (Detail entry); 01/04 → 15 (nudge); everything → 17/18.
+
+**M4 exit check** (PLAN M4): user completes a real workout start-to-finish, offline, with data synced and the plan workout checked off. Specifically: Detail replaces the stub and is reachable from Home Record, day card, and Week Overview; live Screen supports start/pause/stop, hold-to-finish, inline log + timed exercises with immediate SwiftData persistence; completion Save/Discard match M4-01; SyncEngine retries when online (LWW); Apple Health sync on save is best-effort and never drops the local session; late-day nudge reschedules via existing PlanStore move under the same opt-in rules as M3-15; Ask Pluri and Outdoor Run remain honest stubs; build + Swift Testing suite pass; Dynamic Type/VoiceOver/dark mode/contrast/44pt targets manually checked.
+
+**Deferred out of M4 (don't build ahead):** real Ask Pluri coach (M6 — stub OK); full HealthKit Insights reads + Pluri Score engine (M5); Outdoor Run tracking (stub through M9); Community notification rows (M8); manual "+" / Insights Workouts UI (M5); Cardio / Flexibility / hybrid plans and groups (v2).
 
 ---
 
