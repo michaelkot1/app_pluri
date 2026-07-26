@@ -46,6 +46,12 @@ nonisolated enum PlanMutator {
         let deletedWorkoutIDs: [UUID]
     }
 
+    struct StatusChangeResult: Sendable {
+        let plan: GeneratedPlan
+        /// The workout whose status changed (for a remote status upsert).
+        let changedSessions: [PlacedSession]
+    }
+
     // MARK: - Lookups
 
     /// The 1-based plan week containing `date`, or `nil` when the date falls
@@ -183,6 +189,21 @@ nonisolated enum PlanMutator {
         return AddResult(plan: newPlan, addedSession: placedClone, reorderedSessions: reordered)
     }
 
+    // MARK: - Skip / complete (M4-04)
+
+    /// Marks a scheduled workout as `skipped`. Only `.scheduled` workouts may
+    /// change — finished history is immutable (SPEC §14 #50b / #52).
+    static func skippingWorkout(id: UUID, in plan: GeneratedPlan) throws -> StatusChangeResult {
+        try applyingStatus(.skipped, toWorkoutID: id, in: plan)
+    }
+
+    /// Marks a scheduled workout as `completed`. Session link lives on
+    /// `workout_sessions.plan_workout_id` (call-site / SyncEngine concern) —
+    /// not stored on `PlannedSession` (SPEC §14 #52).
+    static func completingWorkout(id: UUID, in plan: GeneratedPlan) throws -> StatusChangeResult {
+        try applyingStatus(.completed, toWorkoutID: id, in: plan)
+    }
+
     // MARK: - Replace remaining (Manage Plan regeneration)
 
     /// Merges a freshly regenerated plan into the current one per SPEC §14
@@ -268,6 +289,59 @@ nonisolated enum PlanMutator {
     }
 
     // MARK: - Private plumbing
+
+    private static func applyingStatus(
+        _ status: WorkoutStatus,
+        toWorkoutID id: UUID,
+        in plan: GeneratedPlan
+    ) throws -> StatusChangeResult {
+        guard let existing = session(withID: id, in: plan) else {
+            throw PlanMutationError.workoutNotFound
+        }
+        guard existing.status == .scheduled else {
+            throw PlanMutationError.workoutFinished
+        }
+
+        let updated = PlannedSession(
+            id: existing.id,
+            title: existing.title,
+            indexInWeek: existing.indexInWeek,
+            weekday: existing.weekday,
+            date: existing.date,
+            status: status,
+            workoutType: existing.workoutType,
+            color: existing.color,
+            focus: existing.focus,
+            orderIndex: existing.orderIndex,
+            durationMinutes: existing.durationMinutes,
+            exercises: existing.exercises
+        )
+        let newPlan = replacingSession(updated, in: plan)
+        guard let placed = placedSession(withID: id, in: newPlan) else {
+            throw PlanMutationError.workoutNotFound
+        }
+        return StatusChangeResult(plan: newPlan, changedSessions: [placed])
+    }
+
+    private static func replacingSession(_ updated: PlannedSession, in plan: GeneratedPlan) -> GeneratedPlan {
+        GeneratedPlan(
+            id: plan.id,
+            goal: plan.goal,
+            scheduleType: plan.scheduleType,
+            sessionDurationMinutes: plan.sessionDurationMinutes,
+            startDate: plan.startDate,
+            weeks: plan.weeks.map { week in
+                PlanWeek(
+                    id: week.id,
+                    number: week.number,
+                    sessions: week.sessions.map { $0.id == updated.id ? updated : $0 }
+                )
+            },
+            seed: plan.seed,
+            name: plan.name,
+            status: plan.status
+        )
+    }
 
     private static func sessionsByWeek(in plan: GeneratedPlan) -> [Int: [PlannedSession]] {
         Dictionary(uniqueKeysWithValues: plan.weeks.map { ($0.number, $0.sessions) })

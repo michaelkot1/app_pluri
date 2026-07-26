@@ -148,12 +148,14 @@ struct PlanStoreTests {
     private func makeStore(
         plan: GeneratedPlan?,
         service: MockPlanMutationService? = nil,
+        syncEngine: (any SyncEngine)? = nil,
         reminderReconciler: MockWorkoutReminderReconciler? = nil,
         nowOffsetDays: Int = 8
     ) -> (store: PlanStore, service: MockPlanMutationService) {
         let mutationService = service ?? MockPlanMutationService()
         let store = PlanStore(
             mutationService: mutationService,
+            syncEngine: syncEngine ?? NoopSyncEngine(),
             reminderReconciler: reminderReconciler ?? MockWorkoutReminderReconciler(),
             calendar: calendar
         )
@@ -711,6 +713,111 @@ struct PlanStoreTests {
         #expect(store.plan?.name == "Summer block")
     }
 
+    // MARK: - Skip / complete (M4-04 / SPEC §14 #52)
+
+    @Test("Skipping a workout updates status and persists via updateWorkoutStatus")
+    func skipWorkoutSucceeds() async throws {
+        let plan = makeScheduledPlan()
+        let reconciler = MockWorkoutReminderReconciler()
+        let (store, service) = makeStore(plan: plan, reminderReconciler: reconciler)
+        let target = plan.weeks[1].sessions[0] // W2 Mon, scheduled
+
+        try await store.skipWorkout(id: target.id)
+
+        let updatedPlan = try #require(store.plan)
+        let updated = try #require(PlanMutator.session(withID: target.id, in: updatedPlan))
+        #expect(updated.status == .skipped)
+        #expect(service.statusCalls.count == 1)
+        let call = try #require(service.statusCalls.first)
+        #expect(call.planID == plan.id)
+        #expect(call.changedWorkouts.first?.id == target.id)
+        #expect(call.changedWorkouts.first?.status == WorkoutStatus.skipped.rawValue)
+        #expect(reconciler.reconciledPlans.count == 1)
+    }
+
+    @Test("A failed skip rolls the local plan back and does not reconcile")
+    func skipRollsBackOnServiceFailure() async throws {
+        let plan = makeScheduledPlan()
+        let service = MockPlanMutationService()
+        service.nextError = .networkUnavailable
+        let reconciler = MockWorkoutReminderReconciler()
+        let (store, _) = makeStore(plan: plan, service: service, reminderReconciler: reconciler)
+        let target = plan.weeks[1].sessions[0]
+
+        await #expect(throws: PluriSyncError.networkUnavailable) {
+            try await store.skipWorkout(id: target.id)
+        }
+        #expect(store.plan == plan)
+        #expect(reconciler.reconciledPlans.isEmpty)
+    }
+
+    @Test("Skip / complete reject already-finished workouts")
+    func skipAndCompleteRejectFinished() async throws {
+        let plan = makeScheduledPlan()
+        let sync = MockSyncEngine()
+        sync.flushOnEnqueue = false
+        let (store, service) = makeStore(plan: plan, syncEngine: sync)
+        let completed = plan.weeks[0].sessions[0]
+        let skipped = plan.weeks[0].sessions[1]
+
+        await #expect(throws: PlanMutationError.workoutFinished) {
+            try await store.skipWorkout(id: completed.id)
+        }
+        await #expect(throws: PlanMutationError.workoutFinished) {
+            try await store.skipWorkout(id: skipped.id)
+        }
+        await #expect(throws: PlanMutationError.workoutFinished) {
+            try await store.markWorkoutCompleted(id: completed.id, sessionId: UUID())
+        }
+        #expect(service.statusCalls.isEmpty)
+        #expect(sync.enqueueCalls.isEmpty)
+        #expect(store.plan == plan)
+    }
+
+    @Test("Completing keeps local completed even when sync flush would fail; reminders fire locally")
+    func completeKeepsLocalOnSyncFailure() async throws {
+        let plan = makeScheduledPlan()
+        let sync = MockSyncEngine()
+        sync.flushOnEnqueue = true
+        sync.nextError = .networkUnavailable
+        let reconciler = MockWorkoutReminderReconciler()
+        let (store, service) = makeStore(
+            plan: plan,
+            syncEngine: sync,
+            reminderReconciler: reconciler
+        )
+        let target = plan.weeks[1].sessions[0]
+        let sessionId = UUID()
+
+        try await store.markWorkoutCompleted(id: target.id, sessionId: sessionId)
+
+        let updatedPlan = try #require(store.plan)
+        let updated = try #require(PlanMutator.session(withID: target.id, in: updatedPlan))
+        #expect(updated.status == .completed)
+        #expect(sync.enqueueCalls == [sessionId])
+        // Completion does not use the mutation service status path (SyncEngine owns remote).
+        #expect(service.statusCalls.isEmpty)
+        #expect(reconciler.reconciledPlans.count == 1)
+        #expect(reconciler.reconciledPlans.first == store.plan)
+    }
+
+    @Test("Completing a scheduled workout enqueues the session and reconciles reminders")
+    func completeEnqueuesAndReconciles() async throws {
+        let plan = makeScheduledPlan()
+        let sync = MockSyncEngine()
+        sync.flushOnEnqueue = false
+        let reconciler = MockWorkoutReminderReconciler()
+        let (store, _) = makeStore(plan: plan, syncEngine: sync, reminderReconciler: reconciler)
+        let target = plan.weeks[1].sessions[1]
+        let sessionId = UUID()
+
+        try await store.markWorkoutCompleted(id: target.id, sessionId: sessionId)
+
+        #expect(PlanMutator.session(withID: target.id, in: try #require(store.plan))?.status == .completed)
+        #expect(sync.enqueueCalls == [sessionId])
+        #expect(reconciler.reconciledPlans.count == 1)
+    }
+
     // MARK: - Mutations without a plan
 
     @Test("Mutations without a plan throw noPlan")
@@ -723,6 +830,12 @@ struct PlanStoreTests {
         }
         await #expect(throws: PlanMutationError.noPlan) {
             try await store.addWorkout(cloning: UUID(), on: day(1))
+        }
+        await #expect(throws: PlanMutationError.noPlan) {
+            try await store.skipWorkout(id: UUID())
+        }
+        await #expect(throws: PlanMutationError.noPlan) {
+            try await store.markWorkoutCompleted(id: UUID(), sessionId: UUID())
         }
     }
 

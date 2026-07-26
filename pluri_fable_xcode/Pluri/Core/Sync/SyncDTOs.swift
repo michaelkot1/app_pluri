@@ -235,3 +235,69 @@ nonisolated struct ProfileSettingsUpdateRow: Codable, Hashable, Sendable, Equata
         case units
     }
 }
+
+/// Upsert payload for `public.workout_sessions` (M4-03).
+/// Local-only pause / per-exercise note fields (SPEC §14 #51) are excluded.
+nonisolated struct WorkoutSessionUpsertRow: Codable, Hashable, Sendable, Equatable {
+    var id: UUID
+    var userId: UUID
+    var planWorkoutId: UUID?
+    var activityType: String
+    var startedAt: String
+    var endedAt: String?
+    var durationSeconds: Int?
+    var distanceMeters: Double?
+    var notes: String?
+    var syncedToHealth: Bool
+    var isManualLog: Bool
+    var createdAt: String
+    var updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case planWorkoutId = "plan_workout_id"
+        case activityType = "activity_type"
+        case startedAt = "started_at"
+        case endedAt = "ended_at"
+        case durationSeconds = "duration_seconds"
+        case distanceMeters = "distance_meters"
+        case notes
+        case syncedToHealth = "synced_to_health"
+        case isManualLog = "is_manual_log"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+/// Upsert payload for `public.set_logs` (M4-03).
+nonisolated struct SetLogUpsertRow: Codable, Hashable, Sendable, Equatable {
+    var id: UUID
+    var sessionId: UUID
+    var workoutExerciseId: UUID?
+    var exerciseName: String
+    var setNumber: Int
+    var reps: Int?
+    var weightKg: Double?
+    var durationSeconds: Int?
+    var createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case sessionId = "session_id"
+        case workoutExerciseId = "workout_exercise_id"
+        case exerciseName = "exercise_name"
+        case setNumber = "set_number"
+        case reps
+        case weightKg = "weight_kg"
+        case durationSeconds = "duration_seconds"
+        case createdAt = "created_at"
+    }
+}
+
+/// Thin `plan_workouts` status update used by SyncEngine when a session is saved
+/// as completed (M4-03 / SPEC §14 #52). Session link lives on
+/// `workout_sessions.plan_workout_id` — there is no `plan_workouts.session_id`.
+nonisolated struct PlanWorkoutStatusUpdateRow: Codable, Hashable, Sendable, Equatable {
+    var status: String
+}

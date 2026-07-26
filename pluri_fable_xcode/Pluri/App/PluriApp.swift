@@ -4,7 +4,12 @@ import SwiftUI
 @main
 struct PluriApp: App {
     let modelContainer: ModelContainer = {
-        let schema = Schema([CachedExercise.self, ExerciseCatalogSyncState.self])
+        let schema = Schema([
+            CachedExercise.self,
+            ExerciseCatalogSyncState.self,
+            WorkoutSessionRecord.self,
+            SetLogRecord.self,
+        ])
         do {
             return try ModelContainer(for: schema)
         } catch {
@@ -16,7 +21,7 @@ struct PluriApp: App {
 
     var body: some Scene {
         WindowGroup {
-            AppRootView()
+            AppRootView(modelContainer: modelContainer)
         }
         .modelContainer(modelContainer)
     }

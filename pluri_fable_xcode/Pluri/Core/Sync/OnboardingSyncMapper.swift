@@ -101,6 +101,43 @@ nonisolated enum OnboardingSyncMapper {
         )
     }
 
+    /// Maps a local workout session to a `workout_sessions` upsert row (M4-03).
+    /// Excludes local-only pause / per-exercise note fields (SPEC §14 #51).
+    @MainActor
+    static func sessionRow(for session: WorkoutSessionRecord) -> WorkoutSessionUpsertRow {
+        WorkoutSessionUpsertRow(
+            id: session.id,
+            userId: session.userId,
+            planWorkoutId: session.planWorkoutId,
+            activityType: session.activityType,
+            startedAt: DatabaseCodeMappings.timestampString(session.startedAt),
+            endedAt: session.endedAt.map(DatabaseCodeMappings.timestampString),
+            durationSeconds: session.durationSeconds,
+            distanceMeters: session.distanceMeters,
+            notes: session.notes,
+            syncedToHealth: session.syncedToHealth,
+            isManualLog: session.isManualLog,
+            createdAt: DatabaseCodeMappings.timestampString(session.createdAt),
+            updatedAt: DatabaseCodeMappings.timestampString(session.updatedAt)
+        )
+    }
+
+    /// Maps a local set log to a `set_logs` upsert row (M4-03).
+    @MainActor
+    static func setLogRow(for setLog: SetLogRecord, sessionId: UUID) -> SetLogUpsertRow {
+        SetLogUpsertRow(
+            id: setLog.id,
+            sessionId: sessionId,
+            workoutExerciseId: setLog.workoutExerciseId,
+            exerciseName: setLog.exerciseName,
+            setNumber: setLog.setNumber,
+            reps: setLog.reps,
+            weightKg: setLog.weightKg,
+            durationSeconds: setLog.durationSeconds,
+            createdAt: DatabaseCodeMappings.timestampString(setLog.createdAt)
+        )
+    }
+
     /// Maps a plan's editable metadata to the Manage Plan `plans` update row
     /// (M3-14 / §6.2). All fields are filled so the row is also usable as the
     /// complete `plan_update` object of the `replace_remaining_plan` RPC.

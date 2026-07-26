@@ -45,10 +45,14 @@ final class PlanStore {
     private(set) var plan: GeneratedPlan?
 
     private let mutationService: any PlanMutationServicing
+    /// Opportunistic session / set_log sync (M4-03). Never blocks local plan
+    /// completion — failures retry when online (SPEC §14 #52).
+    private let syncEngine: any SyncEngine
     /// Reconciles workout reminders after a successful remote plan change
     /// (M3-13 hook; production injects `WorkoutReminderService`). Deliberately
     /// non-throwing — a reminder problem never rolls back a persisted plan
-    /// change.
+    /// change. For offline-first completion, reconcile runs after the *local*
+    /// apply (SPEC §14 #52).
     private let reminderReconciler: any WorkoutReminderReconciling
     private let calendar: Calendar
 
@@ -57,10 +61,12 @@ final class PlanStore {
 
     init(
         mutationService: any PlanMutationServicing,
+        syncEngine: (any SyncEngine)? = nil,
         reminderReconciler: any WorkoutReminderReconciling = NoopWorkoutReminderReconciler(),
         calendar: Calendar = .current
     ) {
         self.mutationService = mutationService
+        self.syncEngine = syncEngine ?? NoopSyncEngine()
         self.reminderReconciler = reminderReconciler
         self.calendar = calendar
     }
@@ -194,6 +200,41 @@ final class PlanStore {
             applyPlan(snapshot)
             throw error
         }
+        await reconcileReminders()
+    }
+
+    /// Skips a scheduled workout (Detail Skip): optimistic local apply, remote
+    /// status upsert, rollback + rethrow on failure, reconcile only on success
+    /// (M4-04 / SPEC §14 #50b / #52 — same pattern as `moveWorkout`).
+    func skipWorkout(id: UUID) async throws {
+        guard let plan else { throw PlanMutationError.noPlan }
+        let snapshot = plan
+        let result = try PlanMutator.skippingWorkout(id: id, in: plan)
+
+        applyPlan(result.plan)
+        do {
+            try await mutationService.updateWorkoutStatus(
+                planID: plan.id,
+                changedWorkouts: result.changedSessions.map(workoutRow)
+            )
+        } catch {
+            applyPlan(snapshot)
+            throw error
+        }
+        await reconcileReminders()
+    }
+
+    /// Marks a scheduled workout completed after Save (M4-04 / SPEC §14 #52):
+    /// optimistic local apply, enqueue SyncEngine for the session (and linked
+    /// plan status on flush), reconcile reminders after the *local* apply.
+    /// Does **not** roll back on sync failure — SyncEngine retries when online.
+    /// Session link is `workout_sessions.plan_workout_id` (no plan column).
+    func markWorkoutCompleted(id: UUID, sessionId: UUID) async throws {
+        guard let plan else { throw PlanMutationError.noPlan }
+        let result = try PlanMutator.completingWorkout(id: id, in: plan)
+
+        applyPlan(result.plan)
+        syncEngine.enqueueSession(id: sessionId)
         await reconcileReminders()
     }
 

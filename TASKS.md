@@ -270,9 +270,15 @@ Core of the app (PLAN M4): Workout Detail, live Workout Screen, completion summa
 
 ### Offline domain & sync
 
-- [ ] **M4-02** SwiftData models + repository for in-progress/completed `WorkoutSession` + `SetLog` (+ workout/exercise notes); local-first writes; resume an in-progress session after relaunch/kill. Cardinal rule: never lose an in-progress workout while offline. Unit tests for create/resume/complete/discard persistence.
-- [ ] **M4-03** `SyncEngine`: queue session / set_log upserts to Supabase (`workout_sessions` / `set_logs`), last-write-wins, retry when online; update `plan_workouts.status` → `completed` (and session link) per the M4-01 decision. Protocol + mock for tests; never block local save on network.
-- [ ] **M4-04** Extend `PlanStore` / `PlanMutator` / plan mutation service: skip workout; mark completed with session link; optimistic UI + rollback on remote failure; reminder reconcile after success (extends M3-15 / #44/#48).
+- [x] **M4-02** SwiftData models + repository for in-progress/completed `WorkoutSession` + `SetLog` (+ workout/exercise notes); local-first writes; resume an in-progress session after relaunch/kill. Cardinal rule: never lose an in-progress workout while offline. Unit tests for create/resume/complete/discard persistence.
+
+> **Learned during M4-02 (2026-07-25):** `WorkoutSessionRecord` / `SetLogRecord` + `SwiftDataWorkoutSessionRepository` ship local-first create/resume/complete/discard with immediate `context.save()` on every mutation; one in-progress session per `plan_workout_id` (#50c); `weightKg` canonical; workout notes on session, per-exercise notes + pause/elapsed fields are **local-only** (SPEC §14 #51). No UI, SyncEngine, or PlanStore mutations in this task.
+- [x] **M4-03** `SyncEngine`: queue session / set_log upserts to Supabase (`workout_sessions` / `set_logs`), last-write-wins, retry when online; update `plan_workouts.status` → `completed` (and session link) per the M4-01 decision. Protocol + mock for tests; never block local save on network.
+
+> **Learned during M4-03 (2026-07-25):** `SyncEngine` + `SupabaseSyncEngine` / `MockSyncEngine` upload pending `needsSync` sessions/set_logs (LWW upsert by id); completed sessions with `planWorkoutId` thin-update `plan_workouts.status = completed`. Session link is `workout_sessions.plan_workout_id` only (SPEC §14 #52 — no `plan_workouts.session_id`). Reachability via injectable `NetworkReachability` (`NWPathMonitor` in prod). Never blocks repository saves; flush failures leave `needsSync` for retry. No UI.
+- [x] **M4-04** Extend `PlanStore` / `PlanMutator` / plan mutation service: skip workout; mark completed with session link; optimistic UI + rollback on remote failure; reminder reconcile after success (extends M3-15 / #44/#48).
+
+> **Learned during M4-04 (2026-07-25):** `PlanMutator.skippingWorkout` / `completingWorkout` only from `.scheduled` (`workoutFinished` otherwise). **Skip** = move-style optimistic + `updateWorkoutStatus` + rollback + reminders on success. **Complete** = local `.completed` + `syncEngine.enqueueSession` (no rollback on sync failure) + reminders after *local* apply (SPEC §14 #52). Discard unchanged (repo-only). No Detail/Screen UI (M4-05+).
 
 ### Workout Detail (SPEC §7)
 

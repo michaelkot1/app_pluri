@@ -11,6 +11,11 @@ final class MockPlanMutationService: PlanMutationServicing {
         var changedWorkouts: [PlanWorkoutInsertRow]
     }
 
+    struct StatusCall: Equatable {
+        var planID: UUID
+        var changedWorkouts: [PlanWorkoutInsertRow]
+    }
+
     struct AddCall: Equatable {
         var planID: UUID
         var newWorkout: PlanWorkoutInsertRow
@@ -50,6 +55,7 @@ final class MockPlanMutationService: PlanMutationServicing {
     var nextError: PluriSyncError?
 
     private(set) var moveCalls: [MoveCall] = []
+    private(set) var statusCalls: [StatusCall] = []
     private(set) var addCalls: [AddCall] = []
     private(set) var planSettingsCalls: [PlanSettingsCall] = []
     private(set) var profileSettingsCalls: [ProfileSettingsCall] = []
@@ -59,6 +65,11 @@ final class MockPlanMutationService: PlanMutationServicing {
     func moveWorkout(planID: UUID, changedWorkouts: [PlanWorkoutInsertRow]) async throws {
         try throwIfNeeded()
         moveCalls.append(MoveCall(planID: planID, changedWorkouts: changedWorkouts))
+    }
+
+    func updateWorkoutStatus(planID: UUID, changedWorkouts: [PlanWorkoutInsertRow]) async throws {
+        try throwIfNeeded()
+        statusCalls.append(StatusCall(planID: planID, changedWorkouts: changedWorkouts))
     }
 
     func addWorkout(

@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// Root of the app (M2-18): `AppRouter` phase switching per PLAN §1.2 —
@@ -5,13 +6,15 @@ import SwiftUI
 /// (M2-08) and auth session (M2-04) hydrate behind the splash, with no
 /// onboarding/paywall flash before launch routing is known. Also owns the
 /// live `WorkoutReminderService` (M3-15) so the same instance reconciles
-/// reminders after plan mutations and powers the Notifications toggle.
+/// reminders after plan mutations and powers the Notifications toggle, and
+/// the `SyncEngine` (M4-03) for opportunistic session / set_log upload.
 struct AppRootView: View {
     @State private var authService: SupabaseAuthService
     @State private var subscriptionService: SubscriptionService
     @State private var flushService: SupabaseOnboardingFlushService
     @State private var restoreService: SupabaseRemotePlanRestoreService
     @State private var reminderService: WorkoutReminderService
+    @State private var syncEngine: SupabaseSyncEngine
     @State private var planStore: PlanStore
     @State private var router = AppRouter()
     @State private var themeStore = ThemeStore()
@@ -20,7 +23,7 @@ struct AppRootView: View {
     @State private var showsDebugGallery = false
     #endif
 
-    init() {
+    init(modelContainer: ModelContainer) {
         let supabase = SupabaseService()
         let auth = SupabaseAuthService(supabaseService: supabase)
         _authService = State(initialValue: auth)
@@ -35,9 +38,16 @@ struct AppRootView: View {
             userIDProvider: { auth.appUserID }
         )
         _reminderService = State(initialValue: reminders)
+
+        let sync = SupabaseSyncEngine(
+            modelContext: modelContainer.mainContext,
+            supabaseService: supabase
+        )
+        _syncEngine = State(initialValue: sync)
         _planStore = State(
             initialValue: PlanStore(
                 mutationService: SupabasePlanMutationService(supabaseService: supabase),
+                syncEngine: sync,
                 reminderReconciler: reminders
             )
         )
@@ -137,5 +147,15 @@ struct AppRootView: View {
 }
 
 #Preview {
-    AppRootView()
+    let container = try! ModelContainer(
+        for: Schema([
+            CachedExercise.self,
+            ExerciseCatalogSyncState.self,
+            WorkoutSessionRecord.self,
+            SetLogRecord.self,
+        ]),
+        configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+    )
+    AppRootView(modelContainer: container)
+        .modelContainer(container)
 }

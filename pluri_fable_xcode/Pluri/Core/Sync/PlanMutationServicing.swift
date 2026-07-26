@@ -15,6 +15,10 @@ protocol PlanMutationServicing: AnyObject {
     /// sibling rows whose order shifted during renormalization.
     func moveWorkout(planID: UUID, changedWorkouts: [PlanWorkoutInsertRow]) async throws
 
+    /// Persists a status change (e.g. Detail Skip → `skipped`) by upserting
+    /// the changed workout rows (M4-04 / SPEC §14 #52).
+    func updateWorkoutStatus(planID: UUID, changedWorkouts: [PlanWorkoutInsertRow]) async throws
+
     /// Persists an added (cloned) workout: inserts the new workout + exercise
     /// rows (new IDs, SPEC §14 #38) and upserts any reordered siblings.
     func addWorkout(

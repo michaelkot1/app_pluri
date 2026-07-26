@@ -168,4 +168,9 @@ nonisolated enum DatabaseCodeMappings {
     static func date(from string: String) -> Date? {
         try? Date(string, strategy: isoDate)
     }
+
+    /// ISO-8601 timestamptz string for `workout_sessions` / `set_logs` (M4-03).
+    static func timestampString(_ date: Date) -> String {
+        date.formatted(.iso8601)
+    }
 }

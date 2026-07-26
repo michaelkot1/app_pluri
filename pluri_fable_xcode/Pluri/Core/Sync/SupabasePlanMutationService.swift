@@ -29,6 +29,16 @@ final class SupabasePlanMutationService: PlanMutationServicing {
         }
     }
 
+    func updateWorkoutStatus(planID: UUID, changedWorkouts: [PlanWorkoutInsertRow]) async throws {
+        guard !changedWorkouts.isEmpty else { return }
+        do {
+            try await upsertWorkouts(changedWorkouts)
+            logger.info("Updated workout status in plan \(planID.uuidString, privacy: .public)")
+        } catch {
+            throw mapError(error)
+        }
+    }
+
     func addWorkout(
         planID: UUID,
         newWorkout: PlanWorkoutInsertRow,
