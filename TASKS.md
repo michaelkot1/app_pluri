@@ -404,9 +404,17 @@ HealthKit Insights & Pluri Score (PLAN M5): full HealthKit *reads* (steps, sleep
 
 ### Privacy & verification
 
-- [ ] **M5-14** Confirm Info.plist / usage strings cover M5 read types; App Review HealthKit privacy posture (display / score / insights only — never leave the device except user-initiated workout sync) (SPEC §13, AGENTS).
-- [ ] **M5-15** Swift Testing (`PluriTests`): `ScoreEngine` math/clamp; HealthKit reader mocks; Home tile aggregation; Performance / Workouts aggregations; manual-activity inclusion; unauthorized empty paths.
-- [ ] **M5-16** M5 UI QA: previews for connected / denied / empty / populated states; Dynamic Type, VoiceOver, dark mode, 44pt targets; Home tiles → Insights section click-through; score moves after completing workouts (and daily refresh per M5-01).
+- [x] **M5-14** Confirm Info.plist / usage strings cover M5 read types; App Review HealthKit privacy posture (display / score / insights only — never leave the device except user-initiated workout sync) (SPEC §13, AGENTS).
+
+> **Learned during M5-14 (2026-07-26):** broadened `NSHealthShareUsageDescription` for steps / sleep / heart rate / active energy (Home tiles, Insights, Pluri Score) **and** live workout HR/energy; `NSHealthUpdateUsageDescription` kept for optional Save→Apple Health workout write. Reconciled with `LiveHealthKitService` / `LiveWorkoutHealthMetricsProvider` / `LiveWorkoutHealthWriter`. Confirmed SyncEngine has no HK sample upload path. Documented as SPEC §14 **#63**. Entitlement unchanged.
+
+- [x] **M5-15** Swift Testing (`PluriTests`): `ScoreEngine` math/clamp; HealthKit reader mocks; Home tile aggregation; Performance / Workouts aggregations; manual-activity inclusion; unauthorized empty paths.
+
+> **Learned during M5-15 (2026-07-26):** gap-filled `WorkoutsListEngineTests` manual-inclusion; tightened All-Time plan+manual case; `MainRouterTests` health-tile deep links (`.steps` / `.activeHeartRate` / `.calories` / `.sleep`); `InsightsViewModelTests` for unauthorized health empty copy + Workouts day filter / empty path. Existing suites already cover ScoreEngine, HealthKit mocks, Home tiles, Performance/Health engines.
+
+- [x] **M5-16** M5 UI QA: previews for connected / denied / empty / populated states; Dynamic Type, VoiceOver, dark mode, 44pt targets; Home tiles → Insights section click-through; score moves after completing workouts (and daily refresh per M5-01).
+
+> **Learned during M5-16 (2026-07-26):** previews added for `HomeHealthTiles` (populated / authorized-empty / Enable Health / denied / unavailable), `InsightsPerformanceView` (empty week / populated / HK denied), `InsightsWorkoutsTabView` (empty / populated); Connected Apps 4-status previews retained. **Code/preview verified:** Dynamic Type via `PluriFont`; tile/card a11y labels + hints; health tiles / week chevrons / Clear filter use `minHeight`/`minWidth` 44; dark via `PluriColor` tokens; tile→Insights deep links unit-tested (`MainRouter`). **Needs device confirmation:** VoiceOver rotor walk-through, Dynamic Type XXL layout on device, dark-mode visual pass, score delta after Save + foreground refresh (M5-01 cadence — observer is M5-18).
 
 ### Optional parity (nice-to-have — do not block M5 exit)
 
@@ -423,6 +431,56 @@ HealthKit Insights & Pluri Score (PLAN M5): full HealthKit *reads* (steps, sleep
 **M5 exit check** (PLAN M5): Insights reflect real logged + health data; score updates daily. Specifically: HealthKit read auth is real on Connected Apps + Profile with honest denial/empty states; Home Today's Health tiles and Pluri Score are live (stub copy gone from Home + Plan Overview); Insights Performance shows per-exercise stats, week filter, all-time strength/time stats, and Bevel-style health insights when authorized; Workouts tab lists M4 completed sessions by month plus manual "+" activities per §9.3; HealthKit samples stay on-device (SPEC §13); build + Swift Testing suite pass; Dynamic Type/VoiceOver/dark mode/contrast/44pt targets manually checked. M5-17 typed Insights routes and M5-18 foreground HealthKit observer are complete (SPEC §14 #64 / #65).
 
 **Deferred out of M5 (don't build ahead):** real Ask Pluri coach (M6 — stub OK); Outdoor Run tracking (stub through M9); Community notification rows / feed (M8); Devices / Bluetooth pairing; Cardio / Flexibility / hybrid *plans* and groups (v2) — manual Cardio/Flexibility *log types* via "+" (§9.3) are in scope for M5.
+
+---
+
+## M6 — Ask Pluri (AI Coach)
+
+Ask Pluri (AI Coach) (PLAN M6): `ask-pluri` Edge Function with Gemini, context grounding, chat UI on the Workout Screen, add/remove-workout actions, coach persona & safety rails. Builds on M4's Ask Pluri stub and M3 `PlanStore` / `PlanMutator`. **Exit:** mid-workout questions answered with user-specific context; plan edits via chat work.
+
+### Scope & decisions (do first — unblock payload, persistence, and tool schema)
+
+- [ ] **M6-01** Resolve and record Ask Pluri decisions in SPEC §14/§15 before building: context payload (current plan, recent sessions, current workout — never HealthKit samples); chat history persistence (remote `chat_messages` vs session-local); confirm UX before add/remove; offline = honest "needs connection" (no fake coach answers); rate-limit / "coach is busy"; safety rails (medical/injury disclaimers, refuse harmful advice); tool schema for add/remove; Gemini model + secrets naming. Pick the most reversible interim option where the owner is unavailable (AGENTS §7).
+
+### Backend
+
+- [ ] **M6-02** Migration: `chat_messages` (+ RLS owner-only) per PLAN §1.3 — not in repo today.
+
+- [ ] **M6-03** Edge Function `ask-pluri`: JWT auth, load owner plan/history context, call Gemini (secret server-side), persist messages, return reply; structured tool actions for add/remove `plan_workouts`; throttle + busy/error shapes. Pattern after `supabase/functions/delete-account/`. Secrets: Gemini + service role (M0-11 may `[!]` block production deploy).
+
+- [ ] **M6-04** EF unit/integration tests or scripted fixtures for grounding + tool actions (no key in repo).
+
+### Client networking
+
+- [ ] **M6-05** `AskPluriClient` protocol + live (invoke EF) + mock for previews/tests; never embed Gemini key (PLAN §1.1, SPEC §14 #6).
+
+### Chat UI
+
+- [ ] **M6-06** `Features/AskPluri/` chat UI (sheet/stack from Workout Screen): message list, composer, streaming/busy/error, Dynamic Type / VoiceOver / 44pt.
+
+- [ ] **M6-07** Replace Workout Screen stub (`WorkoutScreenView` / `showsAskPluriStub` / "coming in M6") with real entry pre- and mid-workout (SPEC §8 / §10).
+
+- [ ] **M6-08** Update Plan Overview `AskPluriExplainerCard` from "later update" to live how-to (SPEC §6.1 / #43).
+
+### Plan mutations via chat
+
+- [ ] **M6-09** Wire coach add/remove → `PlanStore` / `PlanMutator` / mutation service. Add can reuse `addWorkout(cloning:on:)` (#38); remove needs new API under same history/conflict rules (#38/#44: no delete completed/skipped). Confirm UI per M6-01; optimistic + rollback; reminder reconcile after success.
+
+- [ ] **M6-10** Apply EF-returned structured actions on client (or EF mutates remotely + client rehydrates) — pick one in M6-01; keep Plan/calendar consistent.
+
+### Persona, safety, verification
+
+- [ ] **M6-11** System prompt / server rails: kind informative coach; no raw API leakage; no cross-user data; gentle refusals.
+
+- [ ] **M6-12** Swift Testing: client parsing, mock chat flows, plan mutation from tool payloads, unauthorized/offline/busy paths.
+
+- [ ] **M6-13** M6 UI QA: previews empty/busy/error/populated; a11y; mid-workout chat doesn’t break logging; add/remove click-through updates Plan.
+
+**Dependencies:** M6-01 → 02/03; 03 → 05 → 06/07; 01+03 → 09/10; everything → 12/13.
+
+**M6 exit check** (PLAN M6): mid-workout questions answered with user-specific context; plan edits via chat work. Specifically: Ask Pluri decisions recorded in SPEC §14/§15; `chat_messages` migration + RLS in place; `ask-pluri` EF authenticates, grounds on owner plan/history (never HealthKit samples), calls Gemini server-side, returns replies + structured add/remove actions with throttle/busy/error shapes; client `AskPluriClient` never embeds the Gemini key; Workout Screen stub replaced by real chat pre- and mid-workout; Plan Overview explainer is live how-to; add/remove via chat updates Plan under #38/#44 rules with confirm + optimistic/rollback + reminder reconcile; coach persona/safety rails refuse harmful advice gently; build + Swift Testing suite pass; Dynamic Type/VoiceOver/44pt targets and mid-workout chat QA manually checked.
+
+**Deferred out of M6 (don't build ahead):** Recipes / nutrition (M7); Community (M8); Outdoor Run (M9); Cardio / Flexibility / hybrid plans & groups (v2); Devices.
 
 ---
 
