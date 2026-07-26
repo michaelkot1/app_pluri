@@ -6,16 +6,18 @@ import SwiftUI
 /// (M2-08) and auth session (M2-04) hydrate behind the splash, with no
 /// onboarding/paywall flash before launch routing is known. Also owns the
 /// live `WorkoutReminderService` (M3-15) so the same instance reconciles
-/// reminders after plan mutations and powers the Notifications toggle, and
-/// the `SyncEngine` (M4-03) for opportunistic session / set_log upload, and
-/// the local `WorkoutSessionRepository` for Detail Notes / live session
-/// writes (M4-05/06).
+/// reminders after plan mutations and powers the Notifications toggle, the
+/// Insights `LiveHealthKitService` (M5-02/18) for Home tiles / Pluri Score
+/// foreground observer, the `SyncEngine` (M4-03) for opportunistic session /
+/// set_log upload, and the local `WorkoutSessionRepository` for Detail Notes /
+/// live session writes (M4-05/06).
 struct AppRootView: View {
     @State private var authService: SupabaseAuthService
     @State private var subscriptionService: SubscriptionService
     @State private var flushService: SupabaseOnboardingFlushService
     @State private var restoreService: SupabaseRemotePlanRestoreService
     @State private var reminderService: WorkoutReminderService
+    @State private var healthKitService: LiveHealthKitService
     @State private var syncEngine: SupabaseSyncEngine
     @State private var workoutSessionRepository: SwiftDataWorkoutSessionRepository
     @State private var planStore: PlanStore
@@ -41,6 +43,7 @@ struct AppRootView: View {
             userIDProvider: { auth.appUserID }
         )
         _reminderService = State(initialValue: reminders)
+        _healthKitService = State(initialValue: LiveHealthKitService())
 
         let sync = SupabaseSyncEngine(
             modelContext: modelContainer.mainContext,
@@ -105,6 +108,7 @@ struct AppRootView: View {
         .environment(flushService)
         .environment(restoreService)
         .environment(reminderService)
+        .environment(healthKitService)
         .environment(workoutSessionRepository)
         .environment(syncEngine)
         .environment(planStore)

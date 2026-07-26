@@ -2,9 +2,8 @@ import Foundation
 import Testing
 @testable import Pluri
 
-/// M3-07..09 — Home display logic: month summary counting, calendar-strip
-/// day derivation, selected-day resolution, Record Workout menu options, and
-/// the honestly-labeled stub score.
+/// M3-07..09 / M5-04..06 — Home display logic: month summary, calendar strip,
+/// Record Workout menu, health tile formatting, and live score labeling.
 @Suite("HomeViewModel")
 @MainActor
 struct HomeViewModelTests {
@@ -36,8 +35,8 @@ struct HomeViewModelTests {
         )
     }
 
-    private func makeViewModel() -> HomeViewModel {
-        HomeViewModel(calendar: calendar)
+    private func makeViewModel(defaults: UserDefaults = .standard) -> HomeViewModel {
+        HomeViewModel(calendar: calendar, defaults: defaults)
     }
 
     // MARK: - Day selection
@@ -123,12 +122,185 @@ struct HomeViewModelTests {
         #expect(options == [.scheduledWorkout(first), .outdoorRun])
     }
 
-    // MARK: - Stub score (M3-08)
+    // MARK: - Health tiles (M5-04)
 
-    @Test("Stub score is in range and clearly labeled as sample, not live")
-    func stubScoreLabeling() {
-        #expect((0...100).contains(HomeViewModel.stubScoreValue))
-        #expect(HomeViewModel.stubScoreBadge.localizedStandardContains("sample"))
-        #expect(HomeViewModel.stubScoreDisclaimer.localizedStandardContains("sample"))
+    @Test("Authorized snapshot formats steps, sleep hours, and BPM")
+    func healthTileFormattingPopulated() {
+        let viewModel = makeViewModel()
+        let snapshot = HealthDaySnapshot(
+            dayStart: monday,
+            stepCount: 8_432,
+            sleepHours: 7.5,
+            averageHeartRateBPM: 68,
+            activeEnergyKilocalories: 420
+        )
+
+        let metrics = viewModel.healthTileMetrics(
+            snapshot: snapshot,
+            authorizationStatus: .authorized
+        )
+
+        #expect(metrics.stepsValue == 8_432.formatted(.number))
+        #expect(metrics.sleepValue == "7.5 hr")
+        #expect(metrics.heartRateValue == "\(68.formatted(.number)) BPM")
+        #expect(metrics.isEmptyPlaceholder == false)
+    }
+
+    @Test("Authorized empty metrics say No data yet")
+    func healthTileAuthorizedEmpty() {
+        let viewModel = makeViewModel()
+        let metrics = viewModel.healthTileMetrics(
+            snapshot: .empty(dayStart: monday),
+            authorizationStatus: .authorized
+        )
+        #expect(metrics.stepsValue == "No data yet")
+        #expect(metrics.sleepValue == "No data yet")
+        #expect(metrics.heartRateValue == "No data yet")
+        #expect(metrics.isEmptyPlaceholder == true)
+    }
+
+    @Test("Not connected metrics say Enable Health")
+    func healthTileEnableHealthCopy() {
+        let viewModel = makeViewModel()
+        let metrics = viewModel.healthTileMetrics(
+            snapshot: .empty(dayStart: monday),
+            authorizationStatus: .notDetermined
+        )
+        #expect(metrics.stepsValue == "Enable Health")
+        #expect(metrics.value(for: .sleep) == "Enable Health")
+    }
+
+    @Test("refreshHealthTiles pulls today snapshot from the reader")
+    func refreshHealthTilesUsesReader() async {
+        let healthKit = MockHealthKitReading(authorizationStatus: .authorized)
+        let viewModel = makeViewModel()
+
+        await viewModel.refreshHealthTiles(using: healthKit)
+
+        #expect(healthKit.refreshCount == 1)
+        #expect(healthKit.daySnapshotRequestCount == 1)
+        #expect(viewModel.healthTileMetrics.isEmptyPlaceholder == false)
+        #expect(viewModel.healthTileMetrics.stepsValue != "No data yet")
+    }
+
+    // MARK: - Live score (M5-06)
+
+    @Test("Live score refreshes from plan sessions and persists clamp snapshot")
+    func liveScoreRefreshPersists() async {
+        let suite = "pluri.tests.home.score.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let healthKit = MockHealthKitReading(authorizationStatus: .denied)
+        let viewModel = makeViewModel(defaults: defaults)
+        let sessions = [
+            PlannedSession(
+                title: "A",
+                indexInWeek: 1,
+                weekday: .monday,
+                date: monday,
+                status: .completed,
+                durationMinutes: 45,
+                exercises: []
+            ),
+        ]
+
+        await viewModel.refreshPluriScore(
+            sessions: sessions,
+            healthKit: healthKit,
+            userID: "test-user",
+            asOf: monday
+        )
+
+        #expect(viewModel.pluriScore != nil)
+        #expect((0...100).contains(viewModel.pluriScore ?? -1))
+        #expect(viewModel.scoreSubtitle.localizedStandardContains("consistency"))
+        #expect(!viewModel.scoreSubtitle.localizedStandardContains("sample"))
+        let stored = PluriScoreStore.load(userID: "test-user", defaults: defaults)
+        #expect(stored?.score == Double(viewModel.pluriScore ?? -1))
+    }
+
+    @Test("Same-day score refresh does not ratchet the ±3 daily clamp")
+    func sameDayRefreshDoesNotAccumulateClamp() async throws {
+        let suite = "pluri.tests.home.score.clamp.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let yesterday = day(-1)
+        PluriScoreStore.save(score: 50, dayStart: yesterday, userID: "clamp-user", defaults: defaults)
+
+        let healthKit = MockHealthKitReading(authorizationStatus: .denied)
+        let viewModel = makeViewModel(defaults: defaults)
+        let perfectSessions = (0..<8).map { offset in
+            PlannedSession(
+                title: "S\(offset)",
+                indexInWeek: 1,
+                weekday: .monday,
+                date: day(-offset),
+                status: .completed,
+                durationMinutes: 45,
+                exercises: []
+            )
+        }
+
+        await viewModel.refreshPluriScore(
+            sessions: perfectSessions,
+            healthKit: healthKit,
+            userID: "clamp-user",
+            asOf: monday
+        )
+        // New day: +3 from yesterday's latest (50); clamp base stays 50 all day.
+        #expect(viewModel.pluriScore == 53)
+        let storedAfterFirst = try #require(PluriScoreStore.load(userID: "clamp-user", defaults: defaults))
+        #expect(storedAfterFirst.clampBase == 50)
+        #expect(storedAfterFirst.latestScore == 53)
+
+        await viewModel.refreshPluriScore(
+            sessions: perfectSessions,
+            healthKit: healthKit,
+            userID: "clamp-user",
+            asOf: monday
+        )
+        // Same-day refresh must stay at 53 — not ratchet to 56 / 59 / …
+        #expect(viewModel.pluriScore == 53)
+        let storedAfterSecond = try #require(PluriScoreStore.load(userID: "clamp-user", defaults: defaults))
+        #expect(storedAfterSecond.clampBase == 50)
+        #expect(storedAfterSecond.latestScore == 53)
+
+        await viewModel.refreshPluriScore(
+            sessions: perfectSessions,
+            healthKit: healthKit,
+            userID: "clamp-user",
+            asOf: monday
+        )
+        #expect(viewModel.pluriScore == 53)
+        #expect(PluriScoreStore.load(userID: "clamp-user", defaults: defaults)?.clampBase == 50)
+    }
+
+    @Test("Score refresh token changes when a session status changes")
+    func scoreRefreshTokenTracksStatus() {
+        let a = PlannedSession(
+            title: "A",
+            indexInWeek: 1,
+            weekday: .monday,
+            date: monday,
+            status: .scheduled,
+            durationMinutes: 45,
+            exercises: []
+        )
+        let b = PlannedSession(
+            id: a.id,
+            title: "A",
+            indexInWeek: 1,
+            weekday: .monday,
+            date: monday,
+            status: .completed,
+            durationMinutes: 45,
+            exercises: []
+        )
+        #expect(
+            HomeViewModel.scoreRefreshToken(sessions: [a])
+                != HomeViewModel.scoreRefreshToken(sessions: [b])
+        )
     }
 }

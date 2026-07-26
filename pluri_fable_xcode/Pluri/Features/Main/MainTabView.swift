@@ -1,10 +1,10 @@
 import SwiftData
 import SwiftUI
 
-/// Main TabView navigation skeleton (M3-06): Home · Plan · Insights ·
+/// Main TabView navigation skeleton (M3-06 / M5-07): Home · Plan · Insights ·
 /// Community · Recipe, one `NavigationStack` per tab, with a `MainRouter`
 /// driving programmatic tab selection, the Home and Plan tabs' typed route
-/// paths, and the health-tile deep link into Insights (PLAN §1.2).
+/// paths, and the health-tile deep link into Insights Performance (PLAN §1.2).
 /// Community / Recipe stay honest placeholders until their milestones.
 struct MainTabView: View {
     /// Launch-restored profile + plan, kept as the Profile fallback.
@@ -39,8 +39,11 @@ struct MainTabView: View {
                 }
             }
             Tab("Insights", systemImage: "chart.line.uptrend.xyaxis", value: MainTab.insights) {
-                NavigationStack {
-                    InsightsPlaceholderView()
+                NavigationStack(path: $router.insightsPath) {
+                    InsightsView()
+                        .navigationDestination(for: InsightsRoute.self) { route in
+                            InsightsRouteDestinationView(route: route)
+                        }
                 }
             }
             Tab("Community", systemImage: "person.3.fill", value: MainTab.community) {
@@ -82,6 +85,7 @@ struct MainTabView: View {
         .environment(SubscriptionService(configurePurchases: false))
         .environment(HomePreviewData.readyStore())
         .environment(WorkoutReminderService.preview())
+        .environment(LiveHealthKitService())
         .environment(ThemeStore())
         .environment(SwiftDataWorkoutSessionRepository(modelContext: container.mainContext))
         .modelContainer(container)

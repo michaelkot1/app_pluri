@@ -368,6 +368,12 @@ struct WorkoutScreenView: View {
                 workoutSessionID: handoff.workoutSessionID,
                 elapsedSeconds: handoff.elapsedSeconds
             )
+        case .insights:
+            router.openInsightsWorkoutCompletion(
+                planWorkoutID: handoff.planWorkoutID,
+                workoutSessionID: handoff.workoutSessionID,
+                elapsedSeconds: handoff.elapsedSeconds
+            )
         }
     }
 

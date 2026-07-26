@@ -225,6 +225,8 @@ struct WorkoutCompletionView: View {
             router.finishHomeWorkoutCompletion()
         case .plan:
             router.finishPlanWorkoutCompletion()
+        case .insights:
+            router.finishInsightsWorkoutCompletion()
         }
     }
 }

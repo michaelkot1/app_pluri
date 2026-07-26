@@ -275,6 +275,123 @@ struct WorkoutSessionRepositoryTests {
         #expect(set.weightKg == kg)
     }
 
+    @Test("fetchCompletedSessions returns ended sessions in the half-open window")
+    func fetchCompletedSessionsInWindow() throws {
+        let container = try makeContainer()
+        let repo = makeRepository(in: container)
+        let userId = UUID()
+        let start = Date(timeIntervalSince1970: 1_752_451_200) // 2025-07-14
+        let mid = start.addingTimeInterval(86_400)
+        let end = start.addingTimeInterval(86_400 * 7)
+
+        let inWindow = try repo.startOrResume(planWorkoutId: UUID(), userId: userId)
+        _ = try repo.upsertSetLog(
+            sessionId: inWindow.id,
+            id: nil,
+            workoutExerciseId: UUID(),
+            exerciseName: "Bench",
+            setNumber: 1,
+            reps: 8,
+            weightKg: 60,
+            durationSeconds: nil
+        )
+        try repo.complete(
+            sessionId: inWindow.id,
+            endedAt: mid,
+            durationSeconds: 600,
+            notes: nil
+        )
+
+        let outside = try repo.startOrResume(planWorkoutId: UUID(), userId: userId)
+        try repo.complete(
+            sessionId: outside.id,
+            endedAt: end.addingTimeInterval(3_600),
+            durationSeconds: 600,
+            notes: nil
+        )
+
+        let inProgress = try repo.startOrResume(planWorkoutId: UUID(), userId: userId)
+
+        let fetched = try repo.fetchCompletedSessions(
+            endingOnOrAfter: start,
+            endingBefore: end
+        )
+
+        #expect(fetched.map(\.id) == [inWindow.id])
+        #expect(fetched.first?.setLogs.count == 1)
+        #expect(try repo.session(id: inProgress.id)?.endedAt == nil)
+    }
+
+    @Test("fetchAllCompletedSessions returns every ended session, oldest first")
+    func fetchAllCompletedSessions() throws {
+        let container = try makeContainer()
+        let repo = makeRepository(in: container)
+        let userId = UUID()
+        let earlier = Date(timeIntervalSince1970: 1_752_451_200)
+        let later = earlier.addingTimeInterval(86_400 * 3)
+
+        let first = try repo.startOrResume(planWorkoutId: UUID(), userId: userId)
+        try repo.complete(
+            sessionId: first.id,
+            endedAt: earlier,
+            durationSeconds: 600,
+            notes: nil
+        )
+
+        let second = try repo.startOrResume(planWorkoutId: UUID(), userId: userId)
+        try repo.complete(
+            sessionId: second.id,
+            endedAt: later,
+            durationSeconds: 900,
+            notes: nil
+        )
+
+        _ = try repo.startOrResume(planWorkoutId: UUID(), userId: userId)
+
+        let fetched = try repo.fetchAllCompletedSessions()
+        #expect(fetched.map(\.id) == [first.id, second.id])
+        #expect(fetched.map(\.durationSeconds) == [600, 900])
+    }
+
+    @Test("createManualActivity inserts completed isManualLog session included in fetchAll")
+    func createManualActivity() throws {
+        let container = try makeContainer()
+        let repo = makeRepository(in: container)
+        let userId = UUID()
+        let startedAt = Date(timeIntervalSince1970: 1_784_073_600)
+
+        let manual = try repo.createManualActivity(
+            userId: userId,
+            activityType: "cardio",
+            startedAt: startedAt,
+            durationSeconds: 1_800,
+            distanceMeters: 5_000,
+            notes: "Easy run"
+        )
+
+        #expect(manual.isManualLog)
+        #expect(manual.planWorkoutId == nil)
+        #expect(manual.needsSync)
+        #expect(manual.activityType == "cardio")
+        #expect(manual.durationSeconds == 1_800)
+        #expect(manual.distanceMeters == 5_000)
+        #expect(manual.notes == "Easy run")
+        #expect(manual.endedAt == startedAt.addingTimeInterval(1_800))
+        #expect(!manual.isInProgress)
+
+        let plan = try repo.startOrResume(planWorkoutId: UUID(), userId: userId)
+        try repo.complete(
+            sessionId: plan.id,
+            endedAt: startedAt.addingTimeInterval(3_600),
+            durationSeconds: 600,
+            notes: nil
+        )
+
+        let fetched = try repo.fetchAllCompletedSessions()
+        #expect(fetched.map(\.id) == [manual.id, plan.id])
+        #expect(fetched.contains { $0.isManualLog && $0.id == manual.id })
+    }
+
     @Test("startOrResume creates a soft paused session without a running timer")
     func softStartDoesNotRunTimer() throws {
         let container = try makeContainer()

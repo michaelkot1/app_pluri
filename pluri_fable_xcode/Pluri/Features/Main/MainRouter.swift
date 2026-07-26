@@ -1,9 +1,9 @@
 import Foundation
 import Observation
 
-/// Navigation state for the Main TabView (M3-06): selected tab, the Home and
-/// Plan tabs' typed navigation paths, and the Insights section requested by a
-/// Home health-tile deep link (PLAN §1.2).
+/// Navigation state for the Main TabView (M3-06 / M5-17): selected tab, the
+/// Home / Plan / Insights tabs' typed navigation paths, and the Insights
+/// section requested by a Home health-tile deep link (PLAN §1.2).
 ///
 /// Deliberately separate from the root `AppRouter` (which owns app phases —
 /// SPEC §14 #41): this router only exists while the Main shell is on screen.
@@ -20,15 +20,18 @@ final class MainRouter {
     /// The Plan tab's `NavigationStack` path (M3-10/11).
     var planPath: [PlanRoute] = []
 
-    /// The Insights section a Home health tile asked for; the Insights
-    /// placeholder highlights it (M3-08 deep link).
+    /// The Insights tab's `NavigationStack` path (M5-17 / SPEC §14 #64).
+    var insightsPath: [InsightsRoute] = []
+
+    /// Health subsection a Home tile asked for; Insights lands on Performance
+    /// and highlights the matching Health chip (M3-08 / M5-07 / M5-10 / SPEC §14 #61).
     var insightsSection: InsightsSection = .general
 
     func selectTab(_ tab: MainTab) {
         selectedTab = tab
     }
 
-    /// Cross-tab jump from a Home health tile into the Insights placeholder.
+    /// Cross-tab jump from a Home health tile into Insights Performance.
     func openInsights(section: InsightsSection) {
         insightsSection = section
         selectedTab = .insights
@@ -56,7 +59,7 @@ final class MainRouter {
         pushOnHome(.workoutScreen(sessionID: sessionID))
     }
 
-    /// Completion stub after Stop / hold-to-finish (M4-09; full summary is M4-12).
+    /// Completion summary after Stop / hold-to-finish (M4-12).
     func openWorkoutCompletion(
         planWorkoutID: UUID,
         workoutSessionID: UUID,
@@ -69,6 +72,18 @@ final class MainRouter {
                 elapsedSeconds: elapsedSeconds
             )
         )
+    }
+
+    /// After Save / Discard: pop Screen + Completion so the user lands on Detail (SPEC §14 #56).
+    func finishHomeWorkoutCompletion() {
+        while let last = homePath.last {
+            switch last {
+            case .workoutCompletion, .workoutScreen:
+                homePath.removeLast()
+            default:
+                return
+            }
+        }
     }
 
     func openOutdoorRunStub() {
@@ -110,7 +125,7 @@ final class MainRouter {
         pushOnPlan(.workoutScreen(sessionID: sessionID))
     }
 
-    /// Completion stub inside the Plan stack (M4-09).
+    /// Completion summary inside the Plan stack (M4-12).
     func openPlanWorkoutCompletion(
         planWorkoutID: UUID,
         workoutSessionID: UUID,
@@ -125,6 +140,63 @@ final class MainRouter {
         )
     }
 
+    /// After Save / Discard: pop Screen + Completion so the user lands on Detail (SPEC §14 #56).
+    func finishPlanWorkoutCompletion() {
+        while let last = planPath.last {
+            switch last {
+            case .workoutCompletion, .workoutScreen:
+                planPath.removeLast()
+            default:
+                return
+            }
+        }
+    }
+
+    // MARK: - Insights tab (M5-17)
+
+    /// Plan-linked Workout Detail inside the Insights stack — uses
+    /// `planWorkoutID` (`PlannedSession.id`), never the session-log id.
+    func openInsightsWorkoutDetail(planWorkoutID: UUID) {
+        pushOnInsights(.workoutDetail(planWorkoutID: planWorkoutID))
+    }
+
+    /// Manual / completed session summary inside the Insights stack.
+    func openInsightsCompletedSession(sessionID: UUID) {
+        pushOnInsights(.completedSession(sessionID: sessionID))
+    }
+
+    /// Workout Screen pushed inside the Insights stack (keeps stack affinity).
+    func openInsightsWorkoutScreen(planWorkoutID: UUID) {
+        pushOnInsights(.workoutScreen(planWorkoutID: planWorkoutID))
+    }
+
+    /// Completion summary inside the Insights stack.
+    func openInsightsWorkoutCompletion(
+        planWorkoutID: UUID,
+        workoutSessionID: UUID,
+        elapsedSeconds: Int
+    ) {
+        pushOnInsights(
+            .workoutCompletion(
+                planWorkoutID: planWorkoutID,
+                workoutSessionID: workoutSessionID,
+                elapsedSeconds: elapsedSeconds
+            )
+        )
+    }
+
+    /// After Save / Discard: pop Screen + Completion so the user lands on Detail.
+    func finishInsightsWorkoutCompletion() {
+        while let last = insightsPath.last {
+            switch last {
+            case .workoutCompletion, .workoutScreen:
+                insightsPath.removeLast()
+            default:
+                return
+            }
+        }
+    }
+
     private func pushOnHome(_ route: HomeRoute) {
         selectedTab = .home
         homePath.append(route)
@@ -133,5 +205,10 @@ final class MainRouter {
     private func pushOnPlan(_ route: PlanRoute) {
         selectedTab = .plan
         planPath.append(route)
+    }
+
+    private func pushOnInsights(_ route: InsightsRoute) {
+        selectedTab = .insights
+        insightsPath.append(route)
     }
 }

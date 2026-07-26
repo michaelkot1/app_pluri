@@ -2,10 +2,11 @@ import SwiftData
 import SwiftUI
 
 /// Which Main tab stack owns this Detail push — View Workout stays on the
-/// same stack (Home vs Plan) that opened Detail (SPEC §14 #42d).
+/// same stack (Home / Plan / Insights) that opened Detail (SPEC §14 #42d / #64).
 enum WorkoutDetailStack: Sendable {
     case home
     case plan
+    case insights
 }
 
 /// Workout Detail (M4-05/06 / SPEC §7): focus-driven title/type/color,
@@ -38,7 +39,13 @@ struct WorkoutDetailView: View {
         .background(PluriColor.bgCanvas)
         .navigationTitle(session?.title ?? "Workout")
         .navigationBarTitleDisplayMode(.inline)
+        .id(sessionID)
         .onAppear {
+            ensureViewModel()
+            viewModel?.loadNotes()
+        }
+        .onChange(of: sessionID) { _, _ in
+            viewModel = nil
             ensureViewModel()
             viewModel?.loadNotes()
         }
@@ -155,6 +162,7 @@ struct WorkoutDetailView: View {
                                 .foregroundStyle(PluriColor.textSecondary)
                                 .monospacedDigit()
                         }
+                        .frame(minHeight: 44, alignment: .leading)
                         .accessibilityElement(children: .combine)
                     }
                 }
@@ -246,6 +254,8 @@ struct WorkoutDetailView: View {
             router.openWorkoutScreen(sessionID: sessionID)
         case .plan:
             router.openPlanWorkoutScreen(sessionID: sessionID)
+        case .insights:
+            router.openInsightsWorkoutScreen(planWorkoutID: sessionID)
         }
     }
 

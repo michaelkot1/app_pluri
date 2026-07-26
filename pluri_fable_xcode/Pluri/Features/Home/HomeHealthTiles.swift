@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// "Today's Health" placeholder tiles (M3-08 / SPEC §5): steps, sleep, and
-/// active heart rate. No HealthKit reads — live tiles are M5 — so each tile
-/// honestly shows "No data yet" and deep-links into its Insights section.
+/// "Today's Health" live tiles (M5-04 / SPEC §5): steps, sleep, and active
+/// heart rate from on-device HealthKit. Empty / unauthorized states stay
+/// honest (SPEC §14 #57c). Tapping deep-links into Insights.
 struct HomeHealthTiles: View {
+    var metrics: HomeHealthTileMetrics
     var onOpen: (InsightsSection) -> Void
 
     var body: some View {
@@ -13,17 +14,22 @@ struct HomeHealthTiles: View {
                 .foregroundStyle(PluriColor.textPrimary)
 
             HStack(spacing: PluriSpacing.sm) {
-                HomeHealthTile(section: .steps, onOpen: onOpen)
-                HomeHealthTile(section: .sleep, onOpen: onOpen)
-                HomeHealthTile(section: .activeHeartRate, onOpen: onOpen)
+                HomeHealthTile(section: .steps, value: metrics.stepsValue, onOpen: onOpen)
+                HomeHealthTile(section: .sleep, value: metrics.sleepValue, onOpen: onOpen)
+                HomeHealthTile(
+                    section: .activeHeartRate,
+                    value: metrics.heartRateValue,
+                    onOpen: onOpen
+                )
             }
         }
     }
 }
 
-/// One placeholder health tile; tapping jumps to that Insights section.
+/// One health tile; tapping jumps to that Insights section.
 private struct HomeHealthTile: View {
     var section: InsightsSection
+    var value: String
     var onOpen: (InsightsSection) -> Void
 
     var body: some View {
@@ -39,9 +45,11 @@ private struct HomeHealthTile: View {
                     .foregroundStyle(PluriColor.textPrimary)
                     .lineLimit(2, reservesSpace: true)
                     .multilineTextAlignment(.leading)
-                Text("No data yet")
+                Text(value)
                     .font(PluriFont.overline)
                     .foregroundStyle(PluriColor.textTertiary)
+                    .lineLimit(2, reservesSpace: true)
+                    .minimumScaleFactor(0.8)
             }
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .padding(PluriSpacing.md)
@@ -49,13 +57,69 @@ private struct HomeHealthTile: View {
             .pluriShadow(.card)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(section.title), no data yet")
+        .accessibilityLabel("\(section.title), \(value)")
         .accessibilityHint("Opens \(section.title) in Insights")
     }
 }
 
-#Preview {
-    HomeHealthTiles(onOpen: { _ in })
+#Preview("Populated") {
+    HomeHealthTiles(
+        metrics: HomeHealthTileMetrics(
+            stepsValue: "8,432",
+            sleepValue: "7.3 hr",
+            heartRateValue: "68 BPM",
+            isEmptyPlaceholder: false
+        ),
+        onOpen: { _ in }
+    )
+    .padding(PluriSpacing.lg)
+    .background(PluriColor.bgCanvas)
+}
+
+#Preview("Authorized empty") {
+    HomeHealthTiles(metrics: .empty, onOpen: { _ in })
         .padding(PluriSpacing.lg)
         .background(PluriColor.bgCanvas)
+}
+
+#Preview("Enable Health") {
+    HomeHealthTiles(
+        metrics: HomeHealthTileMetrics(
+            stepsValue: "Enable Health",
+            sleepValue: "Enable Health",
+            heartRateValue: "Enable Health",
+            isEmptyPlaceholder: true
+        ),
+        onOpen: { _ in }
+    )
+    .padding(PluriSpacing.lg)
+    .background(PluriColor.bgCanvas)
+}
+
+#Preview("Denied") {
+    HomeHealthTiles(
+        metrics: HomeHealthTileMetrics(
+            stepsValue: "Enable Health",
+            sleepValue: "Enable Health",
+            heartRateValue: "Enable Health",
+            isEmptyPlaceholder: true
+        ),
+        onOpen: { _ in }
+    )
+    .padding(PluriSpacing.lg)
+    .background(PluriColor.bgCanvas)
+}
+
+#Preview("Unavailable") {
+    HomeHealthTiles(
+        metrics: HomeHealthTileMetrics(
+            stepsValue: "Not available",
+            sleepValue: "Not available",
+            heartRateValue: "Not available",
+            isEmptyPlaceholder: true
+        ),
+        onOpen: { _ in }
+    )
+    .padding(PluriSpacing.lg)
+    .background(PluriColor.bgCanvas)
 }

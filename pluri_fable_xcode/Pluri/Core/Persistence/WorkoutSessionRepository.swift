@@ -52,8 +52,35 @@ protocol WorkoutSessionRepository: AnyObject {
         notes: String?
     ) throws
 
+    /// Records a successful Apple Health write and marks the row dirty for sync (M4-13).
+    func markSyncedToHealth(sessionId: UUID) throws
+
     /// Deletes the session and its set logs. Plan workout status is unchanged.
     func discard(sessionId: UUID) throws
+
+    /// Completed sessions (`endedAt != nil`) whose completion time falls in
+    /// `[endingOnOrAfter, endingBefore)`. Used by Insights Performance (M5-08).
+    func fetchCompletedSessions(
+        endingOnOrAfter start: Date,
+        endingBefore end: Date
+    ) throws -> [WorkoutSessionRecord]
+
+    /// All completed sessions (`endedAt != nil`), oldest completion first.
+    /// Used by All-Time Stats (M5-09) and Workouts list (M5-11); includes
+    /// plan-linked and manual `isManualLog` rows (M5-12 / SPEC §14 #57e).
+    func fetchAllCompletedSessions() throws -> [WorkoutSessionRecord]
+
+    /// Inserts a completed manual activity (Insights "+" — M5-12 / SPEC §9.3).
+    /// Does not touch plan workout status. Sets `needsSync` for opportunistic upload.
+    @discardableResult
+    func createManualActivity(
+        userId: UUID,
+        activityType: String,
+        startedAt: Date,
+        durationSeconds: Int,
+        distanceMeters: Double?,
+        notes: String?
+    ) throws -> WorkoutSessionRecord
 }
 
 enum WorkoutSessionRepositoryError: Error, Equatable {
@@ -257,6 +284,16 @@ final class SwiftDataWorkoutSessionRepository: WorkoutSessionRepository {
         logger.info("Completed workout session \(sessionId.uuidString, privacy: .public)")
     }
 
+    func markSyncedToHealth(sessionId: UUID) throws {
+        guard let session = try session(id: sessionId) else {
+            throw WorkoutSessionRepositoryError.sessionNotFound
+        }
+        session.syncedToHealth = true
+        session.updatedAt = .now
+        session.needsSync = true
+        try save()
+    }
+
     func discard(sessionId: UUID) throws {
         guard let session = try session(id: sessionId) else {
             throw WorkoutSessionRepositoryError.sessionNotFound
@@ -264,6 +301,66 @@ final class SwiftDataWorkoutSessionRepository: WorkoutSessionRepository {
         modelContext.delete(session)
         try save()
         logger.info("Discarded workout session \(sessionId.uuidString, privacy: .public)")
+    }
+
+    func fetchCompletedSessions(
+        endingOnOrAfter start: Date,
+        endingBefore end: Date
+    ) throws -> [WorkoutSessionRecord] {
+        let descriptor = FetchDescriptor<WorkoutSessionRecord>(
+            predicate: #Predicate { session in
+                if let endedAt = session.endedAt {
+                    return endedAt >= start && endedAt < end
+                } else {
+                    return false
+                }
+            },
+            sortBy: [SortDescriptor(\.endedAt, order: .forward)]
+        )
+        return try modelContext.fetch(descriptor)
+    }
+
+    func fetchAllCompletedSessions() throws -> [WorkoutSessionRecord] {
+        let descriptor = FetchDescriptor<WorkoutSessionRecord>(
+            predicate: #Predicate { session in
+                session.endedAt != nil
+            },
+            sortBy: [SortDescriptor(\.endedAt, order: .forward)]
+        )
+        return try modelContext.fetch(descriptor)
+    }
+
+    @discardableResult
+    func createManualActivity(
+        userId: UUID,
+        activityType: String,
+        startedAt: Date,
+        durationSeconds: Int,
+        distanceMeters: Double?,
+        notes: String?
+    ) throws -> WorkoutSessionRecord {
+        let clampedDuration = max(0, durationSeconds)
+        let endedAt = startedAt.addingTimeInterval(TimeInterval(clampedDuration))
+        let session = WorkoutSessionRecord(
+            userId: userId,
+            planWorkoutId: nil,
+            activityType: activityType,
+            startedAt: startedAt,
+            endedAt: endedAt,
+            durationSeconds: clampedDuration,
+            distanceMeters: distanceMeters,
+            notes: notes,
+            isManualLog: true,
+            needsSync: true,
+            isPaused: true,
+            accumulatedActiveSeconds: clampedDuration,
+            lastResumedAt: nil,
+            hasStartedLiveTimer: false
+        )
+        modelContext.insert(session)
+        try save()
+        logger.info("Created manual activity \(session.id.uuidString, privacy: .public)")
+        return session
     }
 
     private func save() throws {

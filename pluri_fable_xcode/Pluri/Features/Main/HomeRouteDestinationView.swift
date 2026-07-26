@@ -3,8 +3,8 @@ import SwiftUI
 /// Resolves a pushed `HomeRoute` to its destination view (M3-06). Profile is
 /// the real M2-16 screen fed from the live `PlanStore` (falling back to the
 /// launch-restored state), Calendar is the real M3-13 page, Notifications is
-/// the real M3-15 page, Workout Detail (M4-05) and Workout Screen pre-start
-/// (M4-07/08) are live; Outdoor Run stays an honest stub.
+/// the real M3-15 page, Workout Detail / Screen / Completion (M4) are live;
+/// Outdoor Run stays an honest stub.
 struct HomeRouteDestinationView: View {
     var route: HomeRoute
     /// Launch-restored state, kept as the Profile fallback before the store
@@ -36,10 +36,12 @@ struct HomeRouteDestinationView: View {
             WorkoutDetailView(sessionID: sessionID, stack: .home)
         case .workoutScreen(let sessionID):
             WorkoutScreenView(sessionID: sessionID, stack: .home)
-        case .workoutCompletion(let planWorkoutID, _, let elapsedSeconds):
-            WorkoutCompletionStubView(
-                workoutName: workoutTitle(for: planWorkoutID),
-                elapsedSeconds: elapsedSeconds
+        case .workoutCompletion(let planWorkoutID, let workoutSessionID, let elapsedSeconds):
+            WorkoutCompletionView(
+                planWorkoutID: planWorkoutID,
+                workoutSessionID: workoutSessionID,
+                elapsedSeconds: elapsedSeconds,
+                stack: .home
             )
         case .outdoorRunStub:
             MainTabPlaceholderView(
@@ -58,14 +60,5 @@ struct HomeRouteDestinationView: View {
         } else {
             restored
         }
-    }
-
-    private func workoutTitle(for planWorkoutID: UUID) -> String {
-        guard let plan = planStore.plan,
-              let session = PlanMutator.session(withID: planWorkoutID, in: plan)
-        else {
-            return "Workout"
-        }
-        return session.title
     }
 }

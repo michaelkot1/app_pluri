@@ -410,12 +410,17 @@ HealthKit Insights & Pluri Score (PLAN M5): full HealthKit *reads* (steps, sleep
 
 ### Optional parity (nice-to-have — do not block M5 exit)
 
-- [ ] **M5-17** Typed Insights routes / workout-detail from Workouts cards (parity with Home/Plan typed navigation).
-- [ ] **M5-18** Score + HealthKit observer / background refresh so the score "updates daily" without relying only on launch-time recompute.
+- [x] **M5-17** Typed Insights routes / workout-detail from Workouts cards (parity with Home/Plan typed navigation).
+
+> **Learned during M5-17 (2026-07-26):** `InsightsRoute` + `MainRouter.insightsPath` mirror Home/Plan. Plan-linked cards → `WorkoutDetailView(planWorkoutId)`; manual → `InsightsCompletedSessionDetailView(sessionLogId)`. Card `id` stays session-log id — never pass it into plan Detail (SPEC §14 #64). Chevron expand kept for set summary; title opens typed route. `WorkoutDetailStack.insights` keeps Screen/Completion on Insights.
+
+- [x] **M5-18** Score + HealthKit observer / background refresh so the score "updates daily" without relying only on launch-time recompute.
+
+> **Learned during M5-18 (2026-07-26):** foreground `HKObserverQuery` on steps/sleep/HR/active energy via `HealthKitReading.start/stopObservingHealthChanges`; ~1s coalesce → Home `refreshHealthTiles` + `refreshPluriScore`. No `healthkit.background-delivery` entitlement (SPEC §14 #65). Tear down on deny/unavailable/Home disappear. Mock `simulateHealthChange` unit-tested.
 
 **Dependencies:** M5-01 → 02/03 (auth + read service); 02 → 04/05/10 (tiles, score inputs, health insights); 05 → 06 (live score card); 01/02 → 07 → 08/09/10 (Performance); 01 + M4 sessions → 11/12 (Workouts + "+"); 07 → 13 (calendar); everything → 14/15/16; 17/18 optional after shell + score land.
 
-**M5 exit check** (PLAN M5): Insights reflect real logged + health data; score updates daily. Specifically: HealthKit read auth is real on Connected Apps + Profile with honest denial/empty states; Home Today's Health tiles and Pluri Score are live (stub copy gone from Home + Plan Overview); Insights Performance shows per-exercise stats, week filter, all-time strength/time stats, and Bevel-style health insights when authorized; Workouts tab lists M4 completed sessions by month plus manual "+" activities per §9.3; HealthKit samples stay on-device (SPEC §13); build + Swift Testing suite pass; Dynamic Type/VoiceOver/dark mode/contrast/44pt targets manually checked. M5-17/18 may remain open without blocking exit if daily score update is satisfied by the M5-01 cadence choice.
+**M5 exit check** (PLAN M5): Insights reflect real logged + health data; score updates daily. Specifically: HealthKit read auth is real on Connected Apps + Profile with honest denial/empty states; Home Today's Health tiles and Pluri Score are live (stub copy gone from Home + Plan Overview); Insights Performance shows per-exercise stats, week filter, all-time strength/time stats, and Bevel-style health insights when authorized; Workouts tab lists M4 completed sessions by month plus manual "+" activities per §9.3; HealthKit samples stay on-device (SPEC §13); build + Swift Testing suite pass; Dynamic Type/VoiceOver/dark mode/contrast/44pt targets manually checked. M5-17 typed Insights routes and M5-18 foreground HealthKit observer are complete (SPEC §14 #64 / #65).
 
 **Deferred out of M5 (don't build ahead):** real Ask Pluri coach (M6 — stub OK); Outdoor Run tracking (stub through M9); Community notification rows / feed (M8); Devices / Bluetooth pairing; Cardio / Flexibility / hybrid *plans* and groups (v2) — manual Cardio/Flexibility *log types* via "+" (§9.3) are in scope for M5.
 

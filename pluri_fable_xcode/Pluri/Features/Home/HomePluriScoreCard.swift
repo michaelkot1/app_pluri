@@ -1,46 +1,66 @@
 import SwiftUI
 
-/// Pluri Score card (M3-08 / SPEC §5.1) showing a clearly-identified sample
-/// score — the real engine lands in M5, so the card never pretends the value
-/// is live.
+/// Live Pluri Score card (M5-06 / SPEC §5.1) — value from `ScoreEngine`,
+/// no sample badge or sample disclaimer.
 struct HomePluriScoreCard: View {
+    var score: Int?
+    var subtitle: String
+
     var body: some View {
         PluriCard {
             VStack(alignment: .leading, spacing: PluriSpacing.sm) {
-                HStack {
-                    Text("Pluri Score")
-                        .font(PluriFont.sectionHeader)
-                        .foregroundStyle(PluriColor.textPrimary)
-                    Spacer(minLength: PluriSpacing.sm)
-                    Text(HomeViewModel.stubScoreBadge)
-                        .font(PluriFont.overline)
-                        .textCase(.uppercase)
-                        .kerning(1)
-                        .foregroundStyle(PluriColor.textSecondary)
-                        .padding(.horizontal, PluriSpacing.sm)
-                        .padding(.vertical, PluriSpacing.xs)
-                        .background(PluriColor.bgMuted, in: .capsule)
-                }
+                Text("Pluri Score")
+                    .font(PluriFont.sectionHeader)
+                    .foregroundStyle(PluriColor.textPrimary)
 
                 HStack(alignment: .firstTextBaseline, spacing: PluriSpacing.xs) {
-                    PluriHeroNumeral(text: HomeViewModel.stubScoreValue.formatted(.number))
+                    PluriHeroNumeral(text: displayScore)
                     Text("/ 100")
                         .font(PluriFont.label)
                         .foregroundStyle(PluriColor.textSecondary)
                 }
 
-                Text(HomeViewModel.stubScoreDisclaimer)
+                Text(subtitle)
                     .font(PluriFont.label)
                     .foregroundStyle(PluriColor.textSecondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var displayScore: String {
+        if let score {
+            score.formatted(.number)
+        } else {
+            "—"
+        }
+    }
+
+    private var accessibilityLabel: String {
+        if let score {
+            "Pluri Score \(score) out of 100. \(subtitle)"
+        } else {
+            "Pluri Score loading. \(subtitle)"
+        }
     }
 }
 
-#Preview {
-    HomePluriScoreCard()
-        .padding(PluriSpacing.lg)
-        .background(PluriColor.bgCanvas)
+#Preview("Live") {
+    HomePluriScoreCard(
+        score: 78,
+        subtitle: "Consistency first, with a gentle HealthKit layer — moves slowly (±3/day)."
+    )
+    .padding(PluriSpacing.lg)
+    .background(PluriColor.bgCanvas)
+}
+
+#Preview("Loading") {
+    HomePluriScoreCard(
+        score: nil,
+        subtitle: "Based on plan consistency for now — connect Apple Health for a second layer."
+    )
+    .padding(PluriSpacing.lg)
+    .background(PluriColor.bgCanvas)
 }

@@ -1,15 +1,20 @@
 import SwiftUI
 
-/// The real Home screen (M3-07..09 / SPEC §5): top bar with Profile /
-/// Notifications / Calendar, month summary + calendar strip with workout
-/// dots, the selected day's workouts, the sample Pluri Score card, Today's
-/// Health placeholder tiles, and the floating Record Workout menu.
+/// The real Home screen (M3-07..09 / M5-04..06 / SPEC §5): top bar with
+/// Profile / Notifications / Calendar, month summary + calendar strip with
+/// workout dots, the selected day's workouts, live Pluri Score, Today's
+/// Health tiles, and the floating Record Workout menu.
 ///
 /// Observes the shared `PlanStore` (M3-04) and navigates through the
-/// `MainRouter`'s typed Home path (M3-06).
+/// `MainRouter`'s typed Home path (M3-06). Health + score refresh on appear,
+/// foreground, plan-status changes, and foreground HealthKit observer updates
+/// (SPEC §14 #57d / #65).
 struct HomeView: View {
     @Environment(PlanStore.self) private var planStore
     @Environment(MainRouter.self) private var router
+    @Environment(LiveHealthKitService.self) private var healthKitService
+    @Environment(SupabaseAuthService.self) private var authService
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var viewModel = HomeViewModel()
     @State private var showsRecordMenu = false
@@ -34,9 +39,12 @@ struct HomeView: View {
                     HomePlanContent(viewModel: viewModel)
                 }
 
-                HomePluriScoreCard()
+                HomePluriScoreCard(
+                    score: viewModel.pluriScore,
+                    subtitle: viewModel.scoreSubtitle
+                )
 
-                HomeHealthTiles { section in
+                HomeHealthTiles(metrics: viewModel.healthTileMetrics) { section in
                     router.openInsights(section: section)
                 }
             }
@@ -79,6 +87,21 @@ struct HomeView: View {
                 HomeRecordOptionButton(option: option)
             }
         }
+        .task(id: scoreRefreshToken) {
+            await refreshHealthAndScore()
+            configureHealthObserver()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            Task { await refreshHealthAndScore() }
+            configureHealthObserver()
+        }
+        .onChange(of: healthKitService.authorizationStatus) { _, _ in
+            configureHealthObserver()
+        }
+        .onDisappear {
+            healthKitService.stopObservingHealthChanges()
+        }
     }
 
     private var greeting: String {
@@ -86,6 +109,35 @@ struct HomeView: View {
             "Hi, \(name)"
         } else {
             "Home"
+        }
+    }
+
+    /// Changes when any plan session status changes so score refreshes after Save / skip.
+    private var scoreRefreshToken: String {
+        let sessions = planStore.plan?.weeks.flatMap(\.sessions) ?? []
+        return HomeViewModel.scoreRefreshToken(sessions: sessions)
+    }
+
+    private func refreshHealthAndScore() async {
+        await viewModel.refreshHealthTiles(using: healthKitService)
+        let sessions = planStore.plan?.weeks.flatMap(\.sessions) ?? []
+        await viewModel.refreshPluriScore(
+            sessions: sessions,
+            healthKit: healthKitService,
+            userID: authService.appUserID,
+            asOf: planStore.now()
+        )
+    }
+
+    /// Foreground HKObserverQuery → coalesced tile + score refresh (M5-18).
+    /// Tears down when unauthorized / unavailable; no background-delivery entitlement.
+    private func configureHealthObserver() {
+        guard healthKitService.authorizationStatus == .authorized else {
+            healthKitService.stopObservingHealthChanges()
+            return
+        }
+        healthKitService.startObservingHealthChanges {
+            Task { await refreshHealthAndScore() }
         }
     }
 }
@@ -165,6 +217,8 @@ private struct HomeLoadingIndicator: View {
     }
     .environment(HomePreviewData.readyStore())
     .environment(MainRouter())
+    .environment(LiveHealthKitService())
+    .environment(SupabaseAuthService(supabaseService: SupabaseService(), restoreOnLaunch: false))
 }
 
 #Preview("Flexible") {
@@ -173,6 +227,8 @@ private struct HomeLoadingIndicator: View {
     }
     .environment(HomePreviewData.flexibleStore())
     .environment(MainRouter())
+    .environment(LiveHealthKitService())
+    .environment(SupabaseAuthService(supabaseService: SupabaseService(), restoreOnLaunch: false))
 }
 
 #Preview("Empty") {
@@ -181,6 +237,8 @@ private struct HomeLoadingIndicator: View {
     }
     .environment(HomePreviewData.emptyStore())
     .environment(MainRouter())
+    .environment(LiveHealthKitService())
+    .environment(SupabaseAuthService(supabaseService: SupabaseService(), restoreOnLaunch: false))
 }
 
 #Preview("Failed") {
@@ -189,4 +247,6 @@ private struct HomeLoadingIndicator: View {
     }
     .environment(HomePreviewData.failedStore())
     .environment(MainRouter())
+    .environment(LiveHealthKitService())
+    .environment(SupabaseAuthService(supabaseService: SupabaseService(), restoreOnLaunch: false))
 }
