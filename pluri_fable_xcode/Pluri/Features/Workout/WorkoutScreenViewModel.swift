@@ -1,8 +1,8 @@
 import Foundation
 import Observation
 
-/// Live Workout Screen (M4-09/10/11): running timer, Pause / Resume / Stop,
-/// inline set logging, and HealthKit metrics while unpaused.
+/// Live Workout Screen (M4-09/10/11): running timer, Pause / Resume / Stop (= pause),
+/// hold-to-finish → completion, inline set logging, and HealthKit metrics while unpaused.
 @MainActor
 @Observable
 final class WorkoutScreenViewModel {
@@ -22,7 +22,7 @@ final class WorkoutScreenViewModel {
     var selectedExerciseID: UUID?
     /// Ask Pluri honest stub visibility (SPEC §14 #50e).
     var showsAskPluriStub = false
-    /// Set when Stop / hold-to-finish hands off to the completion stub (M4-12 later).
+    /// Set when hold-to-finish hands off to the completion summary (M4-12 / §14 #55c).
     private(set) var pendingCompletion: WorkoutCompletionHandoff?
 
     private let sessionID: UUID
@@ -161,12 +161,13 @@ final class WorkoutScreenViewModel {
         }
     }
 
-    /// Persists elapsed and prepares completion stub handoff (no Save/Discard yet).
+    /// Stop pauses the live timer (SPEC §14 #55c). Hold-to-finish is the only
+    /// path to the completion summary.
     func stop() {
-        finishHandoff()
+        pause()
     }
 
-    /// Hold-to-finish uses the same handoff as Stop.
+    /// Hold-to-finish: persist elapsed and prepare completion handoff.
     func finish() {
         finishHandoff()
     }
@@ -201,6 +202,11 @@ final class WorkoutScreenViewModel {
 
     func catalogExercise(for exercise: PlannedExercise) -> Exercise? {
         catalogLookup(exercise.exerciseID)
+    }
+
+    /// Prefer the planned exercise's stored media URL; fall back to catalog.
+    func resolvedImageURL(for exercise: PlannedExercise) -> URL? {
+        exercise.imageURL ?? catalogLookup(exercise.exerciseID)?.imageURL
     }
 
     func saveExerciseNotes(for exerciseID: UUID) {
@@ -241,6 +247,7 @@ final class WorkoutScreenViewModel {
     }
 
     /// Logs a set immediately (kg canonical). `weightDisplay` is in profile units.
+    /// Rejects non-finite or negative weights; `nil` means bodyweight / omitted.
     func logSet(
         exercise: PlannedExercise,
         reps: Int,
@@ -248,6 +255,10 @@ final class WorkoutScreenViewModel {
         durationSeconds: Int? = nil
     ) {
         errorMessage = nil
+        if let weightDisplay, !(weightDisplay.isFinite && weightDisplay >= 0) {
+            errorMessage = "Enter a valid weight, or leave it blank."
+            return
+        }
         guard let userID = userIDProvider() else {
             errorMessage = PlanMutationError.missingUser.userFacingMessage
             return
@@ -412,7 +423,7 @@ final class WorkoutScreenViewModel {
     }
 }
 
-/// Payload for navigating to the completion stub after Stop / hold-to-finish.
+/// Payload for navigating to the completion summary after hold-to-finish.
 struct WorkoutCompletionHandoff: Equatable, Sendable {
     var planWorkoutID: UUID
     var workoutSessionID: UUID

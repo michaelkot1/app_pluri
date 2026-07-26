@@ -147,8 +147,8 @@ struct WorkoutScreenViewModelTests {
         #expect(resumed.lastResumedAt != nil)
     }
 
-    @Test("stop persists elapsed and prepares completion handoff")
-    func stopHandoff() throws {
+    @Test("stop pauses without preparing completion handoff")
+    func stopPausesWithoutHandoff() throws {
         let container = try makeContainer()
         let repo = makeRepository(in: container)
         let planWorkoutId = UUID()
@@ -162,6 +162,30 @@ struct WorkoutScreenViewModelTests {
         let sessionId = try #require(viewModel.workoutSessionID)
         viewModel.stop()
 
+        #expect(viewModel.pendingCompletion == nil)
+        #expect(viewModel.isPaused)
+        #expect(!viewModel.isRunning)
+        let session = try #require(try repo.session(id: sessionId))
+        #expect(session.isPaused)
+        #expect(session.endedAt == nil)
+        #expect(session.isInProgress)
+    }
+
+    @Test("finish prepares completion handoff (hold-to-finish)")
+    func finishPreparesHandoff() throws {
+        let container = try makeContainer()
+        let repo = makeRepository(in: container)
+        let planWorkoutId = UUID()
+        let userId = UUID()
+        let viewModel = WorkoutScreenViewModel(
+            sessionID: planWorkoutId,
+            repository: repo,
+            userIDProvider: { userId }
+        )
+        viewModel.start()
+        let sessionId = try #require(viewModel.workoutSessionID)
+        viewModel.finish()
+
         #expect(viewModel.pendingCompletion?.planWorkoutID == planWorkoutId)
         #expect(viewModel.pendingCompletion?.workoutSessionID == sessionId)
         #expect(viewModel.pendingCompletion?.elapsedSeconds != nil)
@@ -169,6 +193,47 @@ struct WorkoutScreenViewModelTests {
         #expect(session.isPaused)
         #expect(session.endedAt == nil)
         #expect(session.isInProgress)
+    }
+
+    @Test("WorkoutWeightInput filters and parses locale decimals; empty is bodyweight")
+    func weightInputFilteringAndParsing() {
+        #expect(WorkoutWeightInput.filtered("12a.3b4") == "12.34")
+        #expect(WorkoutWeightInput.filtered("12,5") == "12,5")
+        #expect(WorkoutWeightInput.filtered("1.2.3") == "1.23")
+        #expect(WorkoutWeightInput.parse("") == .empty)
+        #expect(WorkoutWeightInput.parse("  ") == .empty)
+        #expect(WorkoutWeightInput.parse("60") == .valid(60))
+        #expect(WorkoutWeightInput.parse("12,5") == .valid(12.5))
+        #expect(WorkoutWeightInput.parse(".") == .invalid)
+        #expect(WorkoutWeightInput.canLog(""))
+        #expect(WorkoutWeightInput.canLog("45.5"))
+        #expect(!WorkoutWeightInput.canLog("."))
+    }
+
+    @Test("logSet rejects non-finite or negative weight display")
+    func logSetRejectsInvalidWeight() throws {
+        let container = try makeContainer()
+        let repo = makeRepository(in: container)
+        let planWorkoutId = UUID()
+        let userId = UUID()
+        let exercise = makeExercise()
+        let viewModel = WorkoutScreenViewModel(
+            sessionID: planWorkoutId,
+            repository: repo,
+            userIDProvider: { userId }
+        )
+        viewModel.start()
+
+        viewModel.logSet(exercise: exercise, reps: 8, weightDisplay: -5)
+        #expect(viewModel.errorMessage != nil)
+        #expect(viewModel.loggedSetCountByExercise[exercise.id] == nil)
+
+        viewModel.logSet(exercise: exercise, reps: 8, weightDisplay: .nan)
+        #expect(viewModel.errorMessage != nil)
+
+        viewModel.logSet(exercise: exercise, reps: 8, weightDisplay: nil)
+        #expect(viewModel.errorMessage == nil)
+        #expect(viewModel.loggedSetCountByExercise[exercise.id] == 1)
     }
 
     @Test("refreshSessionState restores pause and elapsed after relaunch")
@@ -350,5 +415,83 @@ struct WorkoutScreenViewModelTests {
             catalogLookup: { _ in nil }
         )
         #expect(missing.description(for: exercise).isEmpty)
+    }
+
+    @Test("Separate plan workout IDs keep independent timer / running state")
+    func sessionIsolationAcrossPlanWorkouts() throws {
+        let container = try makeContainer()
+        let repo = makeRepository(in: container)
+        let userId = UUID()
+        let workoutA = UUID()
+        let workoutB = UUID()
+
+        let viewModelA = WorkoutScreenViewModel(
+            sessionID: workoutA,
+            repository: repo,
+            userIDProvider: { userId }
+        )
+        viewModelA.start()
+        viewModelA.pause()
+        #expect(viewModelA.hasStartedLiveTimer)
+        #expect(viewModelA.isPaused)
+        #expect(viewModelA.workoutSessionID != nil)
+
+        let viewModelB = WorkoutScreenViewModel(
+            sessionID: workoutB,
+            repository: repo,
+            userIDProvider: { userId }
+        )
+        viewModelB.refreshSessionState()
+
+        #expect(viewModelB.displayedElapsedSeconds == 0)
+        #expect(!viewModelB.hasStartedLiveTimer)
+        #expect(!viewModelB.isRunning)
+        #expect(!viewModelB.isPaused)
+        #expect(viewModelB.workoutSessionID == nil)
+        // A remains unchanged after B is constructed/refreshed.
+        #expect(viewModelA.hasStartedLiveTimer)
+        #expect(viewModelA.isPaused)
+    }
+
+    @Test("resolvedImageURL prefers planned URL then catalog fallback")
+    func resolvedImageURLFallback() {
+        let container = try! makeContainer()
+        let repo = makeRepository(in: container)
+        let plannedURL = URL(string: "https://example.com/planned.gif")!
+        let catalogURL = URL(string: "https://example.com/catalog.gif")!
+        let catalog = Exercise(
+            id: "bench",
+            name: "Bench",
+            bodyPart: "Chest",
+            equipment: "Barbell",
+            targetMuscle: "Pectorals",
+            secondaryMuscles: [],
+            instructions: [],
+            imageURL: catalogURL,
+            videoURL: nil
+        )
+        let viewModel = WorkoutScreenViewModel(
+            sessionID: UUID(),
+            repository: repo,
+            userIDProvider: { UUID() },
+            catalogLookup: { id in id == "bench" ? catalog : nil }
+        )
+
+        let withPlanned = PlannedExercise(
+            exerciseID: "bench",
+            name: "Bench",
+            bodyPart: "Chest",
+            equipment: "Barbell",
+            targetMuscle: "Pectorals",
+            secondaryMuscles: [],
+            imageURL: plannedURL,
+            order: 0,
+            sets: 3,
+            reps: 10
+        )
+        #expect(viewModel.resolvedImageURL(for: withPlanned) == plannedURL)
+
+        let withoutPlanned = makeExercise()
+        #expect(viewModel.resolvedImageURL(for: withoutPlanned) == catalogURL)
     }
 }

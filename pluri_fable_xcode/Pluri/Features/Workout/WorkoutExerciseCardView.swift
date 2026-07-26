@@ -5,6 +5,9 @@ import SwiftUI
 /// a compact inline Log (and optional duration timer) expands without crowding.
 struct WorkoutExerciseCardView: View {
     var exercise: PlannedExercise
+    /// Resolved media URL (`PlannedExercise.imageURL` ?? catalog). Defaults to
+    /// the planned exercise's own URL when omitted.
+    var mediaURL: URL? = nil
     var showsInlineLog: Bool = false
     var usesImperialUnits: Bool = false
     var loggedSetCount: Int = 0
@@ -14,17 +17,24 @@ struct WorkoutExerciseCardView: View {
 
     @State private var repsText = ""
     @State private var weightText = ""
+    @State private var weightErrorMessage: String?
     @State private var cardTimerSeconds = 0
     @State private var isCardTimerRunning = false
     @State private var cardTimerTask: Task<Void, Never>?
     @State private var logPulse = false
+    @FocusState private var focusedField: LogField?
+
+    private enum LogField: Hashable {
+        case reps
+        case weight
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: PluriSpacing.sm) {
             Button(action: action) {
                 PluriCard {
                     HStack(alignment: .top, spacing: PluriSpacing.md) {
-                        CachedExerciseMediaView(remoteURL: exercise.imageURL)
+                        CachedExerciseMediaView(remoteURL: mediaURL ?? exercise.imageURL)
                             .frame(width: 72, height: 72)
                             .clipShape(.rect(cornerRadius: PluriRadius.md))
                             .accessibilityHidden(true)
@@ -73,22 +83,46 @@ struct WorkoutExerciseCardView: View {
                 repsText = "\(exercise.reps)"
             }
         }
+        .onChange(of: weightText) { _, newValue in
+            let filtered = WorkoutWeightInput.filtered(newValue)
+            if filtered != newValue {
+                weightText = filtered
+            }
+            if WorkoutWeightInput.canLog(filtered) {
+                weightErrorMessage = nil
+            }
+        }
         .onDisappear {
             stopCardTimer()
         }
         .sensoryFeedback(.success, trigger: logPulse)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    focusedField = nil
+                }
+            }
+        }
     }
 
     private var inlineLogControls: some View {
         VStack(alignment: .leading, spacing: PluriSpacing.sm) {
             HStack(spacing: PluriSpacing.sm) {
-                compactNumberField(title: "Reps", text: $repsText)
-                compactDecimalField(title: weightUnitLabel, text: $weightText)
+                compactNumberField(title: "Reps", text: $repsText, field: .reps)
+                compactDecimalField(title: weightUnitLabel, text: $weightText, field: .weight)
                 Button("Log") {
                     confirmLog()
                 }
                 .buttonStyle(.pluriPrimary)
                 .frame(maxWidth: 96)
+                .disabled(!canConfirmLog)
+            }
+
+            if let weightErrorMessage {
+                Text(weightErrorMessage)
+                    .font(PluriFont.label)
+                    .foregroundStyle(PluriColor.statusRedSoft)
             }
 
             HStack(spacing: PluriSpacing.sm) {
@@ -116,21 +150,39 @@ struct WorkoutExerciseCardView: View {
         .padding(.horizontal, PluriSpacing.xs)
     }
 
-    private func compactNumberField(title: String, text: Binding<String>) -> some View {
-        compactField(title: title, text: text, isDecimal: false)
+    private var canConfirmLog: Bool {
+        WorkoutWeightInput.canLog(weightText)
     }
 
-    private func compactDecimalField(title: String, text: Binding<String>) -> some View {
-        compactField(title: title, text: text, isDecimal: true)
+    private func compactNumberField(
+        title: String,
+        text: Binding<String>,
+        field: LogField
+    ) -> some View {
+        compactField(title: title, text: text, isDecimal: false, field: field)
     }
 
-    private func compactField(title: String, text: Binding<String>, isDecimal: Bool) -> some View {
+    private func compactDecimalField(
+        title: String,
+        text: Binding<String>,
+        field: LogField
+    ) -> some View {
+        compactField(title: title, text: text, isDecimal: true, field: field)
+    }
+
+    private func compactField(
+        title: String,
+        text: Binding<String>,
+        isDecimal: Bool,
+        field: LogField
+    ) -> some View {
         VStack(alignment: .leading, spacing: PluriSpacing.xs) {
             Text(title)
                 .font(PluriFont.label)
                 .foregroundStyle(PluriColor.textSecondary)
             TextField(title, text: text)
                 .keyboardType(isDecimal ? .decimalPad : .numberPad)
+                .focused($focusedField, equals: field)
                 .font(PluriFont.body)
                 .foregroundStyle(PluriColor.textPrimary)
                 .padding(.horizontal, PluriSpacing.sm)
@@ -162,11 +214,23 @@ struct WorkoutExerciseCardView: View {
     }
 
     private func confirmLog() {
-        let reps = Int(repsText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? exercise.reps
-        let trimmedWeight = weightText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let weight = trimmedWeight.isEmpty ? nil : Double(trimmedWeight)
-        onLogSet?(reps, weight)
-        logPulse.toggle()
+        switch WorkoutWeightInput.parse(weightText) {
+        case .invalid:
+            weightErrorMessage = "Enter a valid weight, or leave it blank."
+            return
+        case .empty:
+            weightErrorMessage = nil
+            let reps = Int(repsText.trimmingCharacters(in: .whitespacesAndNewlines))
+                ?? exercise.reps
+            onLogSet?(reps, nil)
+            logPulse.toggle()
+        case .valid(let weight):
+            weightErrorMessage = nil
+            let reps = Int(repsText.trimmingCharacters(in: .whitespacesAndNewlines))
+                ?? exercise.reps
+            onLogSet?(reps, weight)
+            logPulse.toggle()
+        }
     }
 
     private func toggleCardTimer() {

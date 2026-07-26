@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 
 /// Live Workout Screen (M4-07–11 / SPEC §8): idle → Start → running timer,
-/// Pause / Stop / hold-to-finish → completion stub; inline Log; live HealthKit.
+/// Pause / Stop (= pause) / hold-to-finish → completion; inline Log; live HealthKit.
 struct WorkoutScreenView: View {
     var sessionID: UUID
     var stack: WorkoutDetailStack = .home
@@ -33,9 +33,13 @@ struct WorkoutScreenView: View {
         .background(PluriColor.bgCanvas)
         .navigationTitle(session?.title ?? "Workout")
         .navigationBarTitleDisplayMode(.inline)
+        .id(sessionID)
         .onAppear {
             ensureViewModel()
             viewModel?.refreshSessionState()
+        }
+        .onChange(of: sessionID) { _, _ in
+            recreateViewModelForCurrentSession()
         }
         .onDisappear {
             holdTask?.cancel()
@@ -137,6 +141,7 @@ struct WorkoutScreenView: View {
             ForEach(session.exercises) { exercise in
                 WorkoutExerciseCardView(
                     exercise: exercise,
+                    mediaURL: viewModel?.resolvedImageURL(for: exercise),
                     showsInlineLog: showsLog,
                     usesImperialUnits: usesImperial,
                     loggedSetCount: viewModel?.loggedSetCountByExercise[exercise.id] ?? 0,
@@ -177,12 +182,13 @@ struct WorkoutScreenView: View {
                         viewModel?.pause()
                     }
                     .buttonStyle(.pluriSecondary)
-                }
 
-                Button("Stop") {
-                    requestCompletion()
+                    // Stop pauses only; hold-to-finish opens completion (§14 #55c).
+                    Button("Stop") {
+                        viewModel?.stop()
+                    }
+                    .buttonStyle(.pluriSecondary)
                 }
-                .buttonStyle(.pluriSecondary)
 
                 holdToFinishButton
             } else {
@@ -247,6 +253,7 @@ struct WorkoutScreenView: View {
         let catalog = viewModel?.catalogExercise(for: exercise)
         return WorkoutExerciseDetailSheet(
             exercise: exercise,
+            mediaURL: viewModel?.resolvedImageURL(for: exercise),
             descriptionText: viewModel?.description(for: exercise) ?? "",
             videoURL: catalog?.videoURL,
             notesDraft: notesBinding(for: exercise.id),
@@ -366,9 +373,25 @@ struct WorkoutScreenView: View {
 
     private func ensureViewModel() {
         guard viewModel == nil else { return }
+        viewModel = makeViewModel()
+    }
+
+    /// NavigationStack can reuse a destination when only `sessionID` changes;
+    /// tear down the old VM so timer/sets/pause never bleed across workouts.
+    private func recreateViewModelForCurrentSession() {
+        holdTask?.cancel()
+        holdTask = nil
+        holdProgress = 0
+        viewModel?.tearDown()
+        viewModel = nil
+        ensureViewModel()
+        viewModel?.refreshSessionState()
+    }
+
+    private func makeViewModel() -> WorkoutScreenViewModel {
         let context = modelContext
         let health = LiveWorkoutHealthMetricsProvider()
-        viewModel = WorkoutScreenViewModel(
+        return WorkoutScreenViewModel(
             sessionID: sessionID,
             repository: sessionRepository,
             userIDProvider: {
@@ -394,29 +417,89 @@ struct WorkoutScreenView: View {
 
 #if DEBUG
 #Preview("Pre-start") {
-    let store = HomePreviewData.readyStore()
-    let sessionID = store.plan?.weeks[0].sessions[1].id ?? UUID()
-    let container = try! ModelContainer(
-        for: Schema([
-            CachedExercise.self,
-            ExerciseCatalogSyncState.self,
-            WorkoutSessionRecord.self,
-            SetLogRecord.self,
-        ]),
-        configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-    )
-    let sync = SupabaseSyncEngine(
-        modelContext: container.mainContext,
-        supabaseService: SupabaseService()
-    )
-    NavigationStack {
-        WorkoutScreenView(sessionID: sessionID, stack: .home)
+    WorkoutScreenPreviewFactory.make(seed: .none)
+}
+
+#Preview("Active running") {
+    WorkoutScreenPreviewFactory.make(seed: .running)
+}
+
+#Preview("Active paused") {
+    WorkoutScreenPreviewFactory.make(seed: .paused)
+}
+
+#Preview("Offline resume") {
+    WorkoutScreenPreviewFactory.make(seed: .offlineResume)
+}
+
+@MainActor
+enum WorkoutScreenPreviewFactory {
+    enum Seed {
+        case none
+        case running
+        case paused
+        case offlineResume
     }
-    .environment(store)
-    .environment(MainRouter())
-    .environment(SupabaseAuthService(supabaseService: SupabaseService(), restoreOnLaunch: false))
-    .environment(SwiftDataWorkoutSessionRepository(modelContext: container.mainContext))
-    .environment(sync)
-    .modelContainer(container)
+
+    static func make(seed: Seed) -> some View {
+        let store = HomePreviewData.readyStore()
+        let sessionID = store.plan?.weeks[0].sessions[1].id ?? UUID()
+        let container = try! ModelContainer(
+            for: Schema([
+                CachedExercise.self,
+                ExerciseCatalogSyncState.self,
+                WorkoutSessionRecord.self,
+                SetLogRecord.self,
+            ]),
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let repository = SwiftDataWorkoutSessionRepository(modelContext: container.mainContext)
+        seedSession(seed, planWorkoutID: sessionID, repository: repository)
+
+        let sync = SupabaseSyncEngine(
+            modelContext: container.mainContext,
+            supabaseService: SupabaseService()
+        )
+        return NavigationStack {
+            WorkoutScreenView(sessionID: sessionID, stack: .home)
+        }
+        .environment(store)
+        .environment(MainRouter())
+        .environment(SupabaseAuthService(supabaseService: SupabaseService(), restoreOnLaunch: false))
+        .environment(repository)
+        .environment(sync)
+        .modelContainer(container)
+    }
+
+    private static func seedSession(
+        _ seed: Seed,
+        planWorkoutID: UUID,
+        repository: SwiftDataWorkoutSessionRepository
+    ) {
+        let userID = UUID()
+        switch seed {
+        case .none:
+            break
+        case .running:
+            if let session = try? repository.startOrResume(planWorkoutId: planWorkoutID, userId: userID) {
+                try? repository.resume(sessionId: session.id)
+            }
+        case .paused:
+            if let session = try? repository.startOrResume(planWorkoutId: planWorkoutID, userId: userID) {
+                try? repository.resume(sessionId: session.id)
+                try? repository.pause(sessionId: session.id)
+            }
+        case .offlineResume:
+            // In-progress paused session with elapsed — Screen refresh restores it.
+            if let session = try? repository.startOrResume(planWorkoutId: planWorkoutID, userId: userID) {
+                try? repository.resume(sessionId: session.id)
+                try? repository.pause(sessionId: session.id)
+                if let record = try? repository.session(id: session.id) {
+                    record.accumulatedActiveSeconds = 540
+                    record.needsSync = true
+                }
+            }
+        }
+    }
 }
 #endif

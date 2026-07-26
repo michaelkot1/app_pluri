@@ -278,7 +278,7 @@ Core of the app (PLAN M4): Workout Detail, live Workout Screen, completion summa
 > **Learned during M4-03 (2026-07-25):** `SyncEngine` + `SupabaseSyncEngine` / `MockSyncEngine` upload pending `needsSync` sessions/set_logs (LWW upsert by id); completed sessions with `planWorkoutId` thin-update `plan_workouts.status = completed`. Session link is `workout_sessions.plan_workout_id` only (SPEC §14 #52 — no `plan_workouts.session_id`). Reachability via injectable `NetworkReachability` (`NWPathMonitor` in prod). Never blocks repository saves; flush failures leave `needsSync` for retry. No UI.
 - [x] **M4-04** Extend `PlanStore` / `PlanMutator` / plan mutation service: skip workout; mark completed with session link; optimistic UI + rollback on remote failure; reminder reconcile after success (extends M3-15 / #44/#48).
 
-> **Learned during M4-04 (2026-07-25):** `PlanMutator.skippingWorkout` / `completingWorkout` only from `.scheduled` (`workoutFinished` otherwise). **Skip** = move-style optimistic + `updateWorkoutStatus` + rollback + reminders on success. **Complete** = local `.completed` + `syncEngine.enqueueSession` (no rollback on sync failure) + reminders after *local* apply (SPEC §14 #52). Discard unchanged (repo-only). No Detail/Screen UI (M4-05+).
+> **Learned during M4-04 (2026-07-25):** `PlanMutator.skippingWorkout` only from `.scheduled`; `completingWorkout` from `.scheduled` **or** `.skipped` (skip → later Save); re-complete `.completed` → `workoutFinished` (SPEC §14 #50b/#52). **Skip** = move-style optimistic + `updateWorkoutStatus` + rollback + reminders on success. **Complete** = local `.completed` + `syncEngine.enqueueSession` (no rollback on sync failure) + reminders after *local* apply. Discard unchanged (repo-only). No Detail/Screen UI (M4-05+).
 
 ### Workout Detail (SPEC §7)
 
@@ -294,33 +294,130 @@ Core of the app (PLAN M4): Workout Detail, live Workout Screen, completion summa
 
 > **Learned during M4-07/08 (2026-07-25):** `WorkoutScreenView` + `WorkoutScreenViewModel` replace `WorkoutScreenStubView`. Pre-start = idle `00:00` hero timer, empty HR/kcal slots, exercise cards (`CachedExerciseMediaView` + disk `ExerciseMediaCache` under `URL.cachesDirectory/ExerciseMedia`), **Start** → `startOrResume` (soft “In progress”; no running timer/Pause/Stop — M4-09). Ask Pluri = honest M6 stub sheet (§14 #50e). Card tap → `.pluriBottomSheet` with catalog `instructions` (graceful empty if missing), per-exercise notes via `updateExerciseNotes`, GIF/image media; video toggle hidden while `videoURL` nil (§14 #11 / #54).
 
-- [x] **M4-09** After Start: running timer; Pause / Stop; hold-to-finish gesture; Stop → completion path (M4-12). Persist session state continuously (M4-02).
+- [x] **M4-09** After Start: running timer; Pause / Stop; hold-to-finish gesture; Stop → pause (hold-to-finish → completion — M4-12 / M4-19). Persist session state continuously (M4-02).
 - [x] **M4-10** Inline Log (reps/weight) and timed-exercise timer on cards; log UI expands inline but stays compact; <100 ms feedback; write `SetLog` to SwiftData immediately (M4-02) — sync is opportunistic (M4-03).
 - [x] **M4-11** Live HealthKit heart rate + calories during an *active* workout (display only; graceful empty state if unauthorized). Full Insights HealthKit reads and Pluri Score remain M5.
 
-> **Learned during M4-09/10/11 (2026-07-25):** Screen **Start** calls `resume` after soft `startOrResume` so Detail Notes never auto-run the hero timer (`hasStartedLiveTimer`, §14 #55). Pause folds elapsed into `accumulatedActiveSeconds`; Stop / hold-to-finish push `workoutCompletion` stub (name + elapsed only — no Discard/Save yet). Inline Log converts lb→`weight_kg` via `Measurement`; optional per-card timer writes `durationSeconds` (plan model still sets×reps only). Live HR/kcal via `WorkoutHealthMetricsProviding` stream only while unpaused; unauthorized stays "—".
+> **Learned during M4-09/10/11 (2026-07-25):** Screen **Start** calls `resume` after soft `startOrResume` so Detail Notes never auto-run the hero timer (`hasStartedLiveTimer`, §14 #55). Pause folds elapsed into `accumulatedActiveSeconds`; originally Stop / hold-to-finish both pushed `workoutCompletion` — **superseded by M4-19 / §14 #55c** (Stop = pause; hold-to-finish only). Inline Log converts lb→`weight_kg` via `Measurement`; optional per-card timer writes `durationSeconds` (plan model still sets×reps only). Live HR/kcal via `WorkoutHealthMetricsProviding` stream only while unpaused; unauthorized stays "—".
 
 ### Completion (SPEC §8.1) & Apple Health
 
-- [ ] **M4-12** Completion summary: workout name, date performed, planned vs actual duration, total reps, notes field, **Discard** / **Save** (per M4-01 semantics).
-- [ ] **M4-13** Toggle sync to Apple Health on Save; persist `synced_to_health`; a Health write failure must not lose the local session (gentle retry / leave unsynced).
-- [ ] **M4-14** Save path: mark plan workout completed + session link (M4-04), enqueue SyncEngine (M4-03), reconcile reminders; Discard drops the in-progress session without check-off. Exit-path acceptance: complete a workout in airplane mode → relaunch → sync when online.
+- [x] **M4-12** Completion summary: workout name, date performed, planned vs actual duration, total reps, notes field, **Discard** / **Save** (per M4-01 semantics).
+- [x] **M4-13** Toggle sync to Apple Health on Save; persist `synced_to_health`; a Health write failure must not lose the local session (gentle retry / leave unsynced).
+- [x] **M4-14** Save path: mark plan workout completed + session link (M4-04), enqueue SyncEngine (M4-03), reconcile reminders; Discard drops the in-progress session without check-off. Exit-path acceptance: complete a workout in airplane mode → relaunch → sync when online.
+
+> **Learned during M4-12/13/14 (2026-07-25):** `WorkoutCompletionView` + ViewModel replace the stub; destinations wire `workoutSessionID`. Save order = local `complete` → optional `WorkoutHealthWriting` → `PlanStore.markWorkoutCompleted` (enqueue + reminders). Health toggle defaults **off**; failure = soft inline message + Done, never rollback (SPEC §14 #56). Discard = repo-only, plan stays `.scheduled`. After Discard (and after Save → **Done** per M4-19 / #56), pop Screen + Completion → Detail.
 
 ### Late-day nudge (SPEC §5.3)
 
-- [ ] **M4-15** Late-day reschedule nudge near midnight for unfinished `.scheduled` dated sessions (fire time + UX from M4-01); reuse `PlanStore` move; make the Notifications page late-day row live; opt-in / permission rules consistent with M3-15 (#48).
+- [x] **M4-15** Late-day reschedule nudge near midnight for unfinished `.scheduled` dated sessions (fire time + UX from M4-01); reuse `PlanStore` move; make the Notifications page late-day row live; opt-in / permission rules consistent with M3-15 (#48).
+
+> **Learned during M4-15 (2026-07-25):** Late-day uses `pluri.late-day-nudge.*` at 21:00, separate UserDefaults opt-in from morning reminders, same permission rules (#50a / #48). `WorkoutReminderService.reconcileReminders` cancels/schedules both families in one hook. Tap → `LateDayNudgePresenter` → Move to tomorrow / `CalendarDayPickerSheet` → `PlanStore.moveWorkout`.
 
 ### Navigation & verification
 
-- [ ] **M4-16** Wire `MainRouter` / Record menu → real Detail → Screen; keep Outdoor Run as an honest stub (tracking deferred through M9); Ask Pluri entry points are clearly labeled stubs owned by M6.
-- [ ] **M4-17** Swift Testing (`PluriTests`): session lifecycle (start/pause/resume/complete/discard), set logging, skip/complete plan mutations, SyncEngine queue/retry + LWW, reminder reconcile after complete/skip, hold-to-finish, weight units from profile.
-- [ ] **M4-18** M4 UI QA: previews for Detail / Screen (pre-start + active) / completion / offline-resume; Dynamic Type, VoiceOver, dark mode, 44pt targets; airplane-mode complete → relaunch → online sync click-through.
+- [x] **M4-16** Wire `MainRouter` / Record menu → real Detail → Screen; keep Outdoor Run as an honest stub (tracking deferred through M9); Ask Pluri entry points are clearly labeled stubs owned by M6.
+- [x] **M4-17** Swift Testing (`PluriTests`): session lifecycle (start/pause/resume/complete/discard), set logging, skip/complete plan mutations, SyncEngine queue/retry + LWW, reminder reconcile after complete/skip, hold-to-finish, weight units from profile.
+- [x] **M4-18** M4 UI QA: previews for Detail / Screen (pre-start + active) / completion / offline-resume; Dynamic Type, VoiceOver, dark mode, 44pt targets; airplane-mode complete → relaunch → online sync click-through.
 
-**Dependencies:** M4-01 → 02/03/04 (domain + sync semantics); 02 → 07–11 (live logging); 03/04 → 12–14 (completion + check-off); 05/06 → 16 (Detail entry); 01/04 → 15 (nudge); everything → 17/18.
+> **Learned during M4-16/17/18 (2026-07-25):** Record / day card / Week Overview → Detail → Screen already wired; Outdoor Run + Ask Pluri remain honest stubs. Added handoff + late-day suite (Stop≡finish handoff later superseded by M4-19). Screen previews cover pre-start / running / paused / offline-resume; a11y spot-fixes on Detail rows, Completion notes, late-day toggle.
+>
+> **M4-18 manual airplane → sync checklist:** (1) Enable Airplane Mode. (2) Start a scheduled workout → log at least one set → **Hold to finish** → **Save** on completion (Health toggle off is fine; review results → **Done**). (3) Confirm Detail/plan shows the workout **completed** locally. (4) Force-quit and relaunch still offline — completed state and local session persist. (5) Disable Airplane Mode / restore network. (6) Wait for SyncEngine opportunistic flush (or trigger by briefly opening Main) — confirm remote `workout_sessions` / `set_logs` / `plan_workouts.status = completed` catch up without duplicating or rolling back the local completion.
+
+- [x] **M4-19** Workout UX polish (2026-07-26): (1) inline Log weight filter/validation (digits + one decimal; locale comma; empty = bodyweight; disable Log + gentle error when invalid); (2) **Stop** = pause only — hold-to-finish is the sole path to Workout Complete (SPEC §14 #55c); (3) after Save, stay on completion with per-exercise set results until **Done** (SPEC §14 #56). Does **not** implement M5-17 Insights session routing.
+
+> **Learned during M4-19 (2026-07-26):** `WorkoutWeightInput` filters/parses weight; card disables Log on invalid non-empty weight; `logSet` rejects non-finite/negative. Screen Stop → `pause()`; paused UI hides Stop, shows Resume + Hold to finish. Completion loads grouped set logs (kg/lb formatting spirit of Insights `setLine`); successful Save no longer auto-`didFinish` — Done dismisses like the Health-failure path. SPEC §14 #55c / #56 updated.
+
+**Dependencies:** M4-01 → 02/03/04 (domain + sync semantics); 02 → 07–11 (live logging); 03/04 → 12–14 (completion + check-off); 05/06 → 16 (Detail entry); 01/04 → 15 (nudge); everything → 17/18; M4-19 polish on Screen/Completion.
 
 **M4 exit check** (PLAN M4): user completes a real workout start-to-finish, offline, with data synced and the plan workout checked off. Specifically: Detail replaces the stub and is reachable from Home Record, day card, and Week Overview; live Screen supports start/pause/stop, hold-to-finish, inline log + timed exercises with immediate SwiftData persistence; completion Save/Discard match M4-01; SyncEngine retries when online (LWW); Apple Health sync on save is best-effort and never drops the local session; late-day nudge reschedules via existing PlanStore move under the same opt-in rules as M3-15; Ask Pluri and Outdoor Run remain honest stubs; build + Swift Testing suite pass; Dynamic Type/VoiceOver/dark mode/contrast/44pt targets manually checked.
 
 **Deferred out of M4 (don't build ahead):** real Ask Pluri coach (M6 — stub OK); full HealthKit Insights reads + Pluri Score engine (M5); Outdoor Run tracking (stub through M9); Community notification rows (M8); manual "+" / Insights Workouts UI (M5); Cardio / Flexibility / hybrid plans and groups (v2).
+
+---
+
+## M5 — HealthKit Insights & Pluri Score
+
+HealthKit Insights & Pluri Score (PLAN M5): full HealthKit *reads* (steps, sleep, heart rate, calories), live Today's Health tiles on Home, real Insights (Performance + Workouts, week filters, all-time stats, Bevel-style health insights), manual "+" activity logging, and the real Pluri Score engine (replacing M3's stub). Builds on M4's saved `WorkoutSession` / `SetLog` data, `Core/Health/` write/metrics patterns, and Home → Insights deep links. **Exit:** Insights reflect real logged + health data; score updates daily.
+
+### Scope & decisions (do first — unblock formula, auth UX, and storage)
+
+- [x] **M5-01** Resolve and record M5 behavior decisions in SPEC §14/§15 before building UI: adopt/refine the PLAN §1.4 Pluri Score formula (70% consistency over trailing 4 weeks with streak + gentle decay + 30% health trend vs 30-day baseline; clamp daily Δ e.g. ±3 — closes the §15 open question on exact weighting); HealthKit read types + auth UX (connect CTA vs Settings guidance on denial); unauthorized/empty states for tiles and Insights; score refresh cadence (launch vs daily observer); manual-activity storage (local-only vs sync); Devices row stays an honest stub vs out of scope. Pick the most reversible interim option where the owner is unavailable (AGENTS §7).
+
+> **Learned during M5-01 (2026-07-26):** decisions recorded as SPEC §14 **#57** (Pluri Score = `0.7 × consistency + 0.3 × health`, daily Δ clamp ±3, trailing 4 weeks dated plan workouts + 30-day health baseline; skipped ≠ completed; flexible pool excluded; HK denied → 100% consistency; Connect CTA on Connected Apps + Profile with Settings guidance on denial, superseding display-only #35/#43 for Apple Health; honest empty tiles/Insights; refresh on foreground/launch + Save/plan status change — daily HK observer optional M5-18; manual "+" local-first, counts toward Insights stats but not plan-consistency; Devices honest stub; HK/score inputs on-device only — #50f write path stays separate). §5.1 / §5.2 / Connected Apps / §9.3 point at #57; §15 Pluri Score formula question resolved. No Swift/UI/HealthKit/plist code in this task — M5-02+ implements against these decisions.
+
+### HealthKit service & connect
+
+- [x] **M5-02** Protocol-based `HealthKitReading` / `HealthKitService` (+ mocks for previews/tests): request read authorization; query today + historical steps, sleep, heart rate, and active energy. Never upload HealthKit samples off-device (SPEC §13). Reuse/extend M4 `Core/Health/` patterns; keep the workout *write* path (`WorkoutHealthWriting`) separate from Insights *reads*.
+
+> **Learned during M5-02 (2026-07-26):** `HealthKitReading` + `LiveHealthKitService` + `MockHealthKitReading` in `Core/Health/` — read-only auth for steps / sleep / heart rate / active energy; `todaySnapshot` / `daySnapshot` + `dailyHistory` (inclusive calendar days, enough for 30-day baseline); `HealthKitReadAuthorizationStatus` (`unavailable` / `notDetermined` / `authorized` / `denied`) for M5-03 Connected Apps wiring; unauthorized → honest empty nils (no invented metrics). Workout *write* path (`WorkoutHealthWriting` / `LiveWorkoutHealthWriter`) untouched — read service never requests share types or uploads. API shape logged as SPEC §14 **#58**. No Connected Apps / Profile UI, Home tiles, ScoreEngine, or Info.plist edits (M5-03/04/05/14).
+
+- [x] **M5-03** Wire Apple Health connect on Connected Apps + Profile (replace display-only shells — SPEC §5.2, §14 #35/#43): real connection status, connect CTA, and Settings guidance on denial. Devices remain an honest stub ("arrives in a future update" — no pretend Bluetooth).
+
+> **Learned during M5-03 (2026-07-26):** `AppleHealthConnectionViewModel` + shared `AppleHealthConnectionSection` on Connected Apps + Profile, fed by AppRoot-owned `LiveHealthKitService` (`HealthKitReading` only — no `WorkoutHealthWriting`). Status labels: Connected / Not connected / Not available; Connect CTA only when `.notDetermined`; `.denied` → gentle Settings footer (mirror Notifications, no Open Settings deep link); refresh on appear + scene active. Devices stub unchanged. Previews cover four statuses; VM tests with `MockHealthKitReading`. Plist usage-string broaden remains M5-14.
+
+### Home live tiles & Score
+
+- [x] **M5-04** Replace Home Today's Health placeholders with live tiles fed by M5-02 (steps, sleep, active heart rate); keep `MainRouter.openInsights(section:)` deep links into Insights (SPEC §5).
+
+> **Learned during M5-04 (2026-07-26):** `HomeViewModel.healthTileMetrics` formats `HealthDaySnapshot` for steps / sleep / avg HR; authorized empties → “No data yet”, not connected → “Enable Health”, unavailable → “Not available”. `HomeHealthTiles` takes live metrics; `onOpen` still calls `MainRouter.openInsights(section:)`. Refresh on `.task` + `scenePhase == .active` (mirror Connected Apps). Tile formatting unit-tested; deep-link path unchanged.
+
+- [x] **M5-05** `ScoreEngine` (pure, unit-tested): consistency + health components + daily clamp per M5-01 / PLAN §1.4; inject plan sessions + on-device HealthKit aggregates (SPEC §5.1). On-device only — score inputs never leave the device (SPEC §13).
+
+> **Learned during M5-05 (2026-07-26):** `Features/Score/Engine/ScoreEngine.swift` (pure `nonisolated` enum, PlanEngine style) + `PluriScoreStore` (user-scoped UserDefaults for ±3 clamp). Formula per #57; streak/decay/health-ratio constants + empty-window = 100 logged as SPEC §14 **#59**. `ScoreEngineTests` cover math, skip/flexible exclusion, HK denied / insufficient samples, clamp edges, store round-trip. No remote upload.
+
+- [x] **M5-06** Replace Home stub Pluri Score card with the live score from M5-05; update Plan Overview explainer so it no longer says the Home score is a sample until Insights (§6.1 / §14 #43).
+
+> **Learned during M5-06 (2026-07-26):** `HomePluriScoreCard` shows live `pluriScore` (no Sample badge / sample disclaimer); `HomeView` refreshes score with health on appear / foreground / plan status fingerprint (#57d). `PlanOverviewView.PluriScoreExplainerCard` rewritten for live consistency-first + HealthKit second layer + ±3/day on-device. SPEC #41f/#43 softened; #59 records wiring. `HomeViewModelTests` replaced stub-score labeling with live refresh + tile tests.
+
+### Insights Performance
+
+- [x] **M5-07** Replace `InsightsPlaceholderView` with the Insights shell: **Performance** \| **Workouts** tabs, calendar + **"+"** in the top bar (SPEC §9); honor `insightsSection` deep links from Home health tiles.
+
+> **Learned during M5-07 (2026-07-26):** `InsightsView` replaces the placeholder — Performance | Workouts chips, calendar + "+" toolbar (honest alerts until M5-12/13). Workouts tab is an honest empty stub (M5-11). Home `openInsights(section:)` still switches tab + sets `insightsSection`; shell lands on **Performance** and highlights the health subsection for M5-10 (SPEC §14 #60).
+
+- [x] **M5-08** Performance tab: per-exercise stats from completed sessions / `set_logs` (reps/sets over time, volume, trends); week filter (SPEC §9.1).
+
+> **Learned during M5-08 (2026-07-26):** `WorkoutSessionRepository.fetchCompletedSessions(endingOnOrAfter:endingBefore:)` + pure `PerformanceStatsEngine` (volume = Σ(reps×weightKg); week = `weekOfYear` on `endedAt`; trend = first vs last day point). `InsightsPerformanceViewModel` + Swift Charts reps line when ≥2 days; honest empty when no completed sessions in the window. Unit-tested engine + repo fetch. All-Time / Health insights / Workouts list deferred to M5-09/10/11.
+
+- [x] **M5-09** Performance All-Time Stats for v1 Weights (strength totals, total time worked out); runner metrics (distance, activity counts) labeled v2 / out of scope (SPEC §9.1).
+
+> **Learned during M5-09 (2026-07-26):** `AllTimeStatsEngine` + `fetchAllCompletedSessions()` — workouts count, volume Σ(reps×weightKg), sets/reps, total `durationSeconds`; independent of week filter; plan sessions only until M5-12. No distance/runner counts. Unit-tested engine + repo fetch. SPEC §14 #61.
+
+- [x] **M5-10** Performance Health insights (steps, sleep, calories, etc.): averages, trends vs the user's own baseline, gentle guidance — Bevel spirit; empty/unauthorized states when HealthKit reads are denied (SPEC §9.1).
+
+> **Learned during M5-10 (2026-07-26):** `HealthInsightsEngine` (30-day baseline / 7-day recent via ScoreEngine constants) + live cards for steps / sleep / calories (active energy) / HR; kind guidance copy; chips honor `router.insightsSection` (added `.calories`); empty/denied mirror Home (“No data yet” / “Enable Health” / “Not available”). SPEC §14 #61.
+
+### Insights Workouts & "+"
+
+- [x] **M5-11** Workouts tab: completed workouts grouped by month + monthly totals; interactive cards with description, duration, total reps, and per-exercise logged sets (SPEC §9.2). Include M4 saved sessions (local + synced).
+
+> **Learned during M5-11 (2026-07-26):** `WorkoutsListEngine` + `InsightsWorkoutsViewModel` group by month of `startOfDay(startedAt)` (#56); monthly count + optional Σ distance; expandable cards with PlanStore title / notes / activity label, duration, total reps, per-exercise sets. Honest empty state. Unit-tested engine. SPEC §14 #62.
+
+- [x] **M5-12** Manual **"+"** logging: Workout / Cardio / Flexibility → date → start time → duration (+ distance for Cardio); logged activities appear in Workouts and count toward stats (SPEC §9.3). Persistence per M5-01. (Manual Cardio/Flexibility *log types* are in scope; Cardio/Flexibility *plans* remain v2.)
+
+> **Learned during M5-12 (2026-07-26):** `createManualActivity` → completed `isManualLog` row (`planWorkoutId = nil`, `needsSync`); `ManualActivityLoggingSheet` wizard; duration-only Workout (no set entry); distance meters + profile-unit display; SyncEngine enqueue; switches to Workouts + refreshes All-Time. No plan completion / no score consistency impact. SPEC §14 #62.
+
+- [x] **M5-13** Insights calendar affordance (top bar): day/range filter or navigate into health/workout context for the selected day — align with Home calendar patterns; record the interim choice in SPEC §14 if SPEC is thin.
+
+> **Learned during M5-13 (2026-07-26):** Day-filter sheet (graphical DatePicker) — not plan `openCalendar()`. Confirm → Workouts + filter that `startedAt` day; Clear restores full list; optional Performance `weekStart` snap. Multi-day range deferred. SPEC §14 #62.
+
+### Privacy & verification
+
+- [ ] **M5-14** Confirm Info.plist / usage strings cover M5 read types; App Review HealthKit privacy posture (display / score / insights only — never leave the device except user-initiated workout sync) (SPEC §13, AGENTS).
+- [ ] **M5-15** Swift Testing (`PluriTests`): `ScoreEngine` math/clamp; HealthKit reader mocks; Home tile aggregation; Performance / Workouts aggregations; manual-activity inclusion; unauthorized empty paths.
+- [ ] **M5-16** M5 UI QA: previews for connected / denied / empty / populated states; Dynamic Type, VoiceOver, dark mode, 44pt targets; Home tiles → Insights section click-through; score moves after completing workouts (and daily refresh per M5-01).
+
+### Optional parity (nice-to-have — do not block M5 exit)
+
+- [ ] **M5-17** Typed Insights routes / workout-detail from Workouts cards (parity with Home/Plan typed navigation).
+- [ ] **M5-18** Score + HealthKit observer / background refresh so the score "updates daily" without relying only on launch-time recompute.
+
+**Dependencies:** M5-01 → 02/03 (auth + read service); 02 → 04/05/10 (tiles, score inputs, health insights); 05 → 06 (live score card); 01/02 → 07 → 08/09/10 (Performance); 01 + M4 sessions → 11/12 (Workouts + "+"); 07 → 13 (calendar); everything → 14/15/16; 17/18 optional after shell + score land.
+
+**M5 exit check** (PLAN M5): Insights reflect real logged + health data; score updates daily. Specifically: HealthKit read auth is real on Connected Apps + Profile with honest denial/empty states; Home Today's Health tiles and Pluri Score are live (stub copy gone from Home + Plan Overview); Insights Performance shows per-exercise stats, week filter, all-time strength/time stats, and Bevel-style health insights when authorized; Workouts tab lists M4 completed sessions by month plus manual "+" activities per §9.3; HealthKit samples stay on-device (SPEC §13); build + Swift Testing suite pass; Dynamic Type/VoiceOver/dark mode/contrast/44pt targets manually checked. M5-17/18 may remain open without blocking exit if daily score update is satisfied by the M5-01 cadence choice.
+
+**Deferred out of M5 (don't build ahead):** real Ask Pluri coach (M6 — stub OK); Outdoor Run tracking (stub through M9); Community notification rows / feed (M8); Devices / Bluetooth pairing; Cardio / Flexibility / hybrid *plans* and groups (v2) — manual Cardio/Flexibility *log types* via "+" (§9.3) are in scope for M5.
 
 ---
 
