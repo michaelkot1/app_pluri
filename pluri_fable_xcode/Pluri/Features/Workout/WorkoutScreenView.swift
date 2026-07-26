@@ -1,0 +1,422 @@
+import SwiftData
+import SwiftUI
+
+/// Live Workout Screen (M4-07–11 / SPEC §8): idle → Start → running timer,
+/// Pause / Stop / hold-to-finish → completion stub; inline Log; live HealthKit.
+struct WorkoutScreenView: View {
+    var sessionID: UUID
+    var stack: WorkoutDetailStack = .home
+
+    @Environment(PlanStore.self) private var planStore
+    @Environment(MainRouter.self) private var router
+    @Environment(SupabaseAuthService.self) private var authService
+    @Environment(SwiftDataWorkoutSessionRepository.self) private var sessionRepository
+    @Environment(SupabaseSyncEngine.self) private var syncEngine
+    @Environment(\.modelContext) private var modelContext
+
+    @State private var viewModel: WorkoutScreenViewModel?
+    @State private var holdProgress = 0.0
+    @State private var holdTask: Task<Void, Never>?
+
+    var body: some View {
+        Group {
+            if let session {
+                screenContent(for: session)
+            } else {
+                MainTabPlaceholderView(
+                    title: "Workout",
+                    systemImage: "dumbbell.fill",
+                    message: "We couldn't find that workout in your plan. Head back and pick another."
+                )
+            }
+        }
+        .background(PluriColor.bgCanvas)
+        .navigationTitle(session?.title ?? "Workout")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            ensureViewModel()
+            viewModel?.refreshSessionState()
+        }
+        .onDisappear {
+            holdTask?.cancel()
+            viewModel?.tearDown()
+        }
+        .pluriBottomSheet(
+            isPresented: askPluriBinding,
+            detents: [.medium]
+        ) {
+            askPluriStubSheet
+        }
+        .pluriBottomSheet(isPresented: exerciseSheetBinding) {
+            if let session, let exercise = selectedExercise(in: session) {
+                exerciseDetailSheet(for: exercise)
+            }
+        }
+    }
+
+    private var session: PlannedSession? {
+        guard let plan = planStore.plan else { return nil }
+        return PlanMutator.session(withID: sessionID, in: plan)
+    }
+
+    @ViewBuilder
+    private func screenContent(for session: PlannedSession) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: PluriSpacing.lg) {
+                timerAndMetrics
+
+                exercisesSection(for: session)
+
+                if let errorMessage = viewModel?.errorMessage {
+                    Text(errorMessage)
+                        .font(PluriFont.label)
+                        .foregroundStyle(PluriColor.statusRedSoft)
+                }
+
+                actionsSection
+            }
+            .padding(.horizontal, PluriSpacing.lg)
+            .padding(.vertical, PluriSpacing.lg)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private var timerAndMetrics: some View {
+        VStack(spacing: PluriSpacing.md) {
+            PluriHeroNumeral(text: viewModel?.formattedElapsed ?? "00:00")
+                .accessibilityLabel(timerAccessibilityLabel)
+
+            HStack(spacing: PluriSpacing.lg) {
+                metricSlot(
+                    title: "Heart rate",
+                    value: viewModel?.heartRateDisplay ?? "—",
+                    accessibilityValue: heartRateAccessibility
+                )
+                metricSlot(
+                    title: "Calories",
+                    value: viewModel?.caloriesDisplay ?? "—",
+                    accessibilityValue: caloriesAccessibility
+                )
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, PluriSpacing.md)
+    }
+
+    private func metricSlot(
+        title: String,
+        value: String,
+        accessibilityValue: String
+    ) -> some View {
+        VStack(spacing: PluriSpacing.xs) {
+            Text(value)
+                .font(PluriFont.sectionHeader)
+                .foregroundStyle(
+                    value == "—" ? PluriColor.textTertiary : PluriColor.textPrimary
+                )
+                .monospacedDigit()
+            Text(title)
+                .font(PluriFont.label)
+                .foregroundStyle(PluriColor.textSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityValue)
+    }
+
+    private func exercisesSection(for session: PlannedSession) -> some View {
+        VStack(alignment: .leading, spacing: PluriSpacing.sm) {
+            Text("Exercises")
+                .font(PluriFont.overline)
+                .textCase(.uppercase)
+                .kerning(1)
+                .foregroundStyle(PluriColor.textSecondary)
+
+            let usesImperial = planStore.profile?.units == "imperial"
+            let showsLog = viewModel?.showsLiveControls == true
+            ForEach(session.exercises) { exercise in
+                WorkoutExerciseCardView(
+                    exercise: exercise,
+                    showsInlineLog: showsLog,
+                    usesImperialUnits: usesImperial,
+                    loggedSetCount: viewModel?.loggedSetCountByExercise[exercise.id] ?? 0,
+                    action: {
+                        viewModel?.selectExercise(exercise.id)
+                    },
+                    onLogSet: { reps, weight in
+                        viewModel?.logSet(
+                            exercise: exercise,
+                            reps: reps,
+                            weightDisplay: weight
+                        )
+                    },
+                    onLogDuration: { seconds in
+                        viewModel?.logSet(
+                            exercise: exercise,
+                            reps: 0,
+                            weightDisplay: nil,
+                            durationSeconds: seconds
+                        )
+                    }
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var actionsSection: some View {
+        VStack(spacing: PluriSpacing.sm) {
+            if viewModel?.showsLiveControls == true {
+                if viewModel?.isPaused == true {
+                    Button("Resume") {
+                        viewModel?.resume()
+                    }
+                    .buttonStyle(.pluriPrimary)
+                } else {
+                    Button("Pause") {
+                        viewModel?.pause()
+                    }
+                    .buttonStyle(.pluriSecondary)
+                }
+
+                Button("Stop") {
+                    requestCompletion()
+                }
+                .buttonStyle(.pluriSecondary)
+
+                holdToFinishButton
+            } else {
+                Button("Start") {
+                    viewModel?.start()
+                }
+                .buttonStyle(.pluriPrimary)
+            }
+
+            Button("Ask Pluri") {
+                viewModel?.showsAskPluriStub = true
+            }
+            .buttonStyle(.pluriSecondary)
+        }
+    }
+
+    private var holdToFinishButton: some View {
+        Text("Hold to finish")
+            .font(PluriFont.label)
+            .foregroundStyle(PluriColor.textPrimary)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 50)
+            .background(PluriColor.bgMuted, in: .rect(cornerRadius: PluriRadius.xl))
+            .overlay {
+                GeometryReader { geo in
+                    PluriColor.brandOrange.opacity(0.35)
+                        .frame(width: geo.size.width * holdProgress)
+                        .clipShape(.rect(cornerRadius: PluriRadius.xl))
+                }
+                .allowsHitTesting(false)
+            }
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        beginHoldIfNeeded()
+                    }
+                    .onEnded { _ in
+                        cancelHold()
+                    }
+            )
+            .accessibilityLabel("Hold to finish workout")
+            .accessibilityHint("Press and hold to open the workout summary")
+            .accessibilityAddTraits(.isButton)
+    }
+
+    private var askPluriStubSheet: some View {
+        VStack(alignment: .leading, spacing: PluriSpacing.md) {
+            Text("Ask Pluri — coming in a later update (M6)")
+                .font(PluriFont.sectionHeader)
+                .foregroundStyle(PluriColor.textPrimary)
+            Text("Your in-app coach will answer training questions using your plan and past workouts. There’s no chat here yet — just an honest placeholder.")
+                .font(PluriFont.body)
+                .foregroundStyle(PluriColor.textSecondary)
+            Spacer(minLength: 0)
+        }
+        .padding(PluriSpacing.lg)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(PluriColor.bgSurface)
+    }
+
+    private func exerciseDetailSheet(for exercise: PlannedExercise) -> some View {
+        let catalog = viewModel?.catalogExercise(for: exercise)
+        return WorkoutExerciseDetailSheet(
+            exercise: exercise,
+            descriptionText: viewModel?.description(for: exercise) ?? "",
+            videoURL: catalog?.videoURL,
+            notesDraft: notesBinding(for: exercise.id),
+            errorMessage: viewModel?.errorMessage,
+            onSaveNotes: {
+                viewModel?.saveExerciseNotes(for: exercise.id)
+                if viewModel?.errorMessage == nil {
+                    viewModel?.selectExercise(nil)
+                }
+            }
+        )
+    }
+
+    private var timerAccessibilityLabel: String {
+        let elapsed = viewModel?.formattedElapsed ?? "00:00"
+        if viewModel?.isRunning == true {
+            return "Workout timer, \(elapsed), running"
+        }
+        if viewModel?.isPaused == true {
+            return "Workout timer, \(elapsed), paused"
+        }
+        return "Workout timer, \(elapsed)"
+    }
+
+    private var heartRateAccessibility: String {
+        let value = viewModel?.heartRateDisplay ?? "—"
+        if value == "—" {
+            return "Heart rate, no data yet"
+        }
+        return "Heart rate, \(value) beats per minute"
+    }
+
+    private var caloriesAccessibility: String {
+        let value = viewModel?.caloriesDisplay ?? "—"
+        if value == "—" {
+            return "Calories, no data yet"
+        }
+        return "Calories, \(value) kilocalories"
+    }
+
+    private func notesBinding(for exerciseID: UUID) -> Binding<String> {
+        Binding(
+            get: { viewModel?.notesDraft(for: exerciseID) ?? "" },
+            set: { viewModel?.updateExerciseNotesDraft($0, for: exerciseID) }
+        )
+    }
+
+    private var askPluriBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel?.showsAskPluriStub ?? false },
+            set: { viewModel?.showsAskPluriStub = $0 }
+        )
+    }
+
+    private var exerciseSheetBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel?.selectedExerciseID != nil },
+            set: { isPresented in
+                if !isPresented {
+                    viewModel?.selectExercise(nil)
+                }
+            }
+        )
+    }
+
+    private func selectedExercise(in session: PlannedSession) -> PlannedExercise? {
+        guard let id = viewModel?.selectedExerciseID else { return nil }
+        return session.exercises.first { $0.id == id }
+    }
+
+    private func beginHoldIfNeeded() {
+        guard holdTask == nil else { return }
+        holdProgress = 0
+        holdTask = Task {
+            let steps = 20
+            for step in 1...steps {
+                try? await Task.sleep(for: .milliseconds(50))
+                guard !Task.isCancelled else { return }
+                holdProgress = Double(step) / Double(steps)
+            }
+            guard !Task.isCancelled else { return }
+            requestCompletion()
+            holdProgress = 0
+            holdTask = nil
+        }
+    }
+
+    private func cancelHold() {
+        holdTask?.cancel()
+        holdTask = nil
+        holdProgress = 0
+    }
+
+    private func requestCompletion() {
+        viewModel?.finish()
+        guard let handoff = viewModel?.pendingCompletion else { return }
+        navigateToCompletion(handoff)
+        viewModel?.clearPendingCompletion()
+    }
+
+    private func navigateToCompletion(_ handoff: WorkoutCompletionHandoff) {
+        switch stack {
+        case .home:
+            router.openWorkoutCompletion(
+                planWorkoutID: handoff.planWorkoutID,
+                workoutSessionID: handoff.workoutSessionID,
+                elapsedSeconds: handoff.elapsedSeconds
+            )
+        case .plan:
+            router.openPlanWorkoutCompletion(
+                planWorkoutID: handoff.planWorkoutID,
+                workoutSessionID: handoff.workoutSessionID,
+                elapsedSeconds: handoff.elapsedSeconds
+            )
+        }
+    }
+
+    private func ensureViewModel() {
+        guard viewModel == nil else { return }
+        let context = modelContext
+        let health = LiveWorkoutHealthMetricsProvider()
+        viewModel = WorkoutScreenViewModel(
+            sessionID: sessionID,
+            repository: sessionRepository,
+            userIDProvider: {
+                authService.appUserID.flatMap(UUID.init(uuidString:))
+            },
+            catalogLookup: { exerciseID in
+                var descriptor = FetchDescriptor<CachedExercise>(
+                    predicate: #Predicate { cached in
+                        cached.id == exerciseID
+                    }
+                )
+                descriptor.fetchLimit = 1
+                return try? context.fetch(descriptor).first?.asDomainExercise
+            },
+            syncEngine: syncEngine,
+            healthMetrics: health,
+            usesImperialUnits: {
+                planStore.profile?.units == "imperial"
+            }
+        )
+    }
+}
+
+#if DEBUG
+#Preview("Pre-start") {
+    let store = HomePreviewData.readyStore()
+    let sessionID = store.plan?.weeks[0].sessions[1].id ?? UUID()
+    let container = try! ModelContainer(
+        for: Schema([
+            CachedExercise.self,
+            ExerciseCatalogSyncState.self,
+            WorkoutSessionRecord.self,
+            SetLogRecord.self,
+        ]),
+        configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+    )
+    let sync = SupabaseSyncEngine(
+        modelContext: container.mainContext,
+        supabaseService: SupabaseService()
+    )
+    NavigationStack {
+        WorkoutScreenView(sessionID: sessionID, stack: .home)
+    }
+    .environment(store)
+    .environment(MainRouter())
+    .environment(SupabaseAuthService(supabaseService: SupabaseService(), restoreOnLaunch: false))
+    .environment(SwiftDataWorkoutSessionRepository(modelContext: container.mainContext))
+    .environment(sync)
+    .modelContainer(container)
+}
+#endif

@@ -2,11 +2,14 @@ import SwiftUI
 
 /// The selected day's workout content below the calendar strip (M3-07 /
 /// SPEC §5): each session's title, type, duration, and status — or a gentle
-/// empty state, never a fake workout.
+/// empty state, never a fake workout. Tapping a session opens Workout Detail
+/// (M4-05).
 struct HomeSelectedDayCard: View {
     var day: Date
     var isToday: Bool
     var sessions: [PlannedSession]
+
+    @Environment(MainRouter.self) private var router
 
     var body: some View {
         PluriCard {
@@ -23,7 +26,13 @@ struct HomeSelectedDayCard: View {
                         .foregroundStyle(PluriColor.textSecondary)
                 } else {
                     ForEach(sessions) { session in
-                        HomeSessionRow(session: session)
+                        Button {
+                            router.openWorkoutDetail(sessionID: session.id)
+                        } label: {
+                            HomeSessionRow(session: session)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Opens the workout details")
                     }
                 }
             }
@@ -97,4 +106,5 @@ private struct HomeSessionStatusMark: View {
     }
     .padding(PluriSpacing.lg)
     .background(PluriColor.bgCanvas)
+    .environment(MainRouter())
 }

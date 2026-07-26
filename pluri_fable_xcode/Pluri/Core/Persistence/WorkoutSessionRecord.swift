@@ -40,8 +40,11 @@ final class WorkoutSessionRecord {
     /// Seconds of active (non-paused) time accumulated so far.
     var accumulatedActiveSeconds: Int = 0
     /// When the timer last entered a running (unpaused) segment; nil when paused
-    /// or before first start segment is tracked by UI.
+    /// or before first Screen Start (soft Detail-notes sessions stay nil).
     var lastResumedAt: Date?
+    /// True after the first live Screen Start / resume segment (M4-09). Soft
+    /// Detail-notes `startOrResume` leaves this false so the hero timer stays idle.
+    var hasStartedLiveTimer: Bool = false
     /// Per-exercise notes keyed by `workoutExerciseId.uuidString` (local-only).
     var exerciseNotesByWorkoutExerciseId: [String: String] = [:]
 
@@ -69,6 +72,7 @@ final class WorkoutSessionRecord {
         isPaused: Bool = false,
         accumulatedActiveSeconds: Int = 0,
         lastResumedAt: Date? = nil,
+        hasStartedLiveTimer: Bool = false,
         exerciseNotesByWorkoutExerciseId: [String: String] = [:]
     ) {
         self.id = id
@@ -88,6 +92,16 @@ final class WorkoutSessionRecord {
         self.isPaused = isPaused
         self.accumulatedActiveSeconds = accumulatedActiveSeconds
         self.lastResumedAt = lastResumedAt
+        self.hasStartedLiveTimer = hasStartedLiveTimer
         self.exerciseNotesByWorkoutExerciseId = exerciseNotesByWorkoutExerciseId
+    }
+
+    /// Active (non-paused) elapsed seconds at `now`.
+    func displayedElapsedSeconds(at now: Date = .now) -> Int {
+        var total = accumulatedActiveSeconds
+        if !isPaused, let lastResumedAt {
+            total += max(0, Int(now.timeIntervalSince(lastResumedAt)))
+        }
+        return max(0, total)
     }
 }

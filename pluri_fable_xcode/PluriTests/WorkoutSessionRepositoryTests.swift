@@ -274,4 +274,44 @@ struct WorkoutSessionRepositoryTests {
 
         #expect(set.weightKg == kg)
     }
+
+    @Test("startOrResume creates a soft paused session without a running timer")
+    func softStartDoesNotRunTimer() throws {
+        let container = try makeContainer()
+        let repo = makeRepository(in: container)
+        let session = try repo.startOrResume(planWorkoutId: UUID(), userId: UUID())
+
+        #expect(session.isPaused)
+        #expect(session.lastResumedAt == nil)
+        #expect(!session.hasStartedLiveTimer)
+        #expect(session.accumulatedActiveSeconds == 0)
+        #expect(session.displayedElapsedSeconds() == 0)
+    }
+
+    @Test("pause folds elapsed; resume begins a new running segment")
+    func pauseAndResumeElapsed() async throws {
+        let container = try makeContainer()
+        let repo = makeRepository(in: container)
+        let session = try repo.startOrResume(planWorkoutId: UUID(), userId: UUID())
+
+        try repo.resume(sessionId: session.id)
+        #expect(!session.isPaused)
+        #expect(session.hasStartedLiveTimer)
+        #expect(session.lastResumedAt != nil)
+
+        session.accumulatedActiveSeconds = 10
+        session.lastResumedAt = Date.now.addingTimeInterval(-5)
+        try repo.pause(sessionId: session.id)
+
+        #expect(session.isPaused)
+        #expect(session.lastResumedAt == nil)
+        #expect(session.accumulatedActiveSeconds >= 15)
+        #expect(session.durationSeconds == session.accumulatedActiveSeconds)
+
+        try repo.resume(sessionId: session.id)
+        #expect(!session.isPaused)
+        #expect(session.lastResumedAt != nil)
+        let afterResume = session.accumulatedActiveSeconds
+        #expect(session.displayedElapsedSeconds() >= afterResume)
+    }
 }

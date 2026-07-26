@@ -282,16 +282,23 @@ Core of the app (PLAN M4): Workout Detail, live Workout Screen, completion summa
 
 ### Workout Detail (SPEC §7)
 
-- [ ] **M4-05** Replace `WorkoutDetailStubView` with the real Detail page: focus-driven title/type/color, equipment rollup for the whole session, exercise list + set counts, **View Workout** → live Screen. Reachable from Home Record menu, selected-day card, and Week Overview (typed routes already stubbed in M3).
-- [ ] **M4-06** Skip workout action + Workout Notes bottom sheet on Detail (SPEC §7); skip persists via M4-04 and stays gentle (no scolding).
+- [x] **M4-05** Replace `WorkoutDetailStubView` with the real Detail page: focus-driven title/type/color, equipment rollup for the whole session, exercise list + set counts, **View Workout** → live Screen. Reachable from Home Record menu, selected-day card, and Week Overview (typed routes already stubbed in M3).
+- [x] **M4-06** Skip workout action + Workout Notes bottom sheet on Detail (SPEC §7); skip persists via M4-04 and stays gentle (no scolding).
+
+> **Learned during M4-05/06 (2026-07-25):** real `WorkoutDetailView` + `WorkoutDetailViewModel` replace the stub; entry points = Record menu, Home day-card row tap, Week Overview. **View Workout** pushes typed `HomeRoute`/`PlanRoute.workoutScreen` (live Screen in M4-07/08). Notes sheet uses `.pluriBottomSheet`; first save `startOrResume` then `updateWorkoutNotes` (SPEC §14 #53). Skip only when `.scheduled`, via `PlanStore.skipWorkout`, then discards any local in-progress session for that workout. `SwiftDataWorkoutSessionRepository` is `@Observable` and injected from `AppRootView`.
 
 ### Live Workout Screen (SPEC §8)
 
-- [ ] **M4-07** Pre-start layout: idle timer, empty metric slots, one exercise card per exercise (image/animation, name, equipment, primary/secondary muscle, sets×reps or time), **Start** + Ask Pluri stub (M4-01 / M6).
-- [ ] **M4-08** Expanded exercise sheet: longer description, per-exercise notes, media (image/animation; **hide video toggle** per SPEC §14 #11 until a video source exists); media caching path so offline sessions still show previously seen assets.
-- [ ] **M4-09** After Start: running timer; Pause / Stop; hold-to-finish gesture; Stop → completion path (M4-12). Persist session state continuously (M4-02).
-- [ ] **M4-10** Inline Log (reps/weight) and timed-exercise timer on cards; log UI expands inline but stays compact; <100 ms feedback; write `SetLog` to SwiftData immediately (M4-02) — sync is opportunistic (M4-03).
-- [ ] **M4-11** Live HealthKit heart rate + calories during an *active* workout (display only; graceful empty state if unauthorized). Full Insights HealthKit reads and Pluri Score remain M5.
+- [x] **M4-07** Pre-start layout: idle timer, empty metric slots, one exercise card per exercise (image/animation, name, equipment, primary/secondary muscle, sets×reps or time), **Start** + Ask Pluri stub (M4-01 / M6).
+- [x] **M4-08** Expanded exercise sheet: longer description, per-exercise notes, media (image/animation; **hide video toggle** per SPEC §14 #11 until a video source exists); media caching path so offline sessions still show previously seen assets.
+
+> **Learned during M4-07/08 (2026-07-25):** `WorkoutScreenView` + `WorkoutScreenViewModel` replace `WorkoutScreenStubView`. Pre-start = idle `00:00` hero timer, empty HR/kcal slots, exercise cards (`CachedExerciseMediaView` + disk `ExerciseMediaCache` under `URL.cachesDirectory/ExerciseMedia`), **Start** → `startOrResume` (soft “In progress”; no running timer/Pause/Stop — M4-09). Ask Pluri = honest M6 stub sheet (§14 #50e). Card tap → `.pluriBottomSheet` with catalog `instructions` (graceful empty if missing), per-exercise notes via `updateExerciseNotes`, GIF/image media; video toggle hidden while `videoURL` nil (§14 #11 / #54).
+
+- [x] **M4-09** After Start: running timer; Pause / Stop; hold-to-finish gesture; Stop → completion path (M4-12). Persist session state continuously (M4-02).
+- [x] **M4-10** Inline Log (reps/weight) and timed-exercise timer on cards; log UI expands inline but stays compact; <100 ms feedback; write `SetLog` to SwiftData immediately (M4-02) — sync is opportunistic (M4-03).
+- [x] **M4-11** Live HealthKit heart rate + calories during an *active* workout (display only; graceful empty state if unauthorized). Full Insights HealthKit reads and Pluri Score remain M5.
+
+> **Learned during M4-09/10/11 (2026-07-25):** Screen **Start** calls `resume` after soft `startOrResume` so Detail Notes never auto-run the hero timer (`hasStartedLiveTimer`, §14 #55). Pause folds elapsed into `accumulatedActiveSeconds`; Stop / hold-to-finish push `workoutCompletion` stub (name + elapsed only — no Discard/Save yet). Inline Log converts lb→`weight_kg` via `Measurement`; optional per-card timer writes `durationSeconds` (plan model still sets×reps only). Live HR/kcal via `WorkoutHealthMetricsProviding` stream only while unpaused; unauthorized stays "—".
 
 ### Completion (SPEC §8.1) & Apple Health
 

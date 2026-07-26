@@ -7,7 +7,9 @@ import SwiftUI
 /// onboarding/paywall flash before launch routing is known. Also owns the
 /// live `WorkoutReminderService` (M3-15) so the same instance reconciles
 /// reminders after plan mutations and powers the Notifications toggle, and
-/// the `SyncEngine` (M4-03) for opportunistic session / set_log upload.
+/// the `SyncEngine` (M4-03) for opportunistic session / set_log upload, and
+/// the local `WorkoutSessionRepository` for Detail Notes / live session
+/// writes (M4-05/06).
 struct AppRootView: View {
     @State private var authService: SupabaseAuthService
     @State private var subscriptionService: SubscriptionService
@@ -15,6 +17,7 @@ struct AppRootView: View {
     @State private var restoreService: SupabaseRemotePlanRestoreService
     @State private var reminderService: WorkoutReminderService
     @State private var syncEngine: SupabaseSyncEngine
+    @State private var workoutSessionRepository: SwiftDataWorkoutSessionRepository
     @State private var planStore: PlanStore
     @State private var router = AppRouter()
     @State private var themeStore = ThemeStore()
@@ -44,6 +47,11 @@ struct AppRootView: View {
             supabaseService: supabase
         )
         _syncEngine = State(initialValue: sync)
+        _workoutSessionRepository = State(
+            initialValue: SwiftDataWorkoutSessionRepository(
+                modelContext: modelContainer.mainContext
+            )
+        )
         _planStore = State(
             initialValue: PlanStore(
                 mutationService: SupabasePlanMutationService(supabaseService: supabase),
@@ -97,6 +105,8 @@ struct AppRootView: View {
         .environment(flushService)
         .environment(restoreService)
         .environment(reminderService)
+        .environment(workoutSessionRepository)
+        .environment(syncEngine)
         .environment(planStore)
         .environment(themeStore)
         .onChange(of: router.phase) { _, newPhase in

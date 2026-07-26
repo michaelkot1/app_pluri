@@ -14,5 +14,9 @@
 	<string>$(PLURI_NUTRITION_API_KEY)</string>
 	<key>REVENUECAT_API_KEY</key>
 	<string>$(PLURI_REVENUECAT_API_KEY)</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Pluri reads your heart rate and active energy only while a workout is in progress so you can see live metrics on the Workout Screen.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Pluri can save completed workouts to Apple Health when you choose to sync on Save.</string>
 </dict>
 </plist>

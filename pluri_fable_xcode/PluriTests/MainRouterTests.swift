@@ -46,6 +46,12 @@ struct MainRouterTests {
         router.openNotifications()
         router.openCalendar()
         router.openWorkoutDetail(sessionID: sessionID)
+        router.openWorkoutScreen(sessionID: sessionID)
+        router.openWorkoutCompletion(
+            planWorkoutID: sessionID,
+            workoutSessionID: sessionID,
+            elapsedSeconds: 90
+        )
         router.openOutdoorRunStub()
 
         #expect(router.homePath == [
@@ -53,6 +59,12 @@ struct MainRouterTests {
             .notifications,
             .calendar,
             .workoutDetail(sessionID: sessionID),
+            .workoutScreen(sessionID: sessionID),
+            .workoutCompletion(
+                planWorkoutID: sessionID,
+                workoutSessionID: sessionID,
+                elapsedSeconds: 90
+            ),
             .outdoorRunStub,
         ])
     }
@@ -82,6 +94,12 @@ struct MainRouterTests {
         router.openConnectedApps()
         router.openManagePlan()
         router.openPlanWorkoutDetail(sessionID: sessionID)
+        router.openPlanWorkoutScreen(sessionID: sessionID)
+        router.openPlanWorkoutCompletion(
+            planWorkoutID: sessionID,
+            workoutSessionID: sessionID,
+            elapsedSeconds: 120
+        )
 
         #expect(router.planPath == [
             .weekOverview(weekID: weekID),
@@ -90,6 +108,12 @@ struct MainRouterTests {
             .connectedApps,
             .managePlan,
             .workoutDetail(sessionID: sessionID),
+            .workoutScreen(sessionID: sessionID),
+            .workoutCompletion(
+                planWorkoutID: sessionID,
+                workoutSessionID: sessionID,
+                elapsedSeconds: 120
+            ),
         ])
         #expect(router.homePath.isEmpty)
     }

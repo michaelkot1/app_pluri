@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import SwiftData
 import os.log
 
@@ -36,6 +37,13 @@ protocol WorkoutSessionRepository: AnyObject {
     /// Per-exercise notes (local-only map keyed by workout exercise id).
     func updateExerciseNotes(sessionId: UUID, workoutExerciseId: UUID, notes: String?) throws
 
+    /// Folds the current running segment into `accumulatedActiveSeconds` and pauses.
+    func pause(sessionId: UUID) throws
+
+    /// Begins (or resumes) a running timer segment. First call after a soft
+    /// Detail-notes session is the live Screen Start (SPEC §14 #55).
+    func resume(sessionId: UUID) throws
+
     /// Marks the session completed. Does not change plan workout status.
     func complete(
         sessionId: UUID,
@@ -54,7 +62,10 @@ enum WorkoutSessionRepositoryError: Error, Equatable {
 }
 
 /// SwiftData-backed `WorkoutSessionRepository`.
+///
+/// `@Observable` so AppRoot can inject it via `.environment` (M4-05/06 Notes).
 @MainActor
+@Observable
 final class SwiftDataWorkoutSessionRepository: WorkoutSessionRepository {
     private let modelContext: ModelContext
     private let logger = Logger(subsystem: "com.codewithmikey.pluri", category: "WorkoutSessionRepository")
@@ -68,12 +79,17 @@ final class SwiftDataWorkoutSessionRepository: WorkoutSessionRepository {
             return existing
         }
 
+        // Soft in-progress only — timer stays idle until Screen Start calls resume
+        // (Detail Notes / soft Start must not auto-run; SPEC §14 #55).
         let session = WorkoutSessionRecord(
             userId: userId,
             planWorkoutId: planWorkoutId,
             activityType: "workout",
             startedAt: .now,
-            lastResumedAt: .now
+            isPaused: true,
+            accumulatedActiveSeconds: 0,
+            lastResumedAt: nil,
+            hasStartedLiveTimer: false
         )
         modelContext.insert(session)
         try save()
@@ -174,6 +190,44 @@ final class SwiftDataWorkoutSessionRepository: WorkoutSessionRepository {
         session.updatedAt = .now
         // Local-only field (#51) — bump session bookkeeping so a later flush
         // still carries the parent row's updated_at, without requiring a set_log.
+        session.needsSync = true
+        try save()
+    }
+
+    func pause(sessionId: UUID) throws {
+        guard let session = try session(id: sessionId) else {
+            throw WorkoutSessionRepositoryError.sessionNotFound
+        }
+        guard session.isInProgress else {
+            throw WorkoutSessionRepositoryError.sessionAlreadyCompleted
+        }
+        if !session.isPaused, let lastResumedAt = session.lastResumedAt {
+            let delta = max(0, Int(Date.now.timeIntervalSince(lastResumedAt)))
+            session.accumulatedActiveSeconds += delta
+        }
+        session.isPaused = true
+        session.lastResumedAt = nil
+        session.durationSeconds = session.accumulatedActiveSeconds
+        session.updatedAt = .now
+        session.needsSync = true
+        try save()
+    }
+
+    func resume(sessionId: UUID) throws {
+        guard let session = try session(id: sessionId) else {
+            throw WorkoutSessionRepositoryError.sessionNotFound
+        }
+        guard session.isInProgress else {
+            throw WorkoutSessionRepositoryError.sessionAlreadyCompleted
+        }
+        guard session.isPaused || session.lastResumedAt == nil else {
+            // Already running — idempotent.
+            return
+        }
+        session.isPaused = false
+        session.lastResumedAt = .now
+        session.hasStartedLiveTimer = true
+        session.updatedAt = .now
         session.needsSync = true
         try save()
     }

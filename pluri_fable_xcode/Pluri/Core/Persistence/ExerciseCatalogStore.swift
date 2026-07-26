@@ -45,6 +45,18 @@ final class ExerciseCatalogStore {
         try modelContext.fetch(FetchDescriptor<CachedExercise>()).map(\.asDomainExercise)
     }
 
+    /// Single catalog entry by WorkoutX exercise id, or `nil` when missing
+    /// (Workout Screen expanded sheet uses this for longer instructions).
+    func exercise(id: String) throws -> Exercise? {
+        var descriptor = FetchDescriptor<CachedExercise>(
+            predicate: #Predicate { cached in
+                cached.id == id
+            }
+        )
+        descriptor.fetchLimit = 1
+        return try modelContext.fetch(descriptor).first?.asDomainExercise
+    }
+
     /// Refreshes from `WorkoutXClient` only if the cache is empty or stale.
     func refreshIfNeeded() async {
         let state = try? fetchSyncState()

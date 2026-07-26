@@ -3,7 +3,7 @@ import SwiftUI
 /// Resolves a pushed `PlanRoute` to its destination view (M3-10..14). Week
 /// Overview (§6.3), Plan Overview (§6.1), Rearrange Workouts (the shared
 /// §5.4 Calendar page), Connected Apps, and Manage Plan (§6.2) are all real;
-/// Workout Detail is the shared M4 stub.
+/// Workout Detail (M4-05) and Workout Screen pre-start (M4-07/08) are live.
 struct PlanRouteDestinationView: View {
     var route: PlanRoute
 
@@ -30,7 +30,14 @@ struct PlanRouteDestinationView: View {
         case .managePlan:
             ManagePlanView()
         case .workoutDetail(let sessionID):
-            WorkoutDetailStubView(session: session(withID: sessionID))
+            WorkoutDetailView(sessionID: sessionID, stack: .plan)
+        case .workoutScreen(let sessionID):
+            WorkoutScreenView(sessionID: sessionID, stack: .plan)
+        case .workoutCompletion(let planWorkoutID, _, let elapsedSeconds):
+            WorkoutCompletionStubView(
+                workoutName: workoutTitle(for: planWorkoutID),
+                elapsedSeconds: elapsedSeconds
+            )
         }
     }
 
@@ -38,8 +45,12 @@ struct PlanRouteDestinationView: View {
         planStore.plan?.weeks.first { $0.id == id }
     }
 
-    private func session(withID id: UUID) -> PlannedSession? {
-        guard let plan = planStore.plan else { return nil }
-        return PlanMutator.session(withID: id, in: plan)
+    private func workoutTitle(for planWorkoutID: UUID) -> String {
+        guard let plan = planStore.plan,
+              let session = PlanMutator.session(withID: planWorkoutID, in: plan)
+        else {
+            return "Workout"
+        }
+        return session.title
     }
 }

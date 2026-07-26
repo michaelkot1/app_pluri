@@ -2,9 +2,9 @@ import SwiftUI
 
 /// Resolves a pushed `HomeRoute` to its destination view (M3-06). Profile is
 /// the real M2-16 screen fed from the live `PlanStore` (falling back to the
-/// launch-restored state), Calendar is the real M3-13 page, and Notifications
-/// is the real M3-15 page; Workout Detail and Outdoor Run are honest stubs
-/// until M4.
+/// launch-restored state), Calendar is the real M3-13 page, Notifications is
+/// the real M3-15 page, Workout Detail (M4-05) and Workout Screen pre-start
+/// (M4-07/08) are live; Outdoor Run stays an honest stub.
 struct HomeRouteDestinationView: View {
     var route: HomeRoute
     /// Launch-restored state, kept as the Profile fallback before the store
@@ -33,7 +33,14 @@ struct HomeRouteDestinationView: View {
         case .calendar:
             CalendarView(title: "Calendar")
         case .workoutDetail(let sessionID):
-            WorkoutDetailStubView(session: session(withID: sessionID))
+            WorkoutDetailView(sessionID: sessionID, stack: .home)
+        case .workoutScreen(let sessionID):
+            WorkoutScreenView(sessionID: sessionID, stack: .home)
+        case .workoutCompletion(let planWorkoutID, _, let elapsedSeconds):
+            WorkoutCompletionStubView(
+                workoutName: workoutTitle(for: planWorkoutID),
+                elapsedSeconds: elapsedSeconds
+            )
         case .outdoorRunStub:
             MainTabPlaceholderView(
                 title: "Outdoor Run",
@@ -53,8 +60,12 @@ struct HomeRouteDestinationView: View {
         }
     }
 
-    private func session(withID id: UUID) -> PlannedSession? {
-        guard let plan = planStore.plan else { return nil }
-        return PlanMutator.session(withID: id, in: plan)
+    private func workoutTitle(for planWorkoutID: UUID) -> String {
+        guard let plan = planStore.plan,
+              let session = PlanMutator.session(withID: planWorkoutID, in: plan)
+        else {
+            return "Workout"
+        }
+        return session.title
     }
 }

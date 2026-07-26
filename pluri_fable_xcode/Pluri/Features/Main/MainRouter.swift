@@ -51,6 +51,26 @@ final class MainRouter {
         pushOnHome(.workoutDetail(sessionID: sessionID))
     }
 
+    /// Live Workout Screen (M4-07+).
+    func openWorkoutScreen(sessionID: UUID) {
+        pushOnHome(.workoutScreen(sessionID: sessionID))
+    }
+
+    /// Completion stub after Stop / hold-to-finish (M4-09; full summary is M4-12).
+    func openWorkoutCompletion(
+        planWorkoutID: UUID,
+        workoutSessionID: UUID,
+        elapsedSeconds: Int
+    ) {
+        pushOnHome(
+            .workoutCompletion(
+                planWorkoutID: planWorkoutID,
+                workoutSessionID: workoutSessionID,
+                elapsedSeconds: elapsedSeconds
+            )
+        )
+    }
+
     func openOutdoorRunStub() {
         pushOnHome(.outdoorRunStub)
     }
@@ -83,6 +103,26 @@ final class MainRouter {
     /// `openWorkoutDetail`, which deliberately jumps to the Home tab.
     func openPlanWorkoutDetail(sessionID: UUID) {
         pushOnPlan(.workoutDetail(sessionID: sessionID))
+    }
+
+    /// Workout Screen pushed inside the Plan stack (keeps stack affinity).
+    func openPlanWorkoutScreen(sessionID: UUID) {
+        pushOnPlan(.workoutScreen(sessionID: sessionID))
+    }
+
+    /// Completion stub inside the Plan stack (M4-09).
+    func openPlanWorkoutCompletion(
+        planWorkoutID: UUID,
+        workoutSessionID: UUID,
+        elapsedSeconds: Int
+    ) {
+        pushOnPlan(
+            .workoutCompletion(
+                planWorkoutID: planWorkoutID,
+                workoutSessionID: workoutSessionID,
+                elapsedSeconds: elapsedSeconds
+            )
+        )
     }
 
     private func pushOnHome(_ route: HomeRoute) {

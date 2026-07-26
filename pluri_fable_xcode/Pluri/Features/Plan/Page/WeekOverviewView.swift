@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Week Overview (M3-11 / SPEC §6.3): the selected week's complete schedule
-/// as a larger view of its Plan-page card. Selecting a workout routes to the
-/// honest Workout Detail stub owned by M4 — no workout execution here.
+/// as a larger view of its Plan-page card. Selecting a workout opens Workout
+/// Detail (M4-05).
 struct WeekOverviewView: View {
     var week: PlanWeek
 

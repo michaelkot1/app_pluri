@@ -125,7 +125,7 @@ private struct HomePlanContent: View {
 }
 
 /// One Record Workout menu choice, routed through the `MainRouter` (M3-09):
-/// today's scheduled workout or Outdoor Run — both honest M4 stubs.
+/// today's scheduled workout → Detail (M4-05); Outdoor Run stays a stub.
 private struct HomeRecordOptionButton: View {
     var option: HomeRecordOption
 

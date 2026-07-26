@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// Main TabView navigation skeleton (M3-06): Home · Plan · Insights ·
@@ -67,10 +68,21 @@ struct MainTabView: View {
 }
 
 #Preview {
+    let container = try! ModelContainer(
+        for: Schema([
+            CachedExercise.self,
+            ExerciseCatalogSyncState.self,
+            WorkoutSessionRecord.self,
+            SetLogRecord.self,
+        ]),
+        configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+    )
     MainTabView(restored: nil)
         .environment(SupabaseAuthService(supabaseService: SupabaseService(), restoreOnLaunch: false))
         .environment(SubscriptionService(configurePurchases: false))
         .environment(HomePreviewData.readyStore())
         .environment(WorkoutReminderService.preview())
         .environment(ThemeStore())
+        .environment(SwiftDataWorkoutSessionRepository(modelContext: container.mainContext))
+        .modelContainer(container)
 }
