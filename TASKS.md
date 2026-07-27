@@ -510,6 +510,126 @@ Ask Pluri (AI Coach) (PLAN M6): `ask-pluri` Edge Function with Gemini, context g
 
 ---
 
+## M7 — Recipes & Nutrition
+
+Recipes & Nutrition (PLAN M7): Recipe tab day view with ~3 auto-suggestions per meal (breakfast / lunch / dinner / dessert), Explore filters, favorites + similarity-biased suggestions, and food logging via the Nutrition API (serving sizes, calories vs maintenance). Builds on M2 Main’s Recipe tab placeholder, Q12 profile inputs (`maintenance_calories`, allergies via `CalorieCalculator` / `AllergenCatalog`), and existing `NUTRITION_API_KEY` wiring in `Secrets` / `.env.example`. TheMealDB is typically keyless — M7-03 spike confirms. **Exit:** user gets daily recipe suggestions and can log foods with calorie totals.
+
+### Scope & decisions (do first — unblock suggestion rules, logging shape, and sync)
+
+- [x] **M7-01** Resolve and record Recipe & nutrition decisions in SPEC §14/§15 before building: day-suggestion algorithm (seed/determinism, how maintenance calories inform picks, allergy hard-filter vs soft); favorites similarity model (closes the §15 open question — pick a reversible interim, e.g. cuisine/ingredient tag overlap); Explore filter value sets (cuisine, meat/protein, cook duration buckets, portion = meal-prep vs single); food-log storage (local-first SwiftData + sync vs remote-only) and meal tagging; offline honesty (cached favorites/suggestions vs no fake network results); calorie-ring UX vs `status/blue` / `accent/pink` tokens (`design.md`); whether Nutrition stays client-side with `NUTRITION_API_KEY` or needs an Edge Function proxy. Pick the most reversible interim option where the owner is unavailable (AGENTS §7).
+
+> **Learned during M7-01 (2026-07-26):** decisions recorded as SPEC §14 **#67** (**a** seed = FNV-1a / PlanEngine **#24** spirit over `userID + yyyy-MM-dd + mealSlot`; **b** maintenance kcal = soft ~25–35% band bias, not hard target; **c** allergy = hard-filter via Q12 / `AllergenCatalog`, honest empty slots; **d** favorites similarity = shared `strArea` + ingredient overlap, top-K boost after allergy filter — closes §15; **e** Explore enums locked (Cuisine / Protein / Duration / Portion; MealDB mapping confirmed in M7-03); **f** local-first SwiftData + opportunistic `food_logs` / `recipe_favorites` sync + meal tags + high-level schema for M7-02; **g** offline = cached favorites/suggestions only, no invented MealDB/Nutrition (mirror **#66d**); **h** calorie ring → `statusBlue`, food/recipe → `accentPink` per `design.md`; **i** Nutrition stays client-side `NUTRITION_API_KEY` / WorkoutX pattern — reversible to EF later; asymmetry vs Gemini **#6**/**#66i**). §12 points at #67; §15 recipe-similarity question resolved. No Swift/UI/schema code in this task — M7-02+ implements against these decisions.
+
+### Backend
+
+- [ ] **M7-02** Migration: `food_logs` + `recipe_favorites` + owner-only RLS per PLAN §1.3 — `food_logs` (food, serving, calories, macros, meal, date); `recipe_favorites` (user ↔ MealDB recipe ids). Not in repo today. Schema details follow M7-01.
+
+> **Learned during M7-02:** _(fill when migration lands — table/column names, RLS notes, remote version.)_
+
+### API spike & clients
+
+- [ ] **M7-03** API spike: hit TheMealDB + API Ninjas Nutrition with real endpoints/keys as needed; document response shapes, rate limits, search/filter capabilities, and auth (MealDB often keyless — spike decides) in `Core/Networking/MealDB/README` and `Core/Networking/Nutrition/README` (mirror M1-01 / WorkoutX). Confirm `NUTRITION_API_KEY` → `Secrets.nutritionAPIKey` path; never commit secrets.
+
+- [ ] **M7-04** `MealDBClient` protocol + live + mock for previews/tests: recipe search/lookup, cuisine/ingredient filters needed by day suggestions + Explore (PLAN §1.1 / SPEC §12). Typed models; no secrets in source.
+
+- [ ] **M7-05** `NutritionClient` protocol + live + mock for previews/tests: food search + nutrition-per-serving parsing for logging (SPEC §12 Log). Inject key from `Secrets` (or EF proxy if M7-01 chose that); never hardcode.
+
+> **Learned during M7-03/04/05:** _(fill when spike + clients land — auth posture, rate limits, adapter quirks.)_
+
+### Domain: suggestions & favorites
+
+- [ ] **M7-06** Domain: day suggestions engine (pure, unit-tested): ~3 options each for breakfast / lunch / dinner / dessert for a selected calendar day; hard-filter by profile allergies (Q12 / `AllergenCatalog`); informed by `maintenance_calories` per M7-01; bias toward foods similar to favorites when present (SPEC §12). Deterministic given seed + inputs where practical (PlanEngine / ScoreEngine spirit).
+
+- [ ] **M7-07** Favorites persist: SwiftData cache for favorited MealDB recipes ± sync to `recipe_favorites` per M7-01/M7-02; toggle API usable from detail + suggestion cards; offline-readable favorites for bias + UI.
+
+> **Learned during M7-06/07:** _(fill when engine + favorites land — similarity interim, cache/sync notes.)_
+
+### Recipe tab UI
+
+- [ ] **M7-08** Replace Recipe tab placeholder with day shell: calendar-style day picker (Home spirit — SPEC §12); sections for breakfast / lunch / dinner / dessert showing ~3 suggestions from M7-06; honest empty/offline/error; `Features/Recipe/`; design tokens (`accent/pink` food moments, `status/blue` calorie affordances per `design.md`); Dynamic Type / VoiceOver / 44pt.
+
+- [ ] **M7-09** Recipe detail + favorite toggle: open from a suggestion/Explore row; show MealDB content (ingredients, instructions, media when available); favorite on/off via M7-07; entry point for Log (wired in M7-12).
+
+- [ ] **M7-10** Explore tab + filters: cuisine, meat/protein, cook duration, portion (meal-prep vs single serving) per SPEC §12 / M7-01 value sets; results via `MealDBClient`; honest empty states.
+
+> **Learned during M7-08/09/10:** _(fill when Recipe UI lands — navigation shape, filter UX notes.)_
+
+### Food logging
+
+- [ ] **M7-11** Food log flow + day calorie total vs maintenance: search foods via `NutritionClient` (not only recipes); choose serving size (MyFitnessPal-style — SPEC §12); persist to `food_logs` (+ local cache per M7-01); show calories eaten vs profile `maintenance_calories` (calorie ring / `status/blue` token). Standalone Log entry from Recipe tab.
+
+- [ ] **M7-12** Wire Log from recipe detail + standalone: same logging sheet/flow from M7-09 detail and M7-11 standalone; prefill from recipe when available; day total updates after save.
+
+> **Learned during M7-11/12:** _(fill when logging lands — serving UX, sync honesty.)_
+
+### Tests & QA
+
+- [ ] **M7-13** Swift Testing (`PluriTests`): suggestions engine (allergy filter, calorie bias, favorites similarity, seed stability); `MealDBClient` / `NutritionClient` parsing + mocks; favorites persist/sync paths; food-log totals vs maintenance; unauthorized/offline/error paths.
+
+- [ ] **M7-14** M7 UI QA: previews for empty / offline / populated day, Explore filters, detail + favorite, log sheet + calorie ring; Dynamic Type / VoiceOver / dark mode / 44pt; day → detail → favorite → log click-through; calories update against maintenance.
+
+> **Learned during M7-13/14:** _(fill when verification lands.)_
+
+**Dependencies:** M7-01 → 02/03/06; 03 → 04/05; 04 → 06/07/10; 02+04 → 07; 06 → 08 → 09/10; 02+05 → 11; 09+11 → 12; everything → 13/14.
+
+**M7 exit check** (PLAN M7): user gets daily recipe suggestions and can log foods with calorie totals. Specifically: Recipe & nutrition decisions recorded in SPEC §14/§15; `food_logs` + `recipe_favorites` migrations + owner RLS in place; `MealDBClient` + `NutritionClient` (protocol/live/mock) documented via spike READMEs; Recipe tab placeholder replaced by a day view with ~3 suggestions × breakfast/lunch/dinner/dessert filtered by allergies and informed by maintenance calories; Explore filters (cuisine, meat/protein, duration, portion) work; favorites persist (SwiftData ± sync) and bias suggestions; Log from recipe detail + standalone searches foods, sets serving size, and shows day calories vs maintenance; build + Swift Testing suite pass; Dynamic Type/VoiceOver/44pt targets and day→detail→log QA manually checked. Community stays M8; Ask Pluri nutrition coaching stays out of scope.
+
+**Deferred out of M7 (don't build ahead):** Community feed / UGC (M8); Ask Pluri nutrition coaching (M6 coach stays plan/workout-grounded — no recipe coach expansion here); Outdoor Run (M9); Cardio / Flexibility / hybrid plans & groups (v2); barcode scanning, custom recipes authoring, grocery lists, macro goal planning beyond maintenance comparison (v2 / unspecified).
+
+---
+
+## M8 — Community
+
+Community (PLAN M8): feed (posts, likes, comments, polls), create-post flow with type/image/poll and the 3-word rule, search, saved posts, Explore Spaces directory, **moderation (report/block/hide)** — App Review blocker. Builds on M2 Main’s Community tab placeholder and M3 Notifications stubs. **Exit:** users can post, interact, search, save; UGC moderation in place.
+
+> **Note:** PLAN §2 dependency notes — M7 (Recipes & Nutrition) and M8 are independent and can ship in parallel or be reordered. Full M7 task section is in this file above (`## M7 — Recipes & Nutrition`).
+
+### Scope & decisions (do first — unblock moderation, feed, and Storage)
+
+- [ ] **M8-01** Resolve and record Community decisions in SPEC §14/§15 before building: moderation UX (report / block / hide) and persistence; feed ranking (chronological vs engagement — pick reversible interim); post-image Storage path + size/type limits; offline honesty for Community (no fake feed when offline); Share Workout payload shape (which session fields attach); Explore Spaces v1 stub/directory data source; which Community notification rows belong in M8 vs M9 push. Close/update the SPEC §15 Community moderation bullet when decided. Pick the most reversible interim option where the owner is unavailable (AGENTS §7).
+
+### Backend
+
+- [ ] **M8-02** Migration: community tables + RLS + moderation columns day one — `posts`, `post_likes`, `post_comments`, `post_polls`, `poll_votes`, `saved_posts` per PLAN §1.3 (posts publicly readable; writes owner-only; reported/hidden from day one).
+
+- [ ] **M8-03** Storage bucket + policies for post images (path/limits per M8-01; never ship secrets; RLS-safe upload/read).
+
+### Client networking & domain
+
+- [ ] **M8-04** Domain models + `CommunityClient` / repository (protocol + live Supabase + mocks for previews/tests) covering feed, create, like, comment, poll vote, search, save, moderation actions (PLAN §1.2 / §1.3).
+
+### Feature UI
+
+- [ ] **M8-05** Replace Community tab placeholder with feed shell: top bar per SPEC §11 (search + calendar), honest empty/offline/error states (no fake content).
+
+- [ ] **M8-06** Feed: Instagram-style scrolling post cards with like, comment, and poll vote (SPEC §11); Dynamic Type / VoiceOver / 44pt.
+
+- [ ] **M8-07** Create Post flow: types General / Gear / Recipe / Share Workout; optional image + optional poll; **Post** enabled only with a title and ≥3 body words (SPEC §11); Share Workout payload per M8-01.
+
+- [ ] **M8-08** Search across post types (general, gear, workouts/runs/flexibility, recipe — SPEC §11).
+
+- [ ] **M8-09** Saved / bookmarked posts (bookmark entry + list of user’s saved posts — SPEC §11).
+
+- [ ] **M8-10** Explore Spaces directory — browse-only v1 for upcoming races / running groups nearby (SPEC §1.1 / §11); join/manage = v2.
+
+- [ ] **M8-11** Moderation UI + persistence (report / block / hide) per M8-01 — App Review blocker for UGC (SPEC §13 / §15, PLAN M8).
+
+- [ ] **M8-12** Notifications Community rows: replies to the user’s posts (SPEC §5.3); club/group messages stay v2 / M9 as decided in M8-01.
+
+### Tests & QA
+
+- [ ] **M8-13** Swift Testing: `CommunityClient` parsing/mocks; create / like / save flows; moderation actions; unauthorized/offline/error paths.
+
+- [ ] **M8-14** M8 UI QA: a11y (Dynamic Type / VoiceOver / 44pt / dark mode); empty/offline/error previews; create → appears in feed; search/save click-through; moderation report/block/hide click-through.
+
+**Dependencies:** M8-01 → 02/03/04; 02+03 → 04 → 05/06/07; 04 → 08/09/10/11; 01+06 → 12; everything → 13/14.
+
+**M8 exit check** (PLAN M8): users can post, interact, search, save; UGC moderation in place. Specifically: Community decisions recorded in SPEC §14/§15; community tables + RLS + moderation columns and post-image Storage in place; Community tab placeholder replaced by a real feed with like/comment/poll; create-post enforces title + ≥3 body words; search and saved posts work; Explore Spaces is browse-only; report/block/hide ship for App Review; Community reply notification rows are honest (club messages deferred per M8-01); build + Swift Testing suite pass; Dynamic Type/VoiceOver/44pt targets and create→feed + moderation QA manually checked.
+
+**Deferred out of M8 (don't build ahead):** clubs/groups fully live (v2); Explore Spaces join/manage (v2); races “fully live” (v2 — SPEC §1.1); anything M9 push-only if scoped out in M8-01; Recipes / nutrition UI (M7); Outdoor Run tracking (M9); Cardio / Flexibility / hybrid plans (v2).
+
+---
+
 ## Backlog / surfaced items
 
 - Decide the fate of the legacy Supabase prototype tables (`workout_plans`, `plan_days`, `plan_day_exercises`, `user_equipment`, plus the 3 seeded profile rows). Dropping them is destructive → owner approval required (AGENTS §6). **Update (2026-07-13):** the seeded `exercises` catalog (1,327 rows) is no longer just a candidate fallback — it is now the app's **primary catalog source** (`SupabaseExerciseCatalogClient`, SPEC §14 #25), so `exercises` must be kept (and eventually kept in sync with WorkoutX server-side, e.g. from the M2+ `generate-plan` Edge Function). The other legacy tables are still pending an owner decision.
