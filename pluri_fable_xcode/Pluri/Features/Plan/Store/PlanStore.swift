@@ -260,6 +260,28 @@ final class PlanStore {
         await reconcileReminders()
     }
 
+    /// Removes a scheduled workout (M6-09 / SPEC §14 #38/#44): applies
+    /// locally, persists delete + sibling reorder, rolls back + rethrows on
+    /// failure, then reconciles reminders on success.
+    func removeWorkout(id: UUID) async throws {
+        guard let plan else { throw PlanMutationError.noPlan }
+        let snapshot = plan
+        let result = try PlanMutator.removingWorkout(id: id, in: plan)
+
+        applyPlan(result.plan)
+        do {
+            try await mutationService.removeWorkout(
+                planID: plan.id,
+                deletingWorkoutIDs: [result.deletedWorkoutID],
+                reorderedWorkouts: result.reorderedSessions.map(workoutRow)
+            )
+        } catch {
+            applyPlan(snapshot)
+            throw error
+        }
+        await reconcileReminders()
+    }
+
     /// Replaces the remaining unfinished workouts with a regenerated plan,
     /// preserving completed/skipped history (SPEC §14 #39): applies locally,
     /// persists insert-then-delete, rolls back + rethrows on failure.

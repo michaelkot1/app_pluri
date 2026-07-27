@@ -20,8 +20,8 @@ final class WorkoutScreenViewModel {
     private(set) var logFeedbackTick = 0
     var errorMessage: String?
     var selectedExerciseID: UUID?
-    /// Ask Pluri honest stub visibility (SPEC §14 #50e).
-    var showsAskPluriStub = false
+    /// Ask Pluri chat sheet visibility (M6-07 / SPEC §14 #66).
+    var showsAskPluri = false
     /// Set when hold-to-finish hands off to the completion summary (M4-12 / §14 #55c).
     private(set) var pendingCompletion: WorkoutCompletionHandoff?
 

@@ -413,6 +413,72 @@ struct PlanStoreTests {
         #expect(store.plan == plan)
     }
 
+    // MARK: - Remove (M6-09 / SPEC §14 #38/#44)
+
+    @Test("Removing a scheduled workout deletes it and reorders siblings")
+    func removeWorkoutDeletesScheduled() async throws {
+        let plan = makeScheduledPlan()
+        let reconciler = MockWorkoutReminderReconciler()
+        let (store, service) = makeStore(plan: plan, reminderReconciler: reconciler)
+        let target = plan.weeks[1].sessions[1] // W2 Wed
+
+        try await store.removeWorkout(id: target.id)
+
+        let updated = try #require(store.plan)
+        #expect(PlanMutator.session(withID: target.id, in: updated) == nil)
+        #expect(updated.totalSessions == 5)
+        #expect(updated.weeks[1].sessions.map(\.title) == ["W2 Mon", "W2 Fri"])
+        #expect(updated.weeks[1].sessions.map(\.indexInWeek) == [1, 2])
+
+        let call = try #require(service.removeCalls.first)
+        #expect(call.planID == plan.id)
+        #expect(call.deletingWorkoutIDs == [target.id])
+        #expect(call.reorderedWorkouts.map(\.id).contains(target.id) == false)
+        #expect(reconciler.reconciledPlans.count == 1)
+        #expect(reconciler.reconciledPlans.first == store.plan)
+    }
+
+    @Test("Removing a completed workout is rejected without a service call")
+    func removeRejectsFinishedWorkout() async throws {
+        let plan = makeScheduledPlan()
+        let (store, service) = makeStore(plan: plan)
+        let finished = plan.weeks[0].sessions[0]
+
+        await #expect(throws: PlanMutationError.workoutFinished) {
+            try await store.removeWorkout(id: finished.id)
+        }
+        #expect(store.plan == plan)
+        #expect(service.removeCalls.isEmpty)
+    }
+
+    @Test("Removing an unknown workout is rejected without a service call")
+    func removeRejectsMissingWorkout() async throws {
+        let plan = makeScheduledPlan()
+        let (store, service) = makeStore(plan: plan)
+
+        await #expect(throws: PlanMutationError.workoutNotFound) {
+            try await store.removeWorkout(id: UUID())
+        }
+        #expect(store.plan == plan)
+        #expect(service.removeCalls.isEmpty)
+    }
+
+    @Test("A failed remove rolls the local plan back and rethrows")
+    func removeRollsBackOnServiceFailure() async throws {
+        let plan = makeScheduledPlan()
+        let service = MockPlanMutationService()
+        service.nextError = .flushFailed("boom")
+        let reconciler = MockWorkoutReminderReconciler()
+        let (store, _) = makeStore(plan: plan, service: service, reminderReconciler: reconciler)
+        let target = plan.weeks[1].sessions[0]
+
+        await #expect(throws: PluriSyncError.flushFailed("boom")) {
+            try await store.removeWorkout(id: target.id)
+        }
+        #expect(store.plan == plan)
+        #expect(reconciler.reconciledPlans.isEmpty)
+    }
+
     // MARK: - Replace remaining (SPEC §14 #39)
 
     @Test("Replacing preserves completed/skipped history and swaps only scheduled workouts")
@@ -830,6 +896,9 @@ struct PlanStoreTests {
         }
         await #expect(throws: PlanMutationError.noPlan) {
             try await store.addWorkout(cloning: UUID(), on: day(1))
+        }
+        await #expect(throws: PlanMutationError.noPlan) {
+            try await store.removeWorkout(id: UUID())
         }
         await #expect(throws: PlanMutationError.noPlan) {
             try await store.skipWorkout(id: UUID())

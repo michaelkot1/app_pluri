@@ -12,6 +12,7 @@ import SwiftUI
 /// set_log upload, and the local `WorkoutSessionRepository` for Detail Notes /
 /// live session writes (M4-05/06).
 struct AppRootView: View {
+    @State private var supabaseService: SupabaseService
     @State private var authService: SupabaseAuthService
     @State private var subscriptionService: SubscriptionService
     @State private var flushService: SupabaseOnboardingFlushService
@@ -30,6 +31,7 @@ struct AppRootView: View {
 
     init(modelContainer: ModelContainer) {
         let supabase = SupabaseService()
+        _supabaseService = State(initialValue: supabase)
         let auth = SupabaseAuthService(supabaseService: supabase)
         _authService = State(initialValue: auth)
         _subscriptionService = State(initialValue: SubscriptionService())
@@ -113,6 +115,11 @@ struct AppRootView: View {
         .environment(syncEngine)
         .environment(planStore)
         .environment(themeStore)
+        .environment(\.askPluriClient, LiveAskPluriClient(client: supabaseService.client))
+        .environment(
+            \.askPluriHistoryLoader,
+            LiveAskPluriHistoryLoader(client: supabaseService.client)
+        )
         .onChange(of: router.phase) { _, newPhase in
             // The shared plan store (M3-04) tracks the Main phase: hydrate it
             // from the router's restored state on entry, blank it on reroute

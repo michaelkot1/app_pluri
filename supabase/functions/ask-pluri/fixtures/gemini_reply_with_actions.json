@@ -1,0 +1,18 @@
+{
+  "reply": "I can add another Push day on Wednesday — confirm in the app when you're ready.",
+  "actions": [
+    {
+      "type": "add_workout",
+      "sourceWorkoutId": "22222222-2222-4222-8222-222222222222",
+      "date": "2026-07-30"
+    },
+    {
+      "type": "remove_workout",
+      "planWorkoutId": "55555555-5555-4555-8555-555555555555"
+    },
+    {
+      "type": "unknown_future_tool",
+      "payload": "ignore-me"
+    }
+  ]
+}

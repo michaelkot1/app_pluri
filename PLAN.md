@@ -53,7 +53,7 @@ Derived from [`SPEC.md`](SPEC.md). Ground rules in [`AGENTS.md`](AGENTS.md). Wor
   - `recipe_favorites` — user ↔ MealDB recipe ids.
   - `chat_messages` — Ask Pluri history.
 - **Edge Functions:**
-  - `ask-pluri` — receives the user's message + auth JWT, loads plan/history context from Postgres, calls Gemini, returns reply; handles "add/remove workout" as structured tool-style actions that mutate `plan_workouts`.
+  - `ask-pluri` — receives the user's message + auth JWT, loads plan/history context from Postgres, calls Gemini, returns reply; handles "add/remove workout" as structured tool-style actions **returned to the client** (not applied in the EF — client confirms via `PlanStore`/`PlanMutator`; SPEC §14 #66h).
   - `generate-plan` — plan-generation endpoint so the algorithm can evolve server-side without app releases. Calls WorkoutX, applies equipment/injury/goal/duration filters, writes plan rows. (Client keeps a thin fallback only if latency demands it.)
   - `delete-account` — verifies the caller's JWT, deletes owned rows (`profiles` CASCADE to plan/session tables), then `auth.admin.deleteUser`. Uses the server-side `SUPABASE_SERVICE_ROLE_KEY` only (never in the iOS bundle). Live deletion is blocked until M0-11 supplies a real service-role key (`supabase secrets set`).
 - **HealthKit data stays on-device** (SPEC §13); only user-initiated workout syncs write to Apple Health, and Pluri Score inputs are computed on-device.

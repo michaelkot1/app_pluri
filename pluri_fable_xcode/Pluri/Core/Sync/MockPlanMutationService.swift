@@ -23,6 +23,12 @@ final class MockPlanMutationService: PlanMutationServicing {
         var reorderedWorkouts: [PlanWorkoutInsertRow]
     }
 
+    struct RemoveCall: Equatable {
+        var planID: UUID
+        var deletingWorkoutIDs: [UUID]
+        var reorderedWorkouts: [PlanWorkoutInsertRow]
+    }
+
     struct PlanSettingsCall: Equatable {
         var planID: UUID
         var update: PlanSettingsUpdateRow
@@ -57,6 +63,7 @@ final class MockPlanMutationService: PlanMutationServicing {
     private(set) var moveCalls: [MoveCall] = []
     private(set) var statusCalls: [StatusCall] = []
     private(set) var addCalls: [AddCall] = []
+    private(set) var removeCalls: [RemoveCall] = []
     private(set) var planSettingsCalls: [PlanSettingsCall] = []
     private(set) var profileSettingsCalls: [ProfileSettingsCall] = []
     private(set) var replaceCalls: [ReplaceCall] = []
@@ -84,6 +91,21 @@ final class MockPlanMutationService: PlanMutationServicing {
                 planID: planID,
                 newWorkout: newWorkout,
                 newExercises: newExercises,
+                reorderedWorkouts: reorderedWorkouts
+            )
+        )
+    }
+
+    func removeWorkout(
+        planID: UUID,
+        deletingWorkoutIDs: [UUID],
+        reorderedWorkouts: [PlanWorkoutInsertRow]
+    ) async throws {
+        try throwIfNeeded()
+        removeCalls.append(
+            RemoveCall(
+                planID: planID,
+                deletingWorkoutIDs: deletingWorkoutIDs,
                 reorderedWorkouts: reorderedWorkouts
             )
         )

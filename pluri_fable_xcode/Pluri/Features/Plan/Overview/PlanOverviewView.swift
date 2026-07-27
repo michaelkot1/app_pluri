@@ -1,8 +1,7 @@
 import SwiftUI
 
 /// Plan Overview info page (M3-12 / SPEC §6.1): explains what each workout
-/// color means, how to read the Pluri Score, and how Ask Pluri will help —
-/// soft, educational tone, honest about what isn't live yet.
+/// color means, how to read the Pluri Score, and how to talk to Ask Pluri.
 struct PlanOverviewView: View {
     var body: some View {
         ScrollView {
@@ -93,7 +92,7 @@ private struct PluriScoreExplainerCard: View {
     }
 }
 
-/// Ask Pluri's future role (SPEC §10) — described honestly as upcoming.
+/// How to use Ask Pluri (SPEC §6.1 / §10 / #43) — soft educational tone.
 private struct AskPluriExplainerCard: View {
     var body: some View {
         PluriCard {
@@ -102,11 +101,15 @@ private struct AskPluriExplainerCard: View {
                     .font(PluriFont.sectionHeader)
                     .foregroundStyle(PluriColor.textPrimary)
 
-                Text("Ask Pluri is your in-app coach: a kind, informative chat that knows your plan and your past workouts. You'll be able to ask about exercises and training, and even ask Pluri to adjust your plan — like adding or removing a workout.")
+                Text("Ask Pluri is your in-app coach: a kind, informative chat that knows your plan and your past workouts. Ask about exercises, how hard to push, or what to change next.")
                     .font(PluriFont.body)
                     .foregroundStyle(PluriColor.textSecondary)
 
-                Text("Ask Pluri arrives in a later update, right where you work out.")
+                Text("You can also ask Pluri to adjust your plan — like adding or removing a workout. Pluri will always show you the change and wait for your OK before anything moves.")
+                    .font(PluriFont.body)
+                    .foregroundStyle(PluriColor.textSecondary)
+
+                Text("Open Ask Pluri from any Workout Screen — before you start or while you're training.")
                     .font(PluriFont.label)
                     .foregroundStyle(PluriColor.textTertiary)
             }

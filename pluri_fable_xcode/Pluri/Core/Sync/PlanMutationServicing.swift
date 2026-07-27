@@ -28,6 +28,15 @@ protocol PlanMutationServicing: AnyObject {
         reorderedWorkouts: [PlanWorkoutInsertRow]
     ) async throws
 
+    /// Persists a scheduled-workout removal (M6-09 / SPEC §14 #38/#44):
+    /// deletes `workout_exercises` then `plan_workouts` for the removed IDs,
+    /// then upserts any siblings whose order shifted.
+    func removeWorkout(
+        planID: UUID,
+        deletingWorkoutIDs: [UUID],
+        reorderedWorkouts: [PlanWorkoutInsertRow]
+    ) async throws
+
     /// Updates `plans` metadata fields edited by Manage Plan (§6.2).
     func updatePlanSettings(planID: UUID, update: PlanSettingsUpdateRow) async throws
 

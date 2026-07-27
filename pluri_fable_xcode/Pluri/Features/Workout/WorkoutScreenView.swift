@@ -47,9 +47,9 @@ struct WorkoutScreenView: View {
         }
         .pluriBottomSheet(
             isPresented: askPluriBinding,
-            detents: [.medium]
+            detents: [.medium, .large]
         ) {
-            askPluriStubSheet
+            AskPluriChatView(currentPlanWorkoutId: sessionID.uuidString)
         }
         .pluriBottomSheet(isPresented: exerciseSheetBinding) {
             if let session, let exercise = selectedExercise(in: session) {
@@ -199,9 +199,10 @@ struct WorkoutScreenView: View {
             }
 
             Button("Ask Pluri") {
-                viewModel?.showsAskPluriStub = true
+                viewModel?.showsAskPluri = true
             }
             .buttonStyle(.pluriSecondary)
+            .accessibilityHint("Opens your coach chat for this workout")
         }
     }
 
@@ -234,26 +235,10 @@ struct WorkoutScreenView: View {
             .accessibilityAddTraits(.isButton)
     }
 
-    private var askPluriStubSheet: some View {
-        VStack(alignment: .leading, spacing: PluriSpacing.md) {
-            Text("Ask Pluri — coming in a later update (M6)")
-                .font(PluriFont.sectionHeader)
-                .foregroundStyle(PluriColor.textPrimary)
-            Text("Your in-app coach will answer training questions using your plan and past workouts. There’s no chat here yet — just an honest placeholder.")
-                .font(PluriFont.body)
-                .foregroundStyle(PluriColor.textSecondary)
-            Spacer(minLength: 0)
-        }
-        .padding(PluriSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(PluriColor.bgSurface)
-    }
-
     private func exerciseDetailSheet(for exercise: PlannedExercise) -> some View {
         let catalog = viewModel?.catalogExercise(for: exercise)
         return WorkoutExerciseDetailSheet(
             exercise: exercise,
-            mediaURL: viewModel?.resolvedImageURL(for: exercise),
             descriptionText: viewModel?.description(for: exercise) ?? "",
             videoURL: catalog?.videoURL,
             notesDraft: notesBinding(for: exercise.id),
@@ -303,8 +288,8 @@ struct WorkoutScreenView: View {
 
     private var askPluriBinding: Binding<Bool> {
         Binding(
-            get: { viewModel?.showsAskPluriStub ?? false },
-            set: { viewModel?.showsAskPluriStub = $0 }
+            get: { viewModel?.showsAskPluri ?? false },
+            set: { viewModel?.showsAskPluri = $0 }
         )
     }
 
@@ -474,6 +459,8 @@ enum WorkoutScreenPreviewFactory {
         .environment(SupabaseAuthService(supabaseService: SupabaseService(), restoreOnLaunch: false))
         .environment(repository)
         .environment(sync)
+        .environment(\.askPluriClient, MockAskPluriClient())
+        .environment(\.askPluriHistoryLoader, MockAskPluriHistoryLoader())
         .modelContainer(container)
     }
 

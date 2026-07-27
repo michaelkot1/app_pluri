@@ -446,29 +446,46 @@ Ask Pluri (AI Coach) (PLAN M6): `ask-pluri` Edge Function with Gemini, context g
 
 ### Backend
 
-- [ ] **M6-02** Migration: `chat_messages` (+ RLS owner-only) per PLAN §1.3 — not in repo today.
+- [x] **M6-02** Migration: `chat_messages` (+ RLS owner-only) per PLAN §1.3 — not in repo today.
 
-- [ ] **M6-03** Edge Function `ask-pluri`: JWT auth, load owner plan/history context, call Gemini (secret server-side), persist messages, return reply; structured tool actions for add/remove `plan_workouts`; throttle + busy/error shapes. Pattern after `supabase/functions/delete-account/`. Secrets: Gemini + service role (M0-11 may `[!]` block production deploy).
+- [x] **M6-03** Edge Function `ask-pluri`: JWT auth, load owner plan/history context, call Gemini (secret server-side), persist messages, return reply; structured tool actions for add/remove `plan_workouts`; throttle + busy/error shapes. Pattern after `supabase/functions/delete-account/`. Secrets: Gemini + service role (M0-11 may `[!]` block production deploy).
 
-- [ ] **M6-04** EF unit/integration tests or scripted fixtures for grounding + tool actions (no key in repo).
+- [x] **M6-04** EF unit/integration tests or scripted fixtures for grounding + tool actions (no key in repo).
+
+> **Learned during M6-02/03/04 (2026-07-26):**
+> - **Session grounding caps:** last **28 days** completed sessions, max **20** sessions, max **40** set_logs/session (`RECENT_SESSION_DAYS` / `RECENT_SESSION_LIMIT` / `MAX_SET_LOGS_PER_SESSION` in `ask-pluri/_shared/constants.ts`). Chat history load: last **40** turns. Never HealthKit / Pluri Score in context.
+> - **JSON contracts:** request `{ message, conversationId?, currentPlanWorkoutId? }`; success `{ reply, conversationId, actions, messageIds?: { user, assistant } }`; busy/throttle `{ error: "busy"|"throttled", message }` (HTTP 429 throttled / 503 busy; no raw quota dumps). Actions: `{ type: "add_workout", sourceWorkoutId, date }` / `{ type: "remove_workout", planWorkoutId }` — **returned only**, EF never mutates `plan_workouts` (#66h; PLAN §1.3 updated).
+> - **Throttle:** app-side **8** asks / user / **60s** isolate window + Gemini 429 → `throttled`; Gemini 500/503/empty → `busy`.
+> - **Secrets / deploy:** `supabase secrets set GEMINI_API_KEY=...` (optional `GEMINI_MODEL`, default `gemini-flash-latest`); `supabase functions deploy ask-pluri`; `verify_jwt = true` in `config.toml`. Production live Gemini smoke still gated on owner secrets (M0-11 soft blocker) — M6-04 covers mocked Deno tests only.
+> - **Tests:** `deno test --allow-read --allow-env supabase/functions/ask-pluri/ask_pluri_test.ts` (JWT 401, grounding excludes HealthKit, tool parse, busy shape, no key in repo, no `plan_workouts` writes).
 
 ### Client networking
 
-- [ ] **M6-05** `AskPluriClient` protocol + live (invoke EF) + mock for previews/tests; never embed Gemini key (PLAN §1.1, SPEC §14 #6).
+- [x] **M6-05** `AskPluriClient` protocol + live (invoke EF) + mock for previews/tests; never embed Gemini key (PLAN §1.1, SPEC §14 #6).
 
 ### Chat UI
 
-- [ ] **M6-06** `Features/AskPluri/` chat UI (sheet/stack from Workout Screen): message list, composer, streaming/busy/error, Dynamic Type / VoiceOver / 44pt.
+- [x] **M6-06** `Features/AskPluri/` chat UI (sheet/stack from Workout Screen): message list, composer, streaming/busy/error, Dynamic Type / VoiceOver / 44pt.
 
-- [ ] **M6-07** Replace Workout Screen stub (`WorkoutScreenView` / `showsAskPluriStub` / "coming in M6") with real entry pre- and mid-workout (SPEC §8 / §10).
+- [x] **M6-07** Replace Workout Screen stub (`WorkoutScreenView` / `showsAskPluriStub` / "coming in M6") with real entry pre- and mid-workout (SPEC §8 / §10).
 
-- [ ] **M6-08** Update Plan Overview `AskPluriExplainerCard` from "later update" to live how-to (SPEC §6.1 / #43).
+- [x] **M6-08** Update Plan Overview `AskPluriExplainerCard` from "later update" to live how-to (SPEC §6.1 / #43).
+
+> **Learned during M6-06/07/08 (2026-07-26):**
+> - **Chat UI:** `AskPluriChatView` + `AskPluriViewModel` in `Features/AskPluri/`; “streaming” = in-flight busy row while awaiting non-streaming EF (no SSE). Offline keeps composer draft + “needs a connection”; busy/throttled → coach-is-busy copy; no fake assistant replies. History via RLS `chat_messages` select (`LiveAskPluriHistoryLoader`); reopen restores latest conversation. `actions` decoded into `lastReceivedActions` only — **not** applied (M6-09/10).
+> - **DI:** `AppRootView` keeps `SupabaseService` and injects `\.askPluriClient` + `\.askPluriHistoryLoader` (not full `SupabaseService` in `@Environment`).
+> - **Workout Screen:** `showsAskPluri` opens chat sheet with `.medium`+`.large` detents; passes `currentPlanWorkoutId` (= plan workout UUID string) on every ask.
+> - **Plan Overview:** `AskPluriExplainerCard` is live how-to pointing at Workout Screen Ask Pluri (SPEC #43 updated).
 
 ### Plan mutations via chat
 
-- [ ] **M6-09** Wire coach add/remove → `PlanStore` / `PlanMutator` / mutation service. Add can reuse `addWorkout(cloning:on:)` (#38); remove needs new API under same history/conflict rules (#38/#44: no delete completed/skipped). Confirm UI per M6-01; optimistic + rollback; reminder reconcile after success.
+- [x] **M6-09** Wire coach add/remove → `PlanStore` / `PlanMutator` / mutation service. Add can reuse `addWorkout(cloning:on:)` (#38); remove needs new API under same history/conflict rules (#38/#44: no delete completed/skipped). Confirm UI per M6-01; optimistic + rollback; reminder reconcile after success.
 
-- [ ] **M6-10** Apply EF-returned structured actions on client (or EF mutates remotely + client rehydrates) — pick one in M6-01; keep Plan/calendar consistent.
+- [x] **M6-10** Apply EF-returned structured actions on client (or EF mutates remotely + client rehydrates) — pick one in M6-01; keep Plan/calendar consistent.
+
+> **Learned during M6-09/10 (2026-07-26):**
+> - **Remove path:** `PlanMutator.removingWorkout` (scheduled-only) → `PlanStore.removeWorkout` optimistic + rollback → `PlanMutationServicing.removeWorkout` deletes `workout_exercises` then `plan_workouts`, upserts reordered siblings; reminder reconcile on success.
+> - **Apply path (#66h):** EF returns actions only; client confirms via nested `.pluriBottomSheet` (`AskPluriConfirmChangeSheet`); `AskPluriPlanActionApplier` parses UUIDs + `yyyy-MM-dd` (FormatStyle / `DatabaseCodeMappings.date`) and calls `addWorkout` / `removeWorkout`. Invalid actions skipped (#66g). Multi-action: apply in order, stop on first error (partial apply possible). Cancel/success chat lines are local `.system` only (not persisted).
 
 ### Persona, safety, verification
 

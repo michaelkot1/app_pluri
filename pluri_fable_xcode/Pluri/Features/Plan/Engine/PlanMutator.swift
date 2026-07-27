@@ -1,8 +1,9 @@
 import Foundation
 
-/// Pure, deterministic plan mutations for the Calendar / Manage Plan flows
-/// (M3-05): move a workout to a date, add (clone) a workout onto an empty
-/// day, and replace the remaining unfinished workouts after regeneration.
+/// Pure, deterministic plan mutations for the Calendar / Manage Plan / Ask
+/// Pluri flows (M3-05 / M6-09): move a workout to a date, add (clone) a
+/// workout onto an empty day, remove a scheduled workout, and replace the
+/// remaining unfinished workouts after regeneration.
 ///
 /// Like `PlanEngine`, this is a `nonisolated enum` of static functions with
 /// no persistence coupling, so the `PlanStore` can apply changes
@@ -30,6 +31,14 @@ nonisolated enum PlanMutator {
         /// The newly created clone (new IDs, SPEC §14 #38).
         let addedSession: PlacedSession
         /// Pre-existing sessions whose order shifted to make room.
+        let reorderedSessions: [PlacedSession]
+    }
+
+    struct RemoveResult: Sendable {
+        let plan: GeneratedPlan
+        /// The scheduled workout that was removed (remote delete target).
+        let deletedWorkoutID: UUID
+        /// Remaining sessions whose order shifted after renormalization.
         let reorderedSessions: [PlacedSession]
     }
 
@@ -187,6 +196,32 @@ nonisolated enum PlanMutator {
         let reordered = changedSessions(from: plan, to: newPlan)
             .filter { $0.session.id != clone.id }
         return AddResult(plan: newPlan, addedSession: placedClone, reorderedSessions: reordered)
+    }
+
+    // MARK: - Remove
+
+    /// Removes a scheduled workout from the plan and renormalizes sibling
+    /// order. Only `.scheduled` workouts may be deleted — completed/skipped
+    /// history is immutable (SPEC §14 #38 / #44 / M6-09).
+    static func removingWorkout(id: UUID, in plan: GeneratedPlan) throws -> RemoveResult {
+        guard let existing = session(withID: id, in: plan) else {
+            throw PlanMutationError.workoutNotFound
+        }
+        guard existing.status == .scheduled else {
+            throw PlanMutationError.workoutFinished
+        }
+
+        var sessionsByWeek = sessionsByWeek(in: plan)
+        for week in sessionsByWeek.keys {
+            sessionsByWeek[week]?.removeAll { $0.id == id }
+        }
+
+        let newPlan = renormalizedPlan(from: plan, sessionsByWeek: sessionsByWeek)
+        return RemoveResult(
+            plan: newPlan,
+            deletedWorkoutID: id,
+            reorderedSessions: changedSessions(from: plan, to: newPlan)
+        )
     }
 
     // MARK: - Skip / complete (M4-04)

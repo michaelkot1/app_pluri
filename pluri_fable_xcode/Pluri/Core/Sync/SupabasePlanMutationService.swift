@@ -57,6 +57,34 @@ final class SupabasePlanMutationService: PlanMutationServicing {
         }
     }
 
+    func removeWorkout(
+        planID: UUID,
+        deletingWorkoutIDs: [UUID],
+        reorderedWorkouts: [PlanWorkoutInsertRow]
+    ) async throws {
+        do {
+            if !deletingWorkoutIDs.isEmpty {
+                let ids = deletingWorkoutIDs.map(\.uuidString)
+                // Same explicit child-then-parent delete as replaceRemaining
+                // (M6-09) — never depend on FK cascade alone.
+                try await client
+                    .from("workout_exercises")
+                    .delete()
+                    .in("plan_workout_id", values: ids)
+                    .execute()
+                try await client
+                    .from("plan_workouts")
+                    .delete()
+                    .in("id", values: ids)
+                    .execute()
+            }
+            try await upsertWorkouts(reorderedWorkouts)
+            logger.info("Removed workout from plan \(planID.uuidString, privacy: .public)")
+        } catch {
+            throw mapError(error)
+        }
+    }
+
     func updatePlanSettings(planID: UUID, update: PlanSettingsUpdateRow) async throws {
         do {
             try await client
