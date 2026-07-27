@@ -522,9 +522,13 @@ Recipes & Nutrition (PLAN M7): Recipe tab day view with ~3 auto-suggestions per 
 
 ### Backend
 
-- [ ] **M7-02** Migration: `food_logs` + `recipe_favorites` + owner-only RLS per PLAN §1.3 — `food_logs` (food, serving, calories, macros, meal, date); `recipe_favorites` (user ↔ MealDB recipe ids). Not in repo today. Schema details follow M7-01.
+- [x] **M7-02** Migration: `food_logs` + `recipe_favorites` + owner-only RLS per PLAN §1.3 — `food_logs` (food, serving, calories, macros, meal, date); `recipe_favorites` (user ↔ MealDB recipe ids). Not in repo today. Schema details follow M7-01.
 
-> **Learned during M7-02:** _(fill when migration lands — table/column names, RLS notes, remote version.)_
+> **Learned during M7-02 (2026-07-27):**
+> - **Remote:** migration `food_logs_recipe_favorites` version `20260727020041` (local file `supabase/migrations/20260727020019_food_logs_recipe_favorites.sql` via `supabase migration new`). Applied via MCP `apply_migration`. RLS on; SELECT/INSERT/UPDATE/DELETE owner policies use `(select auth.uid()) = user_id` (chat_messages / 0001 pattern). Default `anon`/`authenticated`/`service_role` table GRANTs match `chat_messages` (Data API exposed; RLS gates rows).
+> - **`food_logs` columns (#67f naming):** `id` uuid PK, `user_id` → profiles CASCADE, `food_name` text, `serving` text (label e.g. "1 cup" / "100g"), `calories` int ≥0, `macros` jsonb nullable, `meal` check `breakfast|lunch|dinner|dessert|snack`, `logged_date` date, optional `mealdb_recipe_id` / `nutrition_food_id` text, `created_at`. Indexes: `(user_id)`, `(user_id, logged_date)`.
+> - **`recipe_favorites` columns:** `id` uuid PK, `user_id` → profiles CASCADE, `mealdb_recipe_id` text, optional `cached_title` / `cached_thumb_url`, `created_at`. Indexes: `(user_id)`; **UNIQUE** `(user_id, mealdb_recipe_id)` for toggle upsert.
+> - Prefer #67f names (`food_name`, `logged_date`) over vague PLAN "food"/"date". No Swift/SwiftData/UI in this task.
 
 ### API spike & clients
 
