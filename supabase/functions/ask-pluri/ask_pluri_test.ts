@@ -15,10 +15,25 @@ import {
   contextContainsForbiddenKeys,
   FORBIDDEN_CONTEXT_KEYS,
 } from "./_shared/context.ts";
-import { busyErrorBody, throttledErrorBody } from "./_shared/errors.ts";
+import {
+  busyErrorBody,
+  geminiStatusToErrorBody,
+  throttledErrorBody,
+} from "./_shared/errors.ts";
 import { handleAskPluriRequest } from "./_shared/handler.ts";
+import { ASK_PLURI_SYSTEM_PROMPT } from "./_shared/prompt.ts";
 import { resetThrottleForTests } from "./_shared/throttle.ts";
 import { tryConsumeThrottle } from "./_shared/throttle.ts";
+
+/** Assert client JSON never leaks provider/quota/detail fields (#66f). */
+function assertNoRawErrorLeakage(body: unknown) {
+  const serialized = JSON.stringify(body);
+  assertFalse("detail" in (body as Record<string, unknown>));
+  assertFalse(serialized.includes("quota"));
+  assertFalse(serialized.includes("RESOURCE_EXHAUSTED"));
+  assertFalse(serialized.includes("HTTP "));
+  assertFalse(/AIza[0-9A-Za-z_-]{10,}/.test(serialized));
+}
 
 const FIXTURE_CONTEXT_PATH = new URL(
   "./fixtures/sample_context.json",
@@ -76,12 +91,40 @@ Deno.test("sample grounding fixture excludes HealthKit / Pluri Score keys", asyn
   assertFalse(serialized.toLowerCase().includes("healthkit"));
   assertEquals(FORBIDDEN_CONTEXT_KEYS.length > 0, true);
 });
+Deno.test("system prompt encodes #66f safety rails", () => {
+  const prompt = ASK_PLURI_SYSTEM_PROMPT.toLowerCase();
+  assert(prompt.includes("kind"));
+  assert(prompt.includes("informative") || prompt.includes("encouraging"));
+  assert(
+    prompt.includes("not a doctor") || prompt.includes("medical"),
+    "medical / injury disclaimer missing",
+  );
+  assert(
+    prompt.includes("refuse") || prompt.includes("gently refuse"),
+    "harmful-advice refusal missing",
+  );
+  assert(
+    prompt.includes("other users") || prompt.includes("other user's"),
+    "cross-user data ban missing",
+  );
+  assert(
+    prompt.includes("api key") || prompt.includes("raw provider"),
+    "API / provider leakage ban missing",
+  );
+  assertFalse(prompt.includes("aiza"));
+});
+
 Deno.test("busy and throttled error shapes are distinct UI codes", () => {
   assertEquals(busyErrorBody().error, "busy");
   assertEquals(throttledErrorBody().error, "throttled");
   assert(busyErrorBody().message.toLowerCase().includes("busy"));
-  assertFalse(JSON.stringify(busyErrorBody()).includes("quota"));
-  assertFalse(JSON.stringify(throttledErrorBody()).includes("RESOURCE_EXHAUSTED"));
+  assertNoRawErrorLeakage(busyErrorBody());
+  assertNoRawErrorLeakage(throttledErrorBody());
+  // Non-mapped Gemini statuses fall through to busy at the call site;
+  // mapped ones never carry HTTP detail.
+  assertEquals(geminiStatusToErrorBody(429)?.error, "throttled");
+  assertEquals(geminiStatusToErrorBody(503)?.error, "busy");
+  assertEquals(geminiStatusToErrorBody(400), null);
 });
 
 Deno.test("throttle rejects after max requests in window", () => {
@@ -112,10 +155,11 @@ Deno.test("missing Authorization returns 401", async () => {
   );
   assertEquals(response.status, 401);
   const body = await response.json();
-  assertEquals(body.error, "Missing Authorization header");
+  assertEquals(body.error, "Unauthorized");
+  assertNoRawErrorLeakage(body);
 });
 
-Deno.test("invalid JWT returns 401", async () => {
+Deno.test("invalid JWT returns stable 401 without Auth message leakage", async () => {
   resetThrottleForTests();
   const response = await handleAskPluriRequest(
     new Request("http://local/ask-pluri", {
@@ -145,7 +189,9 @@ Deno.test("invalid JWT returns 401", async () => {
   );
   assertEquals(response.status, 401);
   const body = await response.json();
-  assertEquals(body.error, "Invalid JWT");
+  assertEquals(body.error, "Unauthorized");
+  assertFalse(JSON.stringify(body).includes("Invalid JWT"));
+  assertNoRawErrorLeakage(body);
 });
 
 Deno.test("happy path returns reply + actions and never touches plan_workouts writes", async () => {
@@ -242,8 +288,116 @@ Deno.test("Gemini 429 maps to throttled shape", async () => {
   assertEquals(response.status, 429);
   const body = await response.json();
   assertEquals(body.error, "throttled");
-  assertFalse(JSON.stringify(body).includes("quota"));
+  assertNoRawErrorLeakage(body);
 });
+
+Deno.test("non-busy Gemini failure returns busy shape without detail", async () => {
+  resetThrottleForTests();
+  const fixtureContext = JSON.parse(
+    await Deno.readTextFile(FIXTURE_CONTEXT_PATH),
+  );
+  const response = await handleAskPluriRequest(
+    new Request("http://local/ask-pluri", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer test-jwt",
+      },
+      body: JSON.stringify({ message: "hello" }),
+    }),
+    {
+      env: {
+        supabaseUrl: "https://example.supabase.co",
+        anonKey: "anon-test",
+        geminiApiKey: "test-key-not-real",
+      },
+      geminiGenerate: async () => ({
+        ok: false,
+        status: 400,
+        // Legacy-shaped body with detail — handler must not pass it through.
+        errorBody: {
+          error: "Gemini request failed",
+          detail: "HTTP 400 RESOURCE_EXHAUSTED quota",
+        } as never,
+      }),
+      createUserClient: () =>
+        mockSupabaseClient({
+          mutatedTables: [],
+          writeOps: [],
+          fixtureContext,
+        }) as never,
+    },
+  );
+  assertEquals(response.status, 502);
+  const body = await response.json();
+  assertEquals(body.error, "busy");
+  assert(body.message.toLowerCase().includes("busy"));
+  assertNoRawErrorLeakage(body);
+});
+
+Deno.test("DB failure responses omit PostgREST detail", async () => {
+  resetThrottleForTests();
+  const response = await handleAskPluriRequest(
+    new Request("http://local/ask-pluri", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer test-jwt",
+      },
+      body: JSON.stringify({ message: "hello" }),
+    }),
+    {
+      env: {
+        supabaseUrl: "https://example.supabase.co",
+        anonKey: "anon-test",
+        geminiApiKey: "test-key-not-real",
+      },
+      createUserClient: () =>
+        ({
+          auth: {
+            getUser: async () => ({
+              data: {
+                user: { id: "99999999-9999-4999-8999-999999999999" },
+              },
+              error: null,
+            }),
+          },
+          from(table: string) {
+            const builder: Record<string, unknown> = {
+              select() {
+                return builder;
+              },
+              eq() {
+                return builder;
+              },
+              order() {
+                return builder;
+              },
+              limit() {
+                return builder;
+              },
+              maybeSingle: async () => ({
+                data: null,
+                error: {
+                  message:
+                    'relation "chat_messages" does not exist — permission denied for schema public',
+                },
+              }),
+            };
+            assertEquals(table, "chat_messages");
+            return builder;
+          },
+        }) as never,
+    },
+  );
+  assertEquals(response.status, 500);
+  const body = await response.json();
+  assertEquals(body.error, "Failed to load conversation");
+  assertFalse(JSON.stringify(body).includes("permission denied"));
+  assertFalse(JSON.stringify(body).includes("does not exist"));
+  assertNoRawErrorLeakage(body);
+});
+
 Deno.test("repo sources do not embed a Gemini API key", async () => {
   const root = new URL(".", import.meta.url);
   // Production sources + fixtures only (exclude this test file's needle strings).

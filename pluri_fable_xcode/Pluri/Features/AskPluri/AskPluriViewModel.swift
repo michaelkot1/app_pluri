@@ -231,4 +231,15 @@ final class AskPluriViewModel {
                 ?? "Your coach sent back something we didn't expect. Please try again."
         }
     }
+
+    #if DEBUG
+    /// Forces the in-flight busy row for Xcode Previews (M6-13).
+    func prepareBusyPreviewState(
+        userMessage: String = "How hard should the next set feel?"
+    ) {
+        messages = [AskPluriChatMessage(role: .user, content: userMessage)]
+        isSending = true
+        statusMessage = nil
+    }
+    #endif
 }

@@ -1,6 +1,10 @@
 import { DEFAULT_GEMINI_MODEL } from "./constants.ts";
 import { parseGeminiCoachPayload, type CoachAction } from "./actions.ts";
-import { geminiStatusToErrorBody, type AskPluriErrorBody } from "./errors.ts";
+import {
+  busyErrorBody,
+  geminiStatusToErrorBody,
+  type AskPluriErrorBody,
+} from "./errors.ts";
 import { ASK_PLURI_SYSTEM_PROMPT } from "./prompt.ts";
 
 export type GeminiSuccess = {
@@ -12,7 +16,8 @@ export type GeminiSuccess = {
 export type GeminiFailure = {
   ok: false;
   status: number;
-  errorBody: AskPluriErrorBody | { error: string; detail?: string };
+  /** Always a busy/throttled UI shape — never raw HTTP/quota detail. */
+  errorBody: AskPluriErrorBody;
 };
 
 export type GeminiResult = GeminiSuccess | GeminiFailure;
@@ -74,13 +79,12 @@ export const callGeminiGenerateContent: GeminiGenerateFn = async ({
     if (mapped) {
       return { ok: false, status: response.status, errorBody: mapped };
     }
+    // Non-mapped Gemini failures → kind busy shape (no HTTP/status leakage).
+    console.error("ask-pluri: Gemini HTTP failure", response.status);
     return {
       ok: false,
       status: response.status,
-      errorBody: {
-        error: "Gemini request failed",
-        detail: `HTTP ${response.status}`,
-      },
+      errorBody: busyErrorBody(),
     };
   }
 
@@ -90,20 +94,13 @@ export const callGeminiGenerateContent: GeminiGenerateFn = async ({
     return {
       ok: false,
       status: 502,
-      errorBody: busyOrGenericEmpty(),
+      errorBody: busyErrorBody(),
     };
   }
 
   const parsed = parseGeminiCoachPayload(text);
   return { ok: true, reply: parsed.reply, actions: parsed.actions };
 };
-
-function busyOrGenericEmpty(): AskPluriErrorBody {
-  return {
-    error: "busy",
-    message: "Your coach is busy — try again shortly.",
-  };
-}
 
 export function resolveGeminiModel(
   envModel = Deno.env.get("GEMINI_MODEL"),

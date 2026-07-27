@@ -420,13 +420,22 @@ private enum AskPluriChatPreviewSupport {
 }
 
 #Preview("Busy") {
-    AskPluriChatView(currentPlanWorkoutId: UUID().uuidString)
-        .environment(
-            \.askPluriClient,
-            MockAskPluriClient(delay: .seconds(60))
-        )
-        .environment(\.askPluriHistoryLoader, MockAskPluriHistoryLoader())
-        .environment(AskPluriChatPreviewSupport.planStore())
+    // Force `isSending` so the busy row is visible without waiting on a delay
+    // (M6-13 — same honesty as M5-16 status-forced previews).
+    @Previewable @State var scrollPosition = ScrollPosition(idType: String.self)
+    let viewModel = AskPluriViewModel(
+        currentPlanWorkoutId: UUID().uuidString,
+        client: MockAskPluriClient(delay: .seconds(60)),
+        historyLoader: MockAskPluriHistoryLoader(),
+        reachability: MockNetworkReachability(isOnline: true)
+    )
+    viewModel.prepareBusyPreviewState()
+    return AskPluriChatContent(
+        viewModel: viewModel,
+        scrollPosition: $scrollPosition,
+        onDismiss: {}
+    )
+    .environment(AskPluriChatPreviewSupport.planStore())
 }
 
 #Preview("Offline / error") {

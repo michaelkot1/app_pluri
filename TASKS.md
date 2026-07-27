@@ -489,15 +489,22 @@ Ask Pluri (AI Coach) (PLAN M6): `ask-pluri` Edge Function with Gemini, context g
 
 ### Persona, safety, verification
 
-- [ ] **M6-11** System prompt / server rails: kind informative coach; no raw API leakage; no cross-user data; gentle refusals.
+- [x] **M6-11** System prompt / server rails: kind informative coach; no raw API leakage; no cross-user data; gentle refusals.
 
-- [ ] **M6-12** Swift Testing: client parsing, mock chat flows, plan mutation from tool payloads, unauthorized/offline/busy paths.
+- [x] **M6-12** Swift Testing: client parsing, mock chat flows, plan mutation from tool payloads, unauthorized/offline/busy paths.
 
-- [ ] **M6-13** M6 UI QA: previews empty/busy/error/populated; a11y; mid-workout chat doesn’t break logging; add/remove click-through updates Plan.
+- [x] **M6-13** M6 UI QA: previews empty/busy/error/populated; a11y; mid-workout chat doesn’t break logging; add/remove click-through updates Plan.
+
+> **Learned during M6-11/12/13 (2026-07-26):**
+> - **Server rails (M6-11):** `ASK_PLURI_SYSTEM_PROMPT` already encoded #66f (kind coach, medical disclaimer, refuse harmful, no cross-user / API leakage). Hardened client-facing errors: no `detail` / Auth JWT message / Gemini HTTP leakage on 401/5xx / non-mapped Gemini failures — log server-side only (`errors.ts` helpers + `handler.ts` / `gemini.ts`). Deno tests cover prompt rails + safe error shapes.
+> - **Swift Testing (M6-12):** Added ViewModel **unauthorized** + **throttled** coverage; `AskPluriPlanActionApplierTests` for `summaryLines` + multi-action stop-on-first-error. Prior client/VM/plan-mutation coverage retained.
+> - **UI QA (M6-13):** Busy preview forces `isSending` via `prepareBusyPreviewState()` (no 60s delay wait). Chat + confirm sheet use `PluriFont` / `PluriColor` / `PluriSpacing` / `PluriRadius` and 44pt min targets; VoiceOver labels/hints on Done, dismiss, composer, send, confirm/cancel.
+
+> **M6-13 manual QA checklist:** (1) Pre-workout: open Ask Pluri from Workout Screen → ask a plan-aware question → dismiss. (2) Mid-workout: start session → open Ask Pluri sheet → log a set while sheet is open and again after dismiss — logging stays snappy, session not corrupted, timer/set state intact. (3) Coach proposes add → Confirm → Plan/calendar shows new workout; Cancel leaves plan untouched. (4) Coach proposes remove on a scheduled workout → Confirm → workout gone; completed/skipped never offered/applied. (5) Dynamic Type (largest), VoiceOver rotor walk-through (chat + confirm sheet), dark mode, 44pt Done/Send/Confirm/Cancel. (6) Airplane mode → offline banner kind “needs a connection” (no raw errors); restore network → busy/throttled path (if hit) shows coach-is-busy copy only.
 
 **Dependencies:** M6-01 → 02/03; 03 → 05 → 06/07; 01+03 → 09/10; everything → 12/13.
 
-**M6 exit check** (PLAN M6): mid-workout questions answered with user-specific context; plan edits via chat work. Specifically: Ask Pluri decisions recorded in SPEC §14/§15; `chat_messages` migration + RLS in place; `ask-pluri` EF authenticates, grounds on owner plan/history (never HealthKit samples), calls Gemini server-side, returns replies + structured add/remove actions with throttle/busy/error shapes; client `AskPluriClient` never embeds the Gemini key; Workout Screen stub replaced by real chat pre- and mid-workout; Plan Overview explainer is live how-to; add/remove via chat updates Plan under #38/#44 rules with confirm + optimistic/rollback + reminder reconcile; coach persona/safety rails refuse harmful advice gently; build + Swift Testing suite pass; Dynamic Type/VoiceOver/44pt targets and mid-workout chat QA manually checked.
+**M6 exit check** (PLAN M6): mid-workout questions answered with user-specific context; plan edits via chat work. Specifically: Ask Pluri decisions recorded in SPEC §14/§15; `chat_messages` migration + RLS in place; `ask-pluri` EF authenticates, grounds on owner plan/history (never HealthKit samples), calls Gemini server-side, returns replies + structured add/remove actions with throttle/busy/error shapes (client-facing JSON omits provider/`detail` leakage — #66e/f); client `AskPluriClient` never embeds the Gemini key; Workout Screen stub replaced by real chat pre- and mid-workout; Plan Overview explainer is live how-to; add/remove via chat updates Plan under #38/#44 rules with confirm + optimistic/rollback + reminder reconcile; coach persona/safety rails refuse harmful advice gently; build + Swift Testing suite pass; Dynamic Type/VoiceOver/44pt targets and mid-workout chat QA manually checked.
 
 **Deferred out of M6 (don't build ahead):** Recipes / nutrition (M7); Community (M8); Outdoor Run (M9); Cardio / Flexibility / hybrid plans & groups (v2); Devices.
 

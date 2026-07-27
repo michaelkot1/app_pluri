@@ -178,6 +178,57 @@ struct AskPluriViewModelTests {
         #expect(viewModel.pendingActions.isEmpty)
     }
 
+    @Test("Unauthorized error surfaces sign-in copy without a fake reply")
+    func unauthorizedSurfacesSignInCopy() async {
+        let client = MockAskPluriClient(errorToThrow: .unauthorized)
+        let viewModel = AskPluriViewModel(
+            currentPlanWorkoutId: workoutID,
+            client: client,
+            historyLoader: MockAskPluriHistoryLoader(),
+            reachability: MockNetworkReachability(isOnline: true)
+        )
+
+        viewModel.draft = "Help"
+        await viewModel.send()
+
+        #expect(viewModel.messages.count == 1)
+        #expect(viewModel.messages[0].role == .user)
+        #expect(viewModel.messages.contains(where: { $0.role == .assistant }) == false)
+        #expect(viewModel.statusMessage == "Sign in to ask your coach.")
+        #expect(viewModel.statusMessage?.localizedStandardContains("JWT") == false)
+        #expect(viewModel.statusMessage?.localizedStandardContains("401") == false)
+        #expect(viewModel.lastReceivedActions.isEmpty)
+        #expect(viewModel.pendingActions.isEmpty)
+        #expect(viewModel.isSending == false)
+    }
+
+    @Test("Throttled error surfaces coach-is-busy copy without a fake reply")
+    func throttledSurfacesKindCopy() async {
+        let client = MockAskPluriClient(
+            errorToThrow: .throttled(AskPluriClientError.defaultThrottledMessage)
+        )
+        let viewModel = AskPluriViewModel(
+            currentPlanWorkoutId: workoutID,
+            client: client,
+            historyLoader: MockAskPluriHistoryLoader(),
+            reachability: MockNetworkReachability(isOnline: true)
+        )
+
+        viewModel.draft = "Help"
+        await viewModel.send()
+
+        #expect(viewModel.messages.count == 1)
+        #expect(viewModel.messages[0].role == .user)
+        #expect(viewModel.messages.contains(where: { $0.role == .assistant }) == false)
+        #expect(viewModel.statusMessage == AskPluriClientError.defaultThrottledMessage)
+        #expect(viewModel.statusMessage?.localizedStandardContains("busy") == true)
+        #expect(viewModel.statusMessage?.localizedStandardContains("quota") == false)
+        #expect(viewModel.statusMessage?.localizedStandardContains("429") == false)
+        #expect(viewModel.lastReceivedActions.isEmpty)
+        #expect(viewModel.pendingActions.isEmpty)
+        #expect(viewModel.isSending == false)
+    }
+
     @Test("History load restores prior turns and conversation id")
     func loadsHistoryOnAppear() async {
         let conversationId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"

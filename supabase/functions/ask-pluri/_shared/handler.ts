@@ -7,7 +7,12 @@ import {
   contextContainsForbiddenKeys,
   loadCoachContext,
 } from "./context.ts";
-import { busyErrorBody, throttledErrorBody } from "./errors.ts";
+import {
+  busyErrorBody,
+  safeServerErrorBody,
+  throttledErrorBody,
+  unauthorizedErrorBody,
+} from "./errors.ts";
 import {
   ASK_PLURI_SYSTEM_PROMPT,
   buildGeminiUserPrompt,
@@ -103,25 +108,19 @@ export async function handleAskPluriRequest(
 
     if (!supabaseUrl || !anonKey) {
       console.error("ask-pluri: missing Supabase URL/anon env");
-      return jsonResponse({ error: "Server misconfigured" }, 500);
+      return jsonResponse(safeServerErrorBody("Server misconfigured"), 500);
     }
 
     if (!geminiApiKey) {
       console.error(
         "ask-pluri: missing GEMINI_API_KEY — set via supabase secrets set GEMINI_API_KEY=...",
       );
-      return jsonResponse(
-        {
-          error:
-            "Server misconfigured. Set GEMINI_API_KEY via supabase secrets (never in the iOS bundle).",
-        },
-        500,
-      );
+      return jsonResponse(safeServerErrorBody("Server misconfigured"), 500);
     }
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return jsonResponse({ error: "Missing Authorization header" }, 401);
+      return jsonResponse(unauthorizedErrorBody(), 401);
     }
 
     const createUserClient = deps.createUserClient ?? defaultUserClient;
@@ -133,10 +132,10 @@ export async function handleAskPluriRequest(
     } = await userClient.auth.getUser();
 
     if (userError || !user) {
-      return jsonResponse(
-        { error: userError?.message ?? "Unauthorized" },
-        401,
-      );
+      if (userError?.message) {
+        console.error("ask-pluri: auth failed", userError.message);
+      }
+      return jsonResponse(unauthorizedErrorBody(), 401);
     }
 
     if (!tryConsumeThrottle(user.id)) {
@@ -171,7 +170,7 @@ export async function handleAskPluriRequest(
       if (latest.error) {
         console.error("ask-pluri: conversation lookup failed", latest.error);
         return jsonResponse(
-          { error: "Failed to load conversation", detail: latest.error.message },
+          safeServerErrorBody("Failed to load conversation"),
           500,
         );
       }
@@ -206,10 +205,7 @@ export async function handleAskPluriRequest(
     if (historyResult.error) {
       console.error("ask-pluri: history load failed", historyResult.error);
       return jsonResponse(
-        {
-          error: "Failed to load chat history",
-          detail: historyResult.error.message,
-        },
+        safeServerErrorBody("Failed to load chat history"),
         500,
       );
     }
@@ -232,13 +228,7 @@ export async function handleAskPluriRequest(
 
     if (userInsert.error || !userInsert.data) {
       console.error("ask-pluri: user message persist failed", userInsert.error);
-      return jsonResponse(
-        {
-          error: "Failed to save message",
-          detail: userInsert.error?.message,
-        },
-        500,
-      );
+      return jsonResponse(safeServerErrorBody("Failed to save message"), 500);
     }
 
     const userMessageId = (userInsert.data as { id: string }).id;
@@ -294,10 +284,7 @@ export async function handleAskPluriRequest(
         assistantInsert.error,
       );
       return jsonResponse(
-        {
-          error: "Failed to save assistant reply",
-          detail: assistantInsert.error?.message,
-        },
+        safeServerErrorBody("Failed to save assistant reply"),
         500,
       );
     }
@@ -317,6 +304,6 @@ export async function handleAskPluriRequest(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("ask-pluri: unexpected error", message);
-    return jsonResponse({ error: "Unexpected error", detail: message }, 500);
+    return jsonResponse(safeServerErrorBody("Unexpected error"), 500);
   }
 }
