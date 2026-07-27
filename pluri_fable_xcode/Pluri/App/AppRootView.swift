@@ -8,9 +8,9 @@ import SwiftUI
 /// live `WorkoutReminderService` (M3-15) so the same instance reconciles
 /// reminders after plan mutations and powers the Notifications toggle, the
 /// Insights `LiveHealthKitService` (M5-02/18) for Home tiles / Pluri Score
-/// foreground observer, the `SyncEngine` (M4-03) for opportunistic session /
-/// set_log upload, and the local `WorkoutSessionRepository` for Detail Notes /
-/// live session writes (M4-05/06).
+/// foreground observer, the `SyncEngine` (M4-03 / M7-07) for opportunistic
+/// session / set_log / recipe_favorites upload, and the local
+/// `WorkoutSessionRepository` for Detail Notes / live session writes (M4-05/06).
 struct AppRootView: View {
     @State private var supabaseService: SupabaseService
     @State private var authService: SupabaseAuthService
@@ -174,6 +174,7 @@ struct AppRootView: View {
             ExerciseCatalogSyncState.self,
             WorkoutSessionRecord.self,
             SetLogRecord.self,
+            RecipeFavoriteRecord.self,
         ]),
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )

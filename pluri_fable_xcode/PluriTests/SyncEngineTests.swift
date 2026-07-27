@@ -16,6 +16,7 @@ struct SyncEngineTests {
             ExerciseCatalogSyncState.self,
             WorkoutSessionRecord.self,
             SetLogRecord.self,
+            RecipeFavoriteRecord.self,
         ])
         return try ModelContainer(
             for: schema,

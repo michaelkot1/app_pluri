@@ -545,11 +545,11 @@ Recipes & Nutrition (PLAN M7): Recipe tab day view with ~3 auto-suggestions per 
 
 ### Domain: suggestions & favorites
 
-- [ ] **M7-06** Domain: day suggestions engine (pure, unit-tested): ~3 options each for breakfast / lunch / dinner / dessert for a selected calendar day; hard-filter by profile allergies (Q12 / `AllergenCatalog`); informed by `maintenance_calories` per M7-01; bias toward foods similar to favorites when present (SPEC §12). Deterministic given seed + inputs where practical (PlanEngine / ScoreEngine spirit).
+- [x] **M7-06** Domain: day suggestions engine (pure, unit-tested): ~3 options each for breakfast / lunch / dinner / dessert for a selected calendar day; hard-filter by profile allergies (Q12 / `AllergenCatalog`); informed by `maintenance_calories` per M7-01; bias toward foods similar to favorites when present (SPEC §12). Deterministic given seed + inputs where practical (PlanEngine / ScoreEngine spirit).
 
-- [ ] **M7-07** Favorites persist: SwiftData cache for favorited MealDB recipes ± sync to `recipe_favorites` per M7-01/M7-02; toggle API usable from detail + suggestion cards; offline-readable favorites for bias + UI.
+- [x] **M7-07** Favorites persist: SwiftData cache for favorited MealDB recipes ± sync to `recipe_favorites` per M7-01/M7-02; toggle API usable from detail + suggestion cards; offline-readable favorites for bias + UI.
 
-> **Learned during M7-06/07:** _(fill when engine + favorites land — similarity interim, cache/sync notes.)_
+> **Learned during M7-06/07 (2026-07-26):** `RecipeSuggestionEngine` (`Features/Recipe/Engine/`) — FNV-1a seed over `userID|yyyy-MM-dd|mealSlot`, allergy hard-filter + synonym map, soft kcal rank when provided (never invent), favorites similarity = shared `strArea` + ingredient overlap with top-K boost, seeded sample of ~3. Slot pooling interim: Breakfast/Dessert by MealDB category; lunch/dinner share the rest (SPEC §14 **#69**). `RecipeFavoriteRecord` + `RecipeFavoritesStore` local-first with `needsSync` / `pendingDelete`; `SyncEngine` upserts/deletes `recipe_favorites` opportunistically. No Recipe tab UI (M7-08+) and no NutritionClient in this slice.
 
 ### Recipe tab UI
 

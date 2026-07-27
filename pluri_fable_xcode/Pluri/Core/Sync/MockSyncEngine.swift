@@ -1,21 +1,28 @@
 import Foundation
 
-/// Preview / test SyncEngine (M4-03): records enqueue / flush calls and can
-/// fail the next flush. Does not touch SwiftData.
+/// Preview / test SyncEngine (M4-03 / M7-07): records enqueue / flush calls and
+/// can fail the next flush. Does not touch SwiftData.
 @MainActor
 @Observable
 final class MockSyncEngine: SyncEngine {
     private(set) var enqueueCalls: [UUID] = []
+    private(set) var enqueueFavoriteCalls: [UUID] = []
     private(set) var flushCallCount = 0
     /// When false, `flushIfNeeded` returns without counting as a successful flush.
     var isOnline = true
     /// Thrown by the next `flushIfNeeded`, then cleared.
     var nextError: PluriSyncError?
-    /// When true (default), `enqueueSession` also awaits a flush Task.
+    /// When true (default), `enqueueSession` / `enqueueFavorite` also flush.
     var flushOnEnqueue = true
 
     func enqueueSession(id: UUID) {
         enqueueCalls.append(id)
+        guard flushOnEnqueue else { return }
+        Task { await flushIfNeeded() }
+    }
+
+    func enqueueFavorite(id: UUID) {
+        enqueueFavoriteCalls.append(id)
         guard flushOnEnqueue else { return }
         Task { await flushIfNeeded() }
     }
@@ -36,5 +43,6 @@ final class MockSyncEngine: SyncEngine {
 @MainActor
 final class NoopSyncEngine: SyncEngine {
     func enqueueSession(id: UUID) {}
+    func enqueueFavorite(id: UUID) {}
     func flushIfNeeded() async {}
 }

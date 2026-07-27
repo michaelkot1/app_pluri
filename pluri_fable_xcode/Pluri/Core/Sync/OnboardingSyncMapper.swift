@@ -138,6 +138,19 @@ nonisolated enum OnboardingSyncMapper {
         )
     }
 
+    /// Maps a local favorite to a `recipe_favorites` upsert row (M7-07).
+    @MainActor
+    static func recipeFavoriteRow(for record: RecipeFavoriteRecord) -> RecipeFavoriteUpsertRow {
+        RecipeFavoriteUpsertRow(
+            id: record.id,
+            userId: record.userId,
+            mealdbRecipeId: record.mealdbRecipeId,
+            cachedTitle: record.cachedTitle,
+            cachedThumbURL: record.cachedThumbURL,
+            createdAt: DatabaseCodeMappings.timestampString(record.createdAt)
+        )
+    }
+
     /// Maps a plan's editable metadata to the Manage Plan `plans` update row
     /// (M3-14 / §6.2). All fields are filled so the row is also usable as the
     /// complete `plan_update` object of the `replace_remaining_plan` RPC.

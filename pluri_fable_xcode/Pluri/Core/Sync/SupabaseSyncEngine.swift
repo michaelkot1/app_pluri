@@ -2,9 +2,10 @@ import Foundation
 import SwiftData
 import os.log
 
-/// SwiftData → Supabase SyncEngine (M4-03): uploads pending sessions and set
-/// logs (LWW upsert by id), and marks linked plan workouts completed when a
-/// flushed session has `endedAt` + `planWorkoutId` (SPEC §14 #52).
+/// SwiftData → Supabase SyncEngine (M4-03 + M7-07): uploads pending sessions,
+/// set logs, and recipe favorites (LWW upsert by id), and marks linked plan
+/// workouts completed when a flushed session has `endedAt` + `planWorkoutId`
+/// (SPEC §14 #52). Favorites support pending remote deletes (SPEC §14 #67f).
 ///
 /// Never blocks the repository. Failures leave `needsSync` set for retry.
 @MainActor
@@ -17,6 +18,7 @@ final class SupabaseSyncEngine: SyncEngine {
 
     private var isFlushing = false
     private var pendingEnqueueIDs: Set<UUID> = []
+    private var pendingFavoriteEnqueueIDs: Set<UUID> = []
 
     init(
         modelContext: ModelContext,
@@ -45,6 +47,11 @@ final class SupabaseSyncEngine: SyncEngine {
         Task { await flushIfNeeded() }
     }
 
+    func enqueueFavorite(id: UUID) {
+        pendingFavoriteEnqueueIDs.insert(id)
+        Task { await flushIfNeeded() }
+    }
+
     func flushIfNeeded() async {
         guard reachability.isOnline else { return }
         guard !isFlushing else { return }
@@ -52,48 +59,53 @@ final class SupabaseSyncEngine: SyncEngine {
         defer { isFlushing = false }
 
         do {
-            let sessions = try pendingSessions()
-            guard !sessions.isEmpty else {
-                pendingEnqueueIDs.removeAll()
-                return
-            }
-
-            let sessionRows = sessions.map(OnboardingSyncMapper.sessionRow(for:))
-            try await transport.upsertSessions(sessionRows)
-
-            var setRows: [SetLogUpsertRow] = []
-            for session in sessions {
-                for setLog in session.setLogs where setLog.needsSync {
-                    setRows.append(OnboardingSyncMapper.setLogRow(for: setLog, sessionId: session.id))
-                }
-            }
-            try await transport.upsertSetLogs(setRows)
-
-            for session in sessions where session.endedAt != nil {
-                if let planWorkoutId = session.planWorkoutId {
-                    try await transport.updatePlanWorkoutStatus(
-                        id: planWorkoutId,
-                        status: WorkoutStatus.completed.rawValue
-                    )
-                }
-            }
-
-            for session in sessions {
-                session.needsSync = false
-                for setLog in session.setLogs where setLog.needsSync {
-                    setLog.needsSync = false
-                }
-                pendingEnqueueIDs.remove(session.id)
-            }
-            try modelContext.save()
-            logger.info("Flushed \(sessions.count, privacy: .public) workout session(s)")
+            try await flushSessions()
+            try await flushFavorites()
         } catch {
             logger.error("Sync flush failed: \(error.localizedDescription, privacy: .public)")
             // Leave needsSync set — retry on next online / flushIfNeeded.
         }
     }
 
-    // MARK: - Private
+    // MARK: - Sessions
+
+    private func flushSessions() async throws {
+        let sessions = try pendingSessions()
+        guard !sessions.isEmpty else {
+            pendingEnqueueIDs.removeAll()
+            return
+        }
+
+        let sessionRows = sessions.map(OnboardingSyncMapper.sessionRow(for:))
+        try await transport.upsertSessions(sessionRows)
+
+        var setRows: [SetLogUpsertRow] = []
+        for session in sessions {
+            for setLog in session.setLogs where setLog.needsSync {
+                setRows.append(OnboardingSyncMapper.setLogRow(for: setLog, sessionId: session.id))
+            }
+        }
+        try await transport.upsertSetLogs(setRows)
+
+        for session in sessions where session.endedAt != nil {
+            if let planWorkoutId = session.planWorkoutId {
+                try await transport.updatePlanWorkoutStatus(
+                    id: planWorkoutId,
+                    status: WorkoutStatus.completed.rawValue
+                )
+            }
+        }
+
+        for session in sessions {
+            session.needsSync = false
+            for setLog in session.setLogs where setLog.needsSync {
+                setLog.needsSync = false
+            }
+            pendingEnqueueIDs.remove(session.id)
+        }
+        try modelContext.save()
+        logger.info("Flushed \(sessions.count, privacy: .public) workout session(s)")
+    }
 
     private func pendingSessions() throws -> [WorkoutSessionRecord] {
         let descriptor = FetchDescriptor<WorkoutSessionRecord>(
@@ -103,8 +115,6 @@ final class SupabaseSyncEngine: SyncEngine {
         )
         var pending = try modelContext.fetch(descriptor)
 
-        // Also pull explicitly enqueued sessions that may already be marked synced
-        // but need a re-flush (defensive — enqueue normally races with mutate).
         for id in pendingEnqueueIDs {
             if pending.contains(where: { $0.id == id }) { continue }
             var byID = FetchDescriptor<WorkoutSessionRecord>(
@@ -115,6 +125,64 @@ final class SupabaseSyncEngine: SyncEngine {
             byID.fetchLimit = 1
             if let session = try modelContext.fetch(byID).first {
                 pending.append(session)
+            }
+        }
+        return pending
+    }
+
+    // MARK: - Favorites (M7-07)
+
+    private func flushFavorites() async throws {
+        let favorites = try pendingFavorites()
+        guard !favorites.isEmpty else {
+            pendingFavoriteEnqueueIDs.removeAll()
+            return
+        }
+
+        let toUpsert = favorites.filter { !$0.pendingDelete }
+        let toDelete = favorites.filter(\.pendingDelete)
+
+        if !toUpsert.isEmpty {
+            let rows = toUpsert.map(OnboardingSyncMapper.recipeFavoriteRow(for:))
+            try await transport.upsertRecipeFavorites(rows)
+            for record in toUpsert {
+                record.needsSync = false
+                pendingFavoriteEnqueueIDs.remove(record.id)
+            }
+        }
+
+        if !toDelete.isEmpty {
+            try await transport.deleteRecipeFavorites(ids: toDelete.map(\.id))
+            for record in toDelete {
+                pendingFavoriteEnqueueIDs.remove(record.id)
+                modelContext.delete(record)
+            }
+        }
+
+        try modelContext.save()
+        logger.info(
+            "Flushed \(toUpsert.count, privacy: .public) favorite upsert(s), \(toDelete.count, privacy: .public) delete(s)"
+        )
+    }
+
+    private func pendingFavorites() throws -> [RecipeFavoriteRecord] {
+        let descriptor = FetchDescriptor<RecipeFavoriteRecord>(
+            predicate: #Predicate { record in
+                record.needsSync == true
+            }
+        )
+        var pending = try modelContext.fetch(descriptor)
+
+        for id in pendingFavoriteEnqueueIDs {
+            if pending.contains(where: { $0.id == id }) { continue }
+            var byID = FetchDescriptor<RecipeFavoriteRecord>(
+                predicate: #Predicate { record in
+                    record.id == id
+                }
+            )
+            byID.fetchLimit = 1
+            if let record = try modelContext.fetch(byID).first {
+                pending.append(record)
             }
         }
         return pending

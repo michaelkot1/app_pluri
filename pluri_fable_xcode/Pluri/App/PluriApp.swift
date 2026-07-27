@@ -9,6 +9,7 @@ struct PluriApp: App {
             ExerciseCatalogSyncState.self,
             WorkoutSessionRecord.self,
             SetLogRecord.self,
+            RecipeFavoriteRecord.self,
         ])
         do {
             return try ModelContainer(for: schema)

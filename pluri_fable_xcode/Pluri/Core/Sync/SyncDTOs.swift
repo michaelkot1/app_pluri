@@ -301,3 +301,24 @@ nonisolated struct SetLogUpsertRow: Codable, Hashable, Sendable, Equatable {
 nonisolated struct PlanWorkoutStatusUpdateRow: Codable, Hashable, Sendable, Equatable {
     var status: String
 }
+
+/// Upsert payload for `public.recipe_favorites` (M7-07 / SPEC §14 #67f).
+/// LWW via `onConflict: id`. Unique `(user_id, mealdb_recipe_id)` is also
+/// enforced remotely for toggle safety.
+nonisolated struct RecipeFavoriteUpsertRow: Codable, Hashable, Sendable, Equatable {
+    var id: UUID
+    var userId: UUID
+    var mealdbRecipeId: String
+    var cachedTitle: String?
+    var cachedThumbURL: String?
+    var createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case mealdbRecipeId = "mealdb_recipe_id"
+        case cachedTitle = "cached_title"
+        case cachedThumbURL = "cached_thumb_url"
+        case createdAt = "created_at"
+    }
+}
