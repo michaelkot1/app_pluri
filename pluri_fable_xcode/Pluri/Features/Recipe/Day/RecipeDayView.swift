@@ -1,9 +1,9 @@
 import SwiftData
-import SwiftData
 import SwiftUI
 
-/// Recipe Day shell (M7-08 / SPEC §12): calendar strip + breakfast/lunch/
-/// dinner/dessert suggestion sections with honest empty/offline/error states.
+/// Recipe Day shell (M7-08 / M7-11 / SPEC §12): calendar strip, calorie ring,
+/// breakfast/lunch/dinner/dessert suggestion sections with honest empty/
+/// offline/error states.
 struct RecipeDayView: View {
     @Bindable var viewModel: RecipeDayViewModel
     var onSelectRecipe: (MealDBRecipe) -> Void
@@ -26,6 +26,8 @@ struct RecipeDayView: View {
                     .foregroundStyle(PluriColor.textPrimary)
                     .accessibilityAddTraits(.isHeader)
 
+                DayCalorieRingView(progress: viewModel.calorieProgress)
+
                 statusContent
 
                 if showsMealSections {
@@ -44,6 +46,12 @@ struct RecipeDayView: View {
         .scrollIndicators(.hidden)
         .task {
             viewModel.reload()
+        }
+        // Refresh ring when returning from recipe detail after a Log save
+        // (detail sheet has no access to this dayViewModel; standalone Log
+        // already refreshes via RecipeView onSaved/onDismiss).
+        .onAppear {
+            viewModel.refreshCalorieProgress()
         }
     }
 
@@ -94,6 +102,7 @@ struct RecipeDayView: View {
     let container = try! ModelContainer(
         for: Schema([
             RecipeFavoriteRecord.self,
+            FoodLogRecord.self,
             RecipeDaySuggestionsRecord.self,
             RecipeCandidatePoolRecord.self,
         ]),
@@ -119,6 +128,7 @@ struct RecipeDayView: View {
     let container = try! ModelContainer(
         for: Schema([
             RecipeFavoriteRecord.self,
+            FoodLogRecord.self,
             RecipeDaySuggestionsRecord.self,
             RecipeCandidatePoolRecord.self,
         ]),
@@ -130,6 +140,30 @@ struct RecipeDayView: View {
         modelContext: container.mainContext,
         userId: UUID(),
         reachability: MockNetworkReachability(isOnline: false)
+    )
+    NavigationStack {
+        RecipeDayView(viewModel: vm, onSelectRecipe: { _ in })
+    }
+    .background(PluriColor.bgCanvas)
+    .modelContainer(container)
+}
+
+#Preview("Empty") {
+    let container = try! ModelContainer(
+        for: Schema([
+            RecipeFavoriteRecord.self,
+            FoodLogRecord.self,
+            RecipeDaySuggestionsRecord.self,
+            RecipeCandidatePoolRecord.self,
+        ]),
+        configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+    )
+    let vm = RecipeDayViewModel(
+        mealDBClient: MockMealDBClient(fixtures: []),
+        planStore: PlanStore(mutationService: MockPlanMutationService()),
+        modelContext: container.mainContext,
+        userId: UUID(),
+        reachability: AlwaysOnlineReachability()
     )
     NavigationStack {
         RecipeDayView(viewModel: vm, onSelectRecipe: { _ in })

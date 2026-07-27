@@ -1,22 +1,29 @@
 import SwiftData
 import SwiftUI
 
-/// Recipe detail (M7-09 / SPEC §12): MealDB content, favorite toggle, Log stub.
+/// Recipe detail (M7-09/12 / SPEC §12): MealDB content, favorite toggle,
+/// shared Log sheet with recipe prefill.
 struct RecipeDetailView: View {
     var mealID: String
     var seedRecipe: MealDBRecipe?
 
     @Environment(\.mealDBClient) private var mealDBClient
+    @Environment(\.nutritionClient) private var nutritionClient
     @Environment(SupabaseAuthService.self) private var authService
     @Environment(SupabaseSyncEngine.self) private var syncEngine
     @Environment(\.modelContext) private var modelContext
 
     @State private var viewModel: RecipeDetailViewModel?
+    @State private var foodLoggingViewModel: FoodLoggingViewModel?
 
     var body: some View {
         Group {
             if let viewModel {
-                RecipeDetailContent(viewModel: viewModel)
+                RecipeDetailContent(
+                    viewModel: viewModel,
+                    foodLoggingViewModel: $foodLoggingViewModel,
+                    makeLoggingViewModel: makeLoggingViewModel
+                )
             } else {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -43,10 +50,26 @@ struct RecipeDetailView: View {
             seedRecipe: seedRecipe
         )
     }
+
+    private func makeLoggingViewModel(context: FoodLoggingContext) -> FoodLoggingViewModel {
+        let userId = authService.appUserID.flatMap(UUID.init(uuidString:)) ?? UUID()
+        let store = FoodLogsStore(
+            modelContext: modelContext,
+            userId: userId,
+            syncEngine: syncEngine
+        )
+        return FoodLoggingViewModel(
+            context: context,
+            nutritionClient: nutritionClient,
+            foodLogsStore: store
+        )
+    }
 }
 
 private struct RecipeDetailContent: View {
     @Bindable var viewModel: RecipeDetailViewModel
+    @Binding var foodLoggingViewModel: FoodLoggingViewModel?
+    var makeLoggingViewModel: (FoodLoggingContext) -> FoodLoggingViewModel
 
     var body: some View {
         ScrollView {
@@ -74,7 +97,7 @@ private struct RecipeDetailContent: View {
                             recipe: recipe,
                             isFavorite: viewModel.isFavorite,
                             onToggleFavorite: { viewModel.toggleFavorite() },
-                            onLog: { viewModel.tapLogStub() }
+                            onLog: { presentLog() }
                         )
                     }
                 }
@@ -82,14 +105,31 @@ private struct RecipeDetailContent: View {
             .padding(.vertical, PluriSpacing.md)
         }
         .scrollIndicators(.hidden)
-        .alert("Coming soon", isPresented: Binding(
-            get: { viewModel.showsLogComingSoon },
-            set: { if !$0 { viewModel.dismissLogStub() } }
-        )) {
-            Button("OK", role: .cancel) { viewModel.dismissLogStub() }
-        } message: {
-            Text("Food logging arrives in a later update. You can still favorite this recipe.")
+        .sheet(
+            isPresented: Binding(
+                get: { viewModel.isPresentingLogSheet },
+                set: { presented in
+                    if presented {
+                        presentLog()
+                    } else {
+                        viewModel.dismissLog()
+                        foodLoggingViewModel = nil
+                    }
+                }
+            )
+        ) {
+            if let foodLoggingViewModel {
+                FoodLoggingSheet(viewModel: foodLoggingViewModel) {
+                    viewModel.dismissLog()
+                }
+            }
         }
+    }
+
+    private func presentLog() {
+        guard let context = viewModel.foodLoggingContext else { return }
+        foodLoggingViewModel = makeLoggingViewModel(context)
+        viewModel.openLog()
     }
 }
 
@@ -193,7 +233,7 @@ private struct RecipeDetailBody: View {
             }
             .buttonStyle(.bordered)
             .frame(minHeight: 44)
-            .accessibilityHint("Food logging coming soon")
+            .accessibilityHint("Log this recipe as a food")
 
             Spacer(minLength: 0)
         }
@@ -234,26 +274,30 @@ private struct RecipeDetailBody: View {
     }
 }
 
-#Preview {
-    let container = try! ModelContainer(
-        for: Schema([
-            RecipeFavoriteRecord.self,
-            RecipeDaySuggestionsRecord.self,
-            RecipeCandidatePoolRecord.self,
-        ]),
-        configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-    )
-    let recipe = [MealDBRecipe].mealDBPreviewFixtures[0]
-    NavigationStack {
-        RecipeDetailView(mealID: recipe.id, seedRecipe: recipe)
-    }
-    .environment(\.mealDBClient, MockMealDBClient())
-    .environment(SupabaseAuthService(supabaseService: SupabaseService(), restoreOnLaunch: false))
-    .environment(
-        SupabaseSyncEngine(
-            modelContext: container.mainContext,
-            supabaseService: SupabaseService()
+#Preview("Not favorited") {
+    ScrollView {
+        RecipeDetailBody(
+            recipe: [MealDBRecipe].mealDBPreviewFixtures[0],
+            isFavorite: false,
+            onToggleFavorite: {},
+            onLog: {}
         )
-    )
-    .modelContainer(container)
+        .padding(.vertical, PluriSpacing.md)
+    }
+    .scrollIndicators(.hidden)
+    .background(PluriColor.bgCanvas)
+}
+
+#Preview("Favorited") {
+    ScrollView {
+        RecipeDetailBody(
+            recipe: [MealDBRecipe].mealDBPreviewFixtures[0],
+            isFavorite: true,
+            onToggleFavorite: {},
+            onLog: {}
+        )
+        .padding(.vertical, PluriSpacing.md)
+    }
+    .scrollIndicators(.hidden)
+    .background(PluriColor.bgCanvas)
 }

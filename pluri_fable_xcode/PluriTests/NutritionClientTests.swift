@@ -96,6 +96,19 @@ struct NutritionClientTests {
         }
     }
 
+    @Test("MockNutritionClient surfaces typed rateLimited error")
+    func mockThrowsRateLimited() async {
+        let client = MockNutritionClient(errorToThrow: .rateLimited)
+        do {
+            _ = try await client.searchFoods(query: "apple")
+            Issue.record("Expected rateLimited")
+        } catch let error as NutritionClientError {
+            #expect(error == .rateLimited)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
     // MARK: - No API key literals
 
     @Test("Secrets and Nutrition client sources never embed a literal API key")

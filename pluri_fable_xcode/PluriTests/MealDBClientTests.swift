@@ -113,6 +113,19 @@ struct MealDBClientTests {
         }
     }
 
+    @Test("Mock surfaces typed rateLimited error")
+    func mockThrowsRateLimited() async {
+        let client = MockMealDBClient(errorToThrow: .rateLimited)
+        do {
+            _ = try await client.searchMeals(name: "chicken")
+            Issue.record("Expected rateLimited")
+        } catch let error as MealDBClientError {
+            #expect(error == .rateLimited)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
     @Test("Mock lists derive areas, categories, and ingredients from fixtures")
     func mockLists() async throws {
         let client = MockMealDBClient()

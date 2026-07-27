@@ -1,18 +1,19 @@
 import Foundation
 
-/// Preview / test SyncEngine (M4-03 / M7-07): records enqueue / flush calls and
-/// can fail the next flush. Does not touch SwiftData.
+/// Preview / test SyncEngine (M4-03 / M7-07 / M7-11): records enqueue / flush
+/// calls and can fail the next flush. Does not touch SwiftData.
 @MainActor
 @Observable
 final class MockSyncEngine: SyncEngine {
     private(set) var enqueueCalls: [UUID] = []
     private(set) var enqueueFavoriteCalls: [UUID] = []
+    private(set) var enqueueFoodLogCalls: [UUID] = []
     private(set) var flushCallCount = 0
     /// When false, `flushIfNeeded` returns without counting as a successful flush.
     var isOnline = true
     /// Thrown by the next `flushIfNeeded`, then cleared.
     var nextError: PluriSyncError?
-    /// When true (default), `enqueueSession` / `enqueueFavorite` also flush.
+    /// When true (default), enqueue paths also flush.
     var flushOnEnqueue = true
 
     func enqueueSession(id: UUID) {
@@ -23,6 +24,12 @@ final class MockSyncEngine: SyncEngine {
 
     func enqueueFavorite(id: UUID) {
         enqueueFavoriteCalls.append(id)
+        guard flushOnEnqueue else { return }
+        Task { await flushIfNeeded() }
+    }
+
+    func enqueueFoodLog(id: UUID) {
+        enqueueFoodLogCalls.append(id)
         guard flushOnEnqueue else { return }
         Task { await flushIfNeeded() }
     }
@@ -44,5 +51,6 @@ final class MockSyncEngine: SyncEngine {
 final class NoopSyncEngine: SyncEngine {
     func enqueueSession(id: UUID) {}
     func enqueueFavorite(id: UUID) {}
+    func enqueueFoodLog(id: UUID) {}
     func flushIfNeeded() async {}
 }

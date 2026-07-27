@@ -10,6 +10,7 @@ struct PluriApp: App {
             WorkoutSessionRecord.self,
             SetLogRecord.self,
             RecipeFavoriteRecord.self,
+            FoodLogRecord.self,
             RecipeDaySuggestionsRecord.self,
             RecipeCandidatePoolRecord.self,
         ])

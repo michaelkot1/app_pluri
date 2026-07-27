@@ -76,6 +76,31 @@ final class SupabaseSyncRemoteTransport: SyncRemoteTransporting {
         }
     }
 
+    func upsertFoodLogs(_ rows: [FoodLogUpsertRow]) async throws {
+        guard !rows.isEmpty else { return }
+        do {
+            try await client
+                .from("food_logs")
+                .upsert(rows, onConflict: "id")
+                .execute()
+        } catch {
+            throw mapError(error)
+        }
+    }
+
+    func deleteFoodLogs(ids: [UUID]) async throws {
+        guard !ids.isEmpty else { return }
+        do {
+            try await client
+                .from("food_logs")
+                .delete()
+                .in("id", values: ids.map(\.uuidString))
+                .execute()
+        } catch {
+            throw mapError(error)
+        }
+    }
+
     private func mapError(_ error: Error) -> PluriSyncError {
         let message = error.localizedDescription
         let lower = message.lowercased()

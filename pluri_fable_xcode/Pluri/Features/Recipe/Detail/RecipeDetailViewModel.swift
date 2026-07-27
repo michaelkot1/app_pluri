@@ -2,8 +2,8 @@ import Foundation
 import Observation
 import SwiftData
 
-/// Recipe detail logic (M7-09): lookup when incomplete, favorite toggle,
-/// honest offline/error — Log is stub only until M7-11/12.
+/// Recipe detail logic (M7-09/12): lookup when incomplete, favorite toggle,
+/// honest offline/error, Log sheet presentation with recipe prefill.
 @MainActor
 @Observable
 final class RecipeDetailViewModel {
@@ -18,14 +18,16 @@ final class RecipeDetailViewModel {
     private(set) var recipe: MealDBRecipe?
     private(set) var loadState: LoadState = .idle
     private(set) var isFavorite = false
-    /// Stub CTA — food logging lands in M7-11/12.
-    private(set) var showsLogComingSoon = false
+    /// Presents the shared food logging sheet (M7-12).
+    private(set) var isPresentingLogSheet = false
 
     private let mealID: String
     private let mealDBClient: any MealDBClient
     private let favoritesStore: RecipeFavoritesStore?
     private let reachability: any NetworkReachability
     private let seedRecipe: MealDBRecipe?
+    private let loggedDate: Date
+    private let initialMeal: FoodLogMeal
 
     init(
         mealID: String,
@@ -34,11 +36,15 @@ final class RecipeDetailViewModel {
         userId: UUID?,
         syncEngine: (any SyncEngine)? = nil,
         seedRecipe: MealDBRecipe? = nil,
-        reachability: (any NetworkReachability)? = nil
+        reachability: (any NetworkReachability)? = nil,
+        loggedDate: Date = .now,
+        initialMeal: FoodLogMeal = .snack
     ) {
         self.mealID = mealID
         self.mealDBClient = mealDBClient
         self.seedRecipe = seedRecipe
+        self.loggedDate = loggedDate
+        self.initialMeal = initialMeal
         self.reachability = reachability ?? PathMonitorReachability()
         if let userId {
             self.favoritesStore = RecipeFavoritesStore(
@@ -50,6 +56,12 @@ final class RecipeDetailViewModel {
             self.favoritesStore = nil
         }
         self.reachability.start()
+    }
+
+    /// Prefill context for the shared Log sheet when a recipe is loaded.
+    var foodLoggingContext: FoodLoggingContext? {
+        guard let recipe else { return nil }
+        return .fromRecipe(recipe, loggedDate: loggedDate, meal: initialMeal)
     }
 
     func load() async {
@@ -103,12 +115,13 @@ final class RecipeDetailViewModel {
         }
     }
 
-    func tapLogStub() {
-        showsLogComingSoon = true
+    func openLog() {
+        guard recipe != nil else { return }
+        isPresentingLogSheet = true
     }
 
-    func dismissLogStub() {
-        showsLogComingSoon = false
+    func dismissLog() {
+        isPresentingLogSheet = false
     }
 
     private func refreshFavorite() {

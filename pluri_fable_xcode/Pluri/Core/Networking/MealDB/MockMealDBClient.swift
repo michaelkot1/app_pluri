@@ -4,18 +4,26 @@ import Foundation
 /// network access.
 struct MockMealDBClient: MealDBClient {
     let fixtures: [MealDBRecipe]
+    /// When set, every call throws before filtering (M7-13 error-path tests).
+    var errorToThrow: MealDBClientError?
 
-    init(fixtures: [MealDBRecipe] = .mealDBPreviewFixtures) {
+    init(
+        fixtures: [MealDBRecipe] = .mealDBPreviewFixtures,
+        errorToThrow: MealDBClientError? = nil
+    ) {
         self.fixtures = fixtures
+        self.errorToThrow = errorToThrow
     }
 
     func searchMeals(name: String) async throws -> [MealDBRecipe] {
+        try throwIfNeeded()
         let needle = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !needle.isEmpty else { return [] }
         return fixtures.filter { $0.name.localizedStandardContains(needle) }
     }
 
     func lookupMeal(id: String) async throws -> MealDBRecipe {
+        try throwIfNeeded()
         guard let recipe = fixtures.first(where: { $0.id == id }) else {
             throw MealDBClientError.notFound
         }
@@ -23,11 +31,13 @@ struct MockMealDBClient: MealDBClient {
     }
 
     func filterByArea(_ area: String) async throws -> [MealDBRecipe] {
-        fixtures.filter { $0.area?.localizedStandardContains(area) == true }
+        try throwIfNeeded()
+        return fixtures.filter { $0.area?.localizedStandardContains(area) == true }
     }
 
     func filterByIngredient(_ ingredient: String) async throws -> [MealDBRecipe] {
-        fixtures.filter { recipe in
+        try throwIfNeeded()
+        return fixtures.filter { recipe in
             recipe.ingredients.contains {
                 $0.name.localizedStandardContains(ingredient)
             }
@@ -35,19 +45,29 @@ struct MockMealDBClient: MealDBClient {
     }
 
     func filterByCategory(_ category: String) async throws -> [MealDBRecipe] {
-        fixtures.filter { $0.category?.localizedStandardContains(category) == true }
+        try throwIfNeeded()
+        return fixtures.filter { $0.category?.localizedStandardContains(category) == true }
     }
 
     func listAreas() async throws -> [String] {
-        Array(Set(fixtures.compactMap(\.area))).sorted()
+        try throwIfNeeded()
+        return Array(Set(fixtures.compactMap(\.area))).sorted()
     }
 
     func listIngredients() async throws -> [String] {
-        Array(Set(fixtures.flatMap(\.ingredients).map(\.name))).sorted()
+        try throwIfNeeded()
+        return Array(Set(fixtures.flatMap(\.ingredients).map(\.name))).sorted()
     }
 
     func listCategories() async throws -> [String] {
-        Array(Set(fixtures.compactMap(\.category))).sorted()
+        try throwIfNeeded()
+        return Array(Set(fixtures.compactMap(\.category))).sorted()
+    }
+
+    private func throwIfNeeded() throws {
+        if let errorToThrow {
+            throw errorToThrow
+        }
     }
 }
 

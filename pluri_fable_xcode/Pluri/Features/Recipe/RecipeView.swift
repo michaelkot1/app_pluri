@@ -1,11 +1,12 @@
 import SwiftData
 import SwiftUI
 
-/// Recipe root shell (M7-08 / SPEC §12): Day | Explore tabs (Insights chip
-/// picker spirit), calendar day suggestions, and Explore filters.
+/// Recipe root shell (M7-08 / M7-11 / SPEC §12): Day | Explore tabs, Log entry,
+/// calendar day suggestions, and Explore filters.
 struct RecipeView: View {
     @Environment(MainRouter.self) private var router
     @Environment(\.mealDBClient) private var mealDBClient
+    @Environment(\.nutritionClient) private var nutritionClient
     @Environment(PlanStore.self) private var planStore
     @Environment(SupabaseAuthService.self) private var authService
     @Environment(SupabaseSyncEngine.self) private var syncEngine
@@ -14,6 +15,8 @@ struct RecipeView: View {
     @State private var selectedTab: RecipePrimaryTab = .day
     @State private var dayViewModel: RecipeDayViewModel?
     @State private var exploreViewModel: RecipeExploreViewModel?
+    @State private var foodLoggingViewModel: FoodLoggingViewModel?
+    @State private var showsFoodLoggingSheet = false
 
     var body: some View {
         Group {
@@ -26,6 +29,24 @@ struct RecipeView: View {
         }
         .background(PluriColor.bgCanvas)
         .navigationTitle("Recipe")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Log", systemImage: "plus.circle") {
+                    presentStandaloneLog()
+                }
+                .accessibilityHint("Log a food for the selected day")
+            }
+        }
+        .sheet(isPresented: $showsFoodLoggingSheet, onDismiss: {
+            foodLoggingViewModel = nil
+            dayViewModel?.refreshCalorieProgress()
+        }) {
+            if let foodLoggingViewModel {
+                FoodLoggingSheet(viewModel: foodLoggingViewModel) {
+                    dayViewModel?.refreshCalorieProgress()
+                }
+            }
+        }
         .onAppear {
             ensureViewModels()
         }
@@ -70,6 +91,23 @@ struct RecipeView: View {
             exploreViewModel = RecipeExploreViewModel(mealDBClient: mealDBClient)
         }
     }
+
+    private func presentStandaloneLog() {
+        ensureViewModels()
+        guard let dayViewModel else { return }
+        let userId = authService.appUserID.flatMap(UUID.init(uuidString:)) ?? UUID()
+        let store = FoodLogsStore(
+            modelContext: modelContext,
+            userId: userId,
+            syncEngine: syncEngine
+        )
+        foodLoggingViewModel = FoodLoggingViewModel(
+            context: dayViewModel.standaloneLoggingContext(),
+            nutritionClient: nutritionClient,
+            foodLogsStore: store
+        )
+        showsFoodLoggingSheet = true
+    }
 }
 
 // MARK: - Tab picker
@@ -98,6 +136,7 @@ private struct RecipePrimaryTabPicker: View {
     let container = try! ModelContainer(
         for: Schema([
             RecipeFavoriteRecord.self,
+            FoodLogRecord.self,
             RecipeDaySuggestionsRecord.self,
             RecipeCandidatePoolRecord.self,
         ]),
@@ -108,6 +147,7 @@ private struct RecipePrimaryTabPicker: View {
     }
     .environment(MainRouter())
     .environment(\.mealDBClient, MockMealDBClient())
+    .environment(\.nutritionClient, MockNutritionClient())
     .environment(PlanStore(mutationService: MockPlanMutationService()))
     .environment(SupabaseAuthService(supabaseService: SupabaseService(), restoreOnLaunch: false))
     .environment(

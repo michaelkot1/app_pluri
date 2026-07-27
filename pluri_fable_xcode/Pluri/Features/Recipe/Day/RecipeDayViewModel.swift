@@ -27,11 +27,17 @@ final class RecipeDayViewModel {
     private(set) var loadState: LoadState = .idle
     /// True when showing saved suggestions while offline / after network fail.
     private(set) var isShowingCachedSuggestions = false
+    /// Day calorie total vs maintenance for the ring (M7-11).
+    private(set) var calorieProgress = DayCalorieProgress(
+        eatenCalories: 0,
+        maintenanceCalories: nil
+    )
 
     private let mealDBClient: any MealDBClient
     private let planStore: PlanStore
     private let cache: RecipeSuggestionsCache
     private let favoritesStore: RecipeFavoritesStore?
+    private let foodLogsStore: FoodLogsStore
     private let reachability: any NetworkReachability
     private let calendar: Calendar
     private let userId: UUID
@@ -61,6 +67,12 @@ final class RecipeDayViewModel {
             modelContext: modelContext,
             userId: userId,
             syncEngine: syncEngine
+        )
+        self.foodLogsStore = FoodLogsStore(
+            modelContext: modelContext,
+            userId: userId,
+            syncEngine: syncEngine,
+            calendar: calendar
         )
         self.reachability = reachability ?? PathMonitorReachability()
         self.reachability.start()
@@ -96,7 +108,23 @@ final class RecipeDayViewModel {
     func reload() {
         loadTask?.cancel()
         let day = resolvedSelectedDay()
+        refreshCalorieProgress()
         loadTask = Task { await loadSuggestions(for: day) }
+    }
+
+    /// Re-reads local food logs for the selected day (after Log save).
+    func refreshCalorieProgress() {
+        let day = resolvedSelectedDay()
+        let maintenance = planStore.profile?.maintenanceCalories
+        calorieProgress = (try? foodLogsStore.dayCalorieProgress(
+            on: day,
+            maintenanceCalories: maintenance
+        )) ?? DayCalorieProgress(eatenCalories: 0, maintenanceCalories: maintenance)
+    }
+
+    /// Standalone Log sheet context for the selected calendar day.
+    func standaloneLoggingContext() -> FoodLoggingContext {
+        .standalone(loggedDate: resolvedSelectedDay())
     }
 
     func loadSuggestions(for day: Date) async {

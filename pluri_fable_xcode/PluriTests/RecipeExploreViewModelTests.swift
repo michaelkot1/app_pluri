@@ -83,6 +83,21 @@ struct RecipeExploreViewModelTests {
         #expect(vm.results.isEmpty)
     }
 
+    @Test("MealDB rateLimited surfaces Explore error state")
+    func rateLimitedError() async {
+        let vm = RecipeExploreViewModel(
+            mealDBClient: MockMealDBClient(errorToThrow: .rateLimited),
+            reachability: AlwaysOnlineReachability()
+        )
+        await vm.search()
+        #expect(vm.results.isEmpty)
+        guard case .error(let message) = vm.loadState else {
+            Issue.record("Expected .error, got \(vm.loadState)")
+            return
+        }
+        #expect(message == MealDBClientError.rateLimited.errorDescription)
+    }
+
     @Test("Protein filter returns matching MockMealDBClient fixtures")
     func proteinFilter() async {
         let vm = RecipeExploreViewModel(

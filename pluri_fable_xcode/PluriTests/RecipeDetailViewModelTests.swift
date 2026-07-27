@@ -12,6 +12,7 @@ struct RecipeDetailViewModelTests {
         try ModelContainer(
             for: Schema([
                 RecipeFavoriteRecord.self,
+                FoodLogRecord.self,
                 RecipeDaySuggestionsRecord.self,
                 RecipeCandidatePoolRecord.self,
             ]),
@@ -50,6 +51,25 @@ struct RecipeDetailViewModelTests {
         #expect(vm.loadState == .offline)
     }
 
+    @Test("MealDB rateLimited without seed surfaces error state")
+    func rateLimitedWithoutSeed() async throws {
+        let container = try makeContainer()
+        let vm = RecipeDetailViewModel(
+            mealID: "52771",
+            mealDBClient: MockMealDBClient(errorToThrow: .rateLimited),
+            modelContext: container.mainContext,
+            userId: UUID(),
+            reachability: AlwaysOnlineReachability()
+        )
+        await vm.load()
+        #expect(vm.recipe == nil)
+        guard case .error(let message) = vm.loadState else {
+            Issue.record("Expected .error, got \(vm.loadState)")
+            return
+        }
+        #expect(message == MealDBClientError.rateLimited.errorDescription)
+    }
+
     @Test("Favorite toggle never requires network")
     func favoriteToggleLocal() async throws {
         let container = try makeContainer()
@@ -70,8 +90,8 @@ struct RecipeDetailViewModelTests {
         #expect(vm.isFavorite == false)
     }
 
-    @Test("Log stub surfaces coming soon")
-    func logStub() async throws {
+    @Test("Log opens shared sheet context with recipe prefill — not stub")
+    func logOpensWithRecipePrefill() async throws {
         let container = try makeContainer()
         let recipe = [MealDBRecipe].mealDBPreviewFixtures[0]
         let vm = RecipeDetailViewModel(
@@ -80,10 +100,17 @@ struct RecipeDetailViewModelTests {
             modelContext: container.mainContext,
             userId: UUID(),
             seedRecipe: recipe,
-            reachability: AlwaysOnlineReachability()
+            reachability: AlwaysOnlineReachability(),
+            initialMeal: .dinner
         )
         await vm.load()
-        vm.tapLogStub()
-        #expect(vm.showsLogComingSoon)
+        #expect(vm.isPresentingLogSheet == false)
+        vm.openLog()
+        #expect(vm.isPresentingLogSheet)
+        let context = vm.foodLoggingContext
+        #expect(context?.searchQuery == recipe.name)
+        #expect(context?.mealdbRecipeId == recipe.id)
+        #expect(context?.meal == .dinner)
+        #expect(context?.recipeTitle == recipe.name)
     }
 }

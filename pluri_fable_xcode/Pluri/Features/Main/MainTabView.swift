@@ -76,6 +76,7 @@ struct MainTabView: View {
             WorkoutSessionRecord.self,
             SetLogRecord.self,
             RecipeFavoriteRecord.self,
+            FoodLogRecord.self,
             RecipeDaySuggestionsRecord.self,
             RecipeCandidatePoolRecord.self,
         ]),
@@ -90,5 +91,6 @@ struct MainTabView: View {
         .environment(ThemeStore())
         .environment(SwiftDataWorkoutSessionRepository(modelContext: container.mainContext))
         .environment(\.mealDBClient, MockMealDBClient())
+        .environment(\.nutritionClient, MockNutritionClient())
         .modelContainer(container)
 }

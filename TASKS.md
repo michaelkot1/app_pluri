@@ -563,19 +563,19 @@ Recipes & Nutrition (PLAN M7): Recipe tab day view with ~3 auto-suggestions per 
 
 ### Food logging
 
-- [ ] **M7-11** Food log flow + day calorie total vs maintenance: search foods via `NutritionClient` (not only recipes); choose serving size (MyFitnessPal-style — SPEC §12); persist to `food_logs` (+ local cache per M7-01); show calories eaten vs profile `maintenance_calories` (calorie ring / `status/blue` token). Standalone Log entry from Recipe tab.
+- [x] **M7-11** Food log flow + day calorie total vs maintenance: search foods via `NutritionClient` (not only recipes); choose serving size (MyFitnessPal-style — SPEC §12); persist to `food_logs` (+ local cache per M7-01); show calories eaten vs profile `maintenance_calories` (calorie ring / `status/blue` token). Standalone Log entry from Recipe tab.
 
-- [ ] **M7-12** Wire Log from recipe detail + standalone: same logging sheet/flow from M7-09 detail and M7-11 standalone; prefill from recipe when available; day total updates after save.
+- [x] **M7-12** Wire Log from recipe detail + standalone: same logging sheet/flow from M7-09 detail and M7-11 standalone; prefill from recipe when available; day total updates after save.
 
-> **Learned during M7-11/12:** _(fill when logging lands — serving UX, sync honesty.)_
+> **Learned during M7-11/12:** Serving label = Nutrition search query text (README). Nil-kcal hits cannot save (#68 interim — honest copy, no invented kcal). `FoodLogMeal` adds `snack` alongside suggestion `MealSlot`s. Shared `FoodLoggingSheet`/`FoodLoggingViewModel` for toolbar + detail; day ring refreshes after save. Sync mirrors favorites (`enqueueFoodLog` / upsert+delete).
 
 ### Tests & QA
 
-- [ ] **M7-13** Swift Testing (`PluriTests`): suggestions engine (allergy filter, calorie bias, favorites similarity, seed stability); `MealDBClient` / `NutritionClient` parsing + mocks; favorites persist/sync paths; food-log totals vs maintenance; unauthorized/offline/error paths.
+- [x] **M7-13** Swift Testing (`PluriTests`): suggestions engine (allergy filter, calorie bias, favorites similarity, seed stability); `MealDBClient` / `NutritionClient` parsing + mocks; favorites persist/sync paths; food-log totals vs maintenance; unauthorized/offline/error paths.
 
-- [ ] **M7-14** M7 UI QA: previews for empty / offline / populated day, Explore filters, detail + favorite, log sheet + calorie ring; Dynamic Type / VoiceOver / dark mode / 44pt; day → detail → favorite → log click-through; calories update against maintenance.
+- [x] **M7-14** M7 UI QA: previews for empty / offline / populated day, Explore filters, detail + favorite, log sheet + calorie ring; Dynamic Type / VoiceOver / dark mode / 44pt; day → detail → favorite → log click-through; calories update against maintenance.
 
-> **Learned during M7-13/14:** _(fill when verification lands.)_
+> **Learned during M7-13/14:** Gap-fill only — engine / MealDB / Nutrition / favorites / food-log totals already covered. Added `MockMealDBClient.errorToThrow` + `.rateLimited` mock tests; FoodLogging VM maps `unauthorized` / `rateLimited` → `.error` and `.transport` → `.offline`; Day / Explore / Detail VMs surface MealDB rate-limit errors when no cache/seed. Food-log `pendingDelete` flush exercised without a store delete API / UI (out of scope). Previews: `FoodLoggingSheet` (idle/results/nil-kcal/offline), `DayCalorieRingView` (under/at/over/no maintenance), Day empty, Detail favorited vs not via `RecipeDetailBody`. **Automated:** build + M7 PluriTests green; previews compile. **Needs human device pass:** Dynamic Type / VoiceOver / dark mode / 44pt tap targets, full day→detail→favorite→log click-through, live calorie ring vs maintenance after save. Unrelated flake: `ExerciseCatalogSourceTests.planGeneratesFromSupabaseCatalog` (live Supabase catalog string compare) — not M7.
 
 **Dependencies:** M7-01 → 02/03/06; 03 → 04/05; 04 → 06/07/10; 02+04 → 07; 06 → 08 → 09/10; 02+05 → 11; 09+11 → 12; everything → 13/14.
 

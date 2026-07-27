@@ -322,3 +322,34 @@ nonisolated struct RecipeFavoriteUpsertRow: Codable, Hashable, Sendable, Equatab
         case createdAt = "created_at"
     }
 }
+
+/// Upsert payload for `public.food_logs` (M7-11 / SPEC §14 #67f).
+/// LWW via `onConflict: id`. Calories are always present — nil-kcal Nutrition
+/// hits are never persisted (SPEC §14 #68).
+nonisolated struct FoodLogUpsertRow: Codable, Hashable, Sendable, Equatable {
+    var id: UUID
+    var userId: UUID
+    var foodName: String
+    var serving: String
+    var calories: Int
+    var macros: FoodLogMacrosJSON?
+    var meal: String
+    var loggedDate: String
+    var mealdbRecipeId: String?
+    var nutritionFoodId: String?
+    var createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case foodName = "food_name"
+        case serving
+        case calories
+        case macros
+        case meal
+        case loggedDate = "logged_date"
+        case mealdbRecipeId = "mealdb_recipe_id"
+        case nutritionFoodId = "nutrition_food_id"
+        case createdAt = "created_at"
+    }
+}

@@ -12,6 +12,7 @@ struct RecipeDayViewModelTests {
         try ModelContainer(
             for: Schema([
                 RecipeFavoriteRecord.self,
+                FoodLogRecord.self,
                 RecipeDaySuggestionsRecord.self,
                 RecipeCandidatePoolRecord.self,
             ]),
@@ -72,6 +73,25 @@ struct RecipeDayViewModelTests {
         #expect(MealSlot.allCases.allSatisfy { vm.suggestions[$0].isEmpty })
     }
 
+    @Test("MealDB rateLimited without cache surfaces Day error state")
+    func rateLimitedWithoutCache() async throws {
+        let container = try makeContainer()
+        let vm = makeViewModel(
+            container: container,
+            client: MockMealDBClient(errorToThrow: .rateLimited),
+            reachability: AlwaysOnlineReachability()
+        )
+
+        await vm.loadSuggestions(for: .now)
+
+        #expect(MealSlot.allCases.allSatisfy { vm.suggestions[$0].isEmpty })
+        guard case .error(let message) = vm.loadState else {
+            Issue.record("Expected .error, got \(vm.loadState)")
+            return
+        }
+        #expect(message == MealDBClientError.rateLimited.errorDescription)
+    }
+
     @Test("Offline with cached day suggestions uses cache")
     func offlineUsesCache() async throws {
         let container = try makeContainer()
@@ -105,6 +125,42 @@ struct RecipeDayViewModelTests {
         #expect(vm.loadState == .offlineCached)
         #expect(vm.isShowingCachedSuggestions)
         #expect(vm.suggestions.breakfast.count == 1)
+    }
+
+    @Test("refreshCalorieProgress picks up food logs inserted after initial load")
+    func refreshCalorieProgressAfterLogInsert() throws {
+        let container = try makeContainer()
+        let userId = UUID()
+        let calendar = Calendar.current
+        let day = calendar.startOfDay(for: .now)
+        let vm = RecipeDayViewModel(
+            mealDBClient: MockMealDBClient(),
+            planStore: PlanStore(mutationService: MockPlanMutationService()),
+            modelContext: container.mainContext,
+            userId: userId,
+            reachability: AlwaysOnlineReachability(),
+            calendar: calendar
+        )
+        // Avoid select/reload — that starts an async suggestions load against the
+        // same ModelContext and can race with the insert below.
+        vm.refreshCalorieProgress()
+        #expect(vm.calorieProgress.eatenCalories == 0)
+
+        let store = FoodLogsStore(
+            modelContext: container.mainContext,
+            userId: userId,
+            calendar: calendar
+        )
+        _ = try store.insert(
+            foodName: "Oatmeal",
+            serving: "1 bowl",
+            calories: 250,
+            meal: .breakfast,
+            loggedDate: day
+        )
+
+        vm.refreshCalorieProgress()
+        #expect(vm.calorieProgress.eatenCalories == 250)
     }
 
     @Test("Allergy hard-filter can empty a slot honestly")

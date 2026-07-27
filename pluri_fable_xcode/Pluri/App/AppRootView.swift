@@ -9,7 +9,7 @@ import SwiftUI
 /// reminders after plan mutations and powers the Notifications toggle, the
 /// Insights `LiveHealthKitService` (M5-02/18) for Home tiles / Pluri Score
 /// foreground observer, the `SyncEngine` (M4-03 / M7-07) for opportunistic
-/// session / set_log / recipe_favorites upload, and the local
+/// session / set_log / recipe_favorites / food_logs upload, and the local
 /// `WorkoutSessionRepository` for Detail Notes / live session writes (M4-05/06).
 struct AppRootView: View {
     @State private var supabaseService: SupabaseService
@@ -121,6 +121,7 @@ struct AppRootView: View {
             LiveAskPluriHistoryLoader(client: supabaseService.client)
         )
         .environment(\.mealDBClient, LiveMealDBClient())
+        .environment(\.nutritionClient, LiveNutritionClient())
         .onChange(of: router.phase) { _, newPhase in
             // The shared plan store (M3-04) tracks the Main phase: hydrate it
             // from the router's restored state on entry, blank it on reroute
@@ -176,6 +177,7 @@ struct AppRootView: View {
             WorkoutSessionRecord.self,
             SetLogRecord.self,
             RecipeFavoriteRecord.self,
+            FoodLogRecord.self,
             RecipeDaySuggestionsRecord.self,
             RecipeCandidatePoolRecord.self,
         ]),

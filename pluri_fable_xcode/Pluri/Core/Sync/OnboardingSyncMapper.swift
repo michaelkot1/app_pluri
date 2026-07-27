@@ -151,6 +151,24 @@ nonisolated enum OnboardingSyncMapper {
         )
     }
 
+    /// Maps a local food log to a `food_logs` upsert row (M7-11).
+    @MainActor
+    static func foodLogRow(for record: FoodLogRecord) -> FoodLogUpsertRow {
+        FoodLogUpsertRow(
+            id: record.id,
+            userId: record.userId,
+            foodName: record.foodName,
+            serving: record.serving,
+            calories: record.calories,
+            macros: FoodLogMacrosJSON.decode(from: record.macrosJSON),
+            meal: record.meal,
+            loggedDate: DatabaseCodeMappings.dateString(record.loggedDate),
+            mealdbRecipeId: record.mealdbRecipeId,
+            nutritionFoodId: record.nutritionFoodId,
+            createdAt: DatabaseCodeMappings.timestampString(record.createdAt)
+        )
+    }
+
     /// Maps a plan's editable metadata to the Manage Plan `plans` update row
     /// (M3-14 / §6.2). All fields are filled so the row is also usable as the
     /// complete `plan_update` object of the `replace_remaining_plan` RPC.
