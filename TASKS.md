@@ -587,37 +587,45 @@ Recipes & Nutrition (PLAN M7): Recipe tab day view with ~3 auto-suggestions per 
 
 ## M8 — Community
 
-Community (PLAN M8): feed (posts, likes, comments, polls), create-post flow with type/image/poll and the 3-word rule, search, saved posts, Explore Spaces directory, **moderation (report/block/hide)** — App Review blocker. Builds on M2 Main’s Community tab placeholder and M3 Notifications stubs. **Exit:** users can post, interact, search, save; UGC moderation in place.
+Community (PLAN M8): Runna-like hub (**Feed · Discover · Saved**) — feed (posts, likes, comments, polls), create-post flow with type/image/poll and the 3-word rule, search, saved posts, Discover (Explore Spaces + Challenges coming-soon stubs), **moderation (report/block/hide)** — App Review blocker. Builds on M2 Main’s Community tab placeholder and M3 Notifications stubs. **Exit:** users can post, interact, search, save; Discover stubs honest; UGC moderation in place; author name + like/comment counts on cards.
 
 > **Note:** PLAN §2 dependency notes — M7 (Recipes & Nutrition) and M8 are independent and can ship in parallel or be reordered. Full M7 task section is in this file above (`## M7 — Recipes & Nutrition`).
 
 ### Scope & decisions (do first — unblock moderation, feed, and Storage)
 
-- [ ] **M8-01** Resolve and record Community decisions in SPEC §14/§15 before building: moderation UX (report / block / hide) and persistence; feed ranking (chronological vs engagement — pick reversible interim); post-image Storage path + size/type limits; offline honesty for Community (no fake feed when offline); Share Workout payload shape (which session fields attach); Explore Spaces v1 stub/directory data source; which Community notification rows belong in M8 vs M9 push. Close/update the SPEC §15 Community moderation bullet when decided. Pick the most reversible interim option where the owner is unavailable (AGENTS §7).
+- [x] **M8-01** Resolve and record Community decisions in SPEC §14/§15 before building: moderation UX (report / block / hide) and persistence; feed ranking (chronological vs engagement — pick reversible interim); post-image Storage path + size/type limits; offline honesty for Community (no fake feed when offline); Share Workout payload shape (which session fields attach); Explore Spaces v1 stub/directory data source; which Community notification rows belong in M8 vs M9 push. Close/update the SPEC §15 Community moderation bullet when decided. Pick the most reversible interim option where the owner is unavailable (AGENTS §7).
+
+> **Learned during M8-01 (2026-07-26):** decisions recorded as SPEC §14 **#72** (**a** moderation = Report → `post_reports` + post flag, Hide → `post_hides`, Block → `user_blocks`; feed excludes hidden + blocked authors; reporter soft-hide, global hide = staff only — closes §15; **b** ranking = chronological `created_at DESC`; **c** Storage = bucket `post-images`, path `{user_id}/{post_id}.{ext}`, jpeg/png/heic ~5 MB, public-read + auth upload (signed reversible) for M8-03; **d** offline = honest empty/error, no invented feed; **e** Share Workout snapshot jsonb = `session_id`, plan title via `planWorkoutId`, `activityType`, `durationSeconds`, optional `distanceMeters`, set/rep summary counts — no HealthKit; **f** Explore Spaces = bundled/static stub (or empty coming-soon), browse-only, no join/geo; **g** M8 in-app reply notification rows only; clubs = v2; push = M9). §11 points at #72; §5.3 clarified (replies M8 / clubs v2 / push M9); §15 Community moderation question resolved. No Swift/UI/schema/Storage code in this task — M8-02+ implements against these decisions.
 
 ### Backend
 
-- [ ] **M8-02** Migration: community tables + RLS + moderation columns day one — `posts`, `post_likes`, `post_comments`, `post_polls`, `poll_votes`, `saved_posts` per PLAN §1.3 (posts publicly readable; writes owner-only; reported/hidden from day one).
+- [x] **M8-02** Migration: community tables + RLS + moderation day one — `posts`, `post_likes`, `post_comments`, `post_polls`, `poll_votes`, `saved_posts`, plus **`post_reports`**, **`post_hides`**, **`user_blocks`** (SPEC §14 #72 / #73, PLAN §1.3). `posts`: type enum/check (general/gear/recipe/share_workout), timestamps, FK → `profiles` CASCADE, `reported` / `report_count`, staff `hidden`, optional `workout_snapshot` jsonb. Public SELECT of non-staff-hidden posts (exclude viewer hides/blocks/own reports where policy can); owner writes; likes/comments/votes/saves owner-scoped writes; reports/hides/blocks by authenticated viewer with uniqueness. Indexes on `created_at`, FKs, unique `(user_id, post_id)` (and equivalent pairs). Narrow author attribution via `community_author_profiles` (`display_name`; avatar only if column exists later) — do **not** open full `profiles` SELECT. No Swift client in this task.
 
-- [ ] **M8-03** Storage bucket + policies for post images (path/limits per M8-01; never ship secrets; RLS-safe upload/read).
+- [x] **M8-03** Storage bucket + policies for post images: bucket `post-images`; path `{user_id}/{post_id}.{ext}`; MIME jpeg/png/heic; ~5 MB; public-read + authenticated upload only under owner prefix (SPEC §14 #72c). Never ship secrets; no iOS upload code yet.
+
+> **Learned during M8-02/03 (2026-07-27):** remote migrations applied — `community_tables_rls` (+ finish repair migrations after a truncated first apply), `post_images_storage`, `community_author_profiles_table_and_advisor_fixes`. Author attribution is a **synced table** (not a SECURITY DEFINER view) to satisfy advisors while keeping `profiles` owner-only. Storage is public bucket without a broad `storage.objects` SELECT policy (CDN URLs; avoids listing). Smoke: empty feed SELECT OK; anon INSERT blocked by RLS. Runna hub + M8-15/16 tasks documented; UI still M8-04+.
 
 ### Client networking & domain
 
-- [ ] **M8-04** Domain models + `CommunityClient` / repository (protocol + live Supabase + mocks for previews/tests) covering feed, create, like, comment, poll vote, search, save, moderation actions (PLAN §1.2 / §1.3).
+- [ ] **M8-04** Domain models + `CommunityClient` / repository (protocol + live Supabase + mocks for previews/tests) covering feed, create, like, comment, poll vote, search, save, moderation actions, author `display_name` + like/comment counts (PLAN §1.2 / §1.3, SPEC §14 #73).
 
 ### Feature UI
 
-- [ ] **M8-05** Replace Community tab placeholder with feed shell: top bar per SPEC §11 (search + calendar), honest empty/offline/error states (no fake content).
+- [ ] **M8-05** Replace Community tab placeholder with hub shell: **Feed · Discover · Saved** chrome per SPEC §11 (Runna-like); top bar search + calendar; honest empty/offline/error states (no fake content). Clubs = omit or honest stub only (not live).
 
-- [ ] **M8-06** Feed: Instagram-style scrolling post cards with like, comment, and poll vote (SPEC §11); Dynamic Type / VoiceOver / 44pt.
+- [ ] **M8-06** Feed: Instagram-style scrolling post cards with like, comment, and poll vote (SPEC §11); show **author `display_name`** + **like/comment counts** (with M8-16); Dynamic Type / VoiceOver / 44pt.
 
 - [ ] **M8-07** Create Post flow: types General / Gear / Recipe / Share Workout; optional image + optional poll; **Post** enabled only with a title and ≥3 body words (SPEC §11); Share Workout payload per M8-01.
 
 - [ ] **M8-08** Search across post types (general, gear, workouts/runs/flexibility, recipe — SPEC §11).
 
-- [ ] **M8-09** Saved / bookmarked posts (bookmark entry + list of user’s saved posts — SPEC §11).
+- [ ] **M8-09** Saved / bookmarked posts — Saved hub segment + list of user’s saved posts (SPEC §11).
 
-- [ ] **M8-10** Explore Spaces directory — browse-only v1 for upcoming races / running groups nearby (SPEC §1.1 / §11); join/manage = v2.
+- [ ] **M8-10** Explore Spaces directory under **Discover** — browse-only v1 for upcoming races / running groups nearby (SPEC §1.1 / §11 / #72f); join/manage = v2.
+
+- [ ] **M8-15** Discover hub stub: wire Discover segment with Spaces (M8-10) + **Challenges coming-soon cards** only (no live Challenges — v2 / SPEC §15). Depends on M8-05 hub chrome (+ M8-10 for Spaces content).
+
+- [ ] **M8-16** Author attribution on cards: resolve `display_name` via `community_author_profiles` / M8-02 RLS; surface like + comment counts on feed cards. Wire with M8-06; depends on M8-02.
 
 - [ ] **M8-11** Moderation UI + persistence (report / block / hide) per M8-01 — App Review blocker for UGC (SPEC §13 / §15, PLAN M8).
 
@@ -627,13 +635,13 @@ Community (PLAN M8): feed (posts, likes, comments, polls), create-post flow with
 
 - [ ] **M8-13** Swift Testing: `CommunityClient` parsing/mocks; create / like / save flows; moderation actions; unauthorized/offline/error paths.
 
-- [ ] **M8-14** M8 UI QA: a11y (Dynamic Type / VoiceOver / 44pt / dark mode); empty/offline/error previews; create → appears in feed; search/save click-through; moderation report/block/hide click-through.
+- [ ] **M8-14** M8 UI QA: a11y (Dynamic Type / VoiceOver / 44pt / dark mode); empty/offline/error previews; create → appears in feed; search/save click-through; Discover Spaces + Challenges stub; moderation report/block/hide click-through.
 
-**Dependencies:** M8-01 → 02/03/04; 02+03 → 04 → 05/06/07; 04 → 08/09/10/11; 01+06 → 12; everything → 13/14.
+**Dependencies:** M8-01 → 02/03/04; 02+03 → 04 → 05/06/07; 04 → 08/09/10/11; 05+10 → 15; 02+06 → 16; 01+06 → 12; everything → 13/14.
 
-**M8 exit check** (PLAN M8): users can post, interact, search, save; UGC moderation in place. Specifically: Community decisions recorded in SPEC §14/§15; community tables + RLS + moderation columns and post-image Storage in place; Community tab placeholder replaced by a real feed with like/comment/poll; create-post enforces title + ≥3 body words; search and saved posts work; Explore Spaces is browse-only; report/block/hide ship for App Review; Community reply notification rows are honest (club messages deferred per M8-01); build + Swift Testing suite pass; Dynamic Type/VoiceOver/44pt targets and create→feed + moderation QA manually checked.
+**M8 exit check** (PLAN M8): users can post, interact, search, save; UGC moderation in place. Specifically: Community decisions recorded in SPEC §14/§15; community tables + RLS + moderation columns and post-image Storage in place; Community hub (Feed · Discover · Saved) replaces the placeholder; create-post enforces title + ≥3 body words; search and saved posts work; Discover shows Spaces + Challenges coming-soon; cards show author name + like/comment counts; report/block/hide ship for App Review; Community reply notification rows are honest (club messages deferred per M8-01); build + Swift Testing suite pass; Dynamic Type/VoiceOver/44pt targets and create→feed + moderation QA manually checked.
 
-**Deferred out of M8 (don't build ahead):** clubs/groups fully live (v2); Explore Spaces join/manage (v2); races “fully live” (v2 — SPEC §1.1); anything M9 push-only if scoped out in M8-01; Recipes / nutrition UI (M7); Outdoor Run tracking (M9); Cardio / Flexibility / hybrid plans (v2).
+**Deferred out of M8 (don't build ahead):** clubs/groups fully live (v2); live Challenges (v2); follow / full public profiles (v2); Explore Spaces join/manage (v2); races “fully live” (v2 — SPEC §1.1); anything M9 push-only if scoped out in M8-01; Recipes / nutrition UI (M7); Outdoor Run tracking (M9); Cardio / Flexibility / hybrid plans (v2).
 
 ---
 
