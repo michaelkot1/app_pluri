@@ -160,6 +160,40 @@ extension [MealDBRecipe] {
                     MealDBIngredient(name: "burger buns", measure: "4"),
                 ]
             ),
+            MealDBRecipe(
+                id: "52990",
+                name: "Full English Breakfast",
+                thumbnailURL: URL(string: "https://www.themealdb.com/images/media/meals/ypuxtw1511298026.jpg"),
+                category: "Breakfast",
+                area: "British",
+                country: "United Kingdom",
+                instructions: "Fry eggs and bacon about 8 minutes. Toast bread and serve hot.",
+                tags: ["Breakfast"],
+                youtubeURL: nil,
+                sourceURL: nil,
+                ingredients: [
+                    MealDBIngredient(name: "eggs", measure: "2"),
+                    MealDBIngredient(name: "bacon", measure: "3 rashes"),
+                    MealDBIngredient(name: "bread", measure: "2 slices"),
+                ]
+            ),
+            MealDBRecipe(
+                id: "52893",
+                name: "Apple & Blackberry Crumble",
+                thumbnailURL: URL(string: "https://www.themealdb.com/images/media/meals/xvsurr1511716696.jpg"),
+                category: "Dessert",
+                area: "British",
+                country: "United Kingdom",
+                instructions: "Stew fruit 15 minutes, top with crumble, bake 40 minutes until golden.",
+                tags: ["Dessert", "Cake"],
+                youtubeURL: nil,
+                sourceURL: nil,
+                ingredients: [
+                    MealDBIngredient(name: "apples", measure: "300g"),
+                    MealDBIngredient(name: "blackberries", measure: "120g"),
+                    MealDBIngredient(name: "flour", measure: "225g"),
+                ]
+            ),
         ]
     }
 }

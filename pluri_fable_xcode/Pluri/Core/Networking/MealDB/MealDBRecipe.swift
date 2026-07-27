@@ -1,7 +1,7 @@
 import Foundation
 
 /// One ingredient line on a MealDB recipe (name + measure).
-struct MealDBIngredient: Hashable, Sendable {
+struct MealDBIngredient: Hashable, Sendable, Codable {
     let name: String
     let measure: String
 }
@@ -12,7 +12,9 @@ struct MealDBIngredient: Hashable, Sendable {
 /// `recipe_favorites.mealdb_recipe_id` / optional `food_logs.mealdb_recipe_id`.
 /// Filter endpoints return summaries (name + thumb; optional area); lookup /
 /// search fill instructions, ingredients, tags, and media when present.
-struct MealDBRecipe: Identifiable, Hashable, Sendable {
+/// `Codable` so day-suggestion / candidate caches can persist full recipes
+/// offline (SPEC §14 #67g / M7-08).
+struct MealDBRecipe: Identifiable, Hashable, Sendable, Codable {
     /// MealDB `idMeal` (e.g. `"52772"`).
     let id: String
     let name: String

@@ -1,11 +1,10 @@
 import SwiftData
 import SwiftUI
 
-/// Main TabView navigation skeleton (M3-06 / M5-07): Home · Plan · Insights ·
-/// Community · Recipe, one `NavigationStack` per tab, with a `MainRouter`
-/// driving programmatic tab selection, the Home and Plan tabs' typed route
-/// paths, and the health-tile deep link into Insights Performance (PLAN §1.2).
-/// Community / Recipe stay honest placeholders until their milestones.
+/// Main TabView navigation skeleton (M3-06 / M5-07 / M7-08): Home · Plan ·
+/// Insights · Community · Recipe, one `NavigationStack` per tab, with a
+/// `MainRouter` driving programmatic tab selection and typed route paths
+/// (PLAN §1.2). Community stays an honest placeholder until M8.
 struct MainTabView: View {
     /// Launch-restored profile + plan, kept as the Profile fallback.
     var restored: RestoredUserState?
@@ -56,12 +55,11 @@ struct MainTabView: View {
                 }
             }
             Tab("Recipe", systemImage: "fork.knife", value: MainTab.recipe) {
-                NavigationStack {
-                    MainTabPlaceholderView(
-                        title: "Recipe",
-                        systemImage: "fork.knife",
-                        message: "Daily recipe suggestions tuned to your goal arrive later."
-                    )
+                NavigationStack(path: $router.recipePath) {
+                    RecipeView()
+                        .navigationDestination(for: RecipeRoute.self) { route in
+                            RecipeRouteDestinationView(route: route)
+                        }
                 }
             }
         }
@@ -77,6 +75,9 @@ struct MainTabView: View {
             ExerciseCatalogSyncState.self,
             WorkoutSessionRecord.self,
             SetLogRecord.self,
+            RecipeFavoriteRecord.self,
+            RecipeDaySuggestionsRecord.self,
+            RecipeCandidatePoolRecord.self,
         ]),
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
@@ -88,5 +89,6 @@ struct MainTabView: View {
         .environment(LiveHealthKitService())
         .environment(ThemeStore())
         .environment(SwiftDataWorkoutSessionRepository(modelContext: container.mainContext))
+        .environment(\.mealDBClient, MockMealDBClient())
         .modelContainer(container)
 }

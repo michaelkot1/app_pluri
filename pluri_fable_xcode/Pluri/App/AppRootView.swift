@@ -120,6 +120,7 @@ struct AppRootView: View {
             \.askPluriHistoryLoader,
             LiveAskPluriHistoryLoader(client: supabaseService.client)
         )
+        .environment(\.mealDBClient, LiveMealDBClient())
         .onChange(of: router.phase) { _, newPhase in
             // The shared plan store (M3-04) tracks the Main phase: hydrate it
             // from the router's restored state on entry, blank it on reroute
@@ -175,6 +176,8 @@ struct AppRootView: View {
             WorkoutSessionRecord.self,
             SetLogRecord.self,
             RecipeFavoriteRecord.self,
+            RecipeDaySuggestionsRecord.self,
+            RecipeCandidatePoolRecord.self,
         ]),
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )

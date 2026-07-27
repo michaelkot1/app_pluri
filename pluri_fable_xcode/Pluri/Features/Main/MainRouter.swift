@@ -1,14 +1,13 @@
 import Foundation
 import Observation
 
-/// Navigation state for the Main TabView (M3-06 / M5-17): selected tab, the
-/// Home / Plan / Insights tabs' typed navigation paths, and the Insights
-/// section requested by a Home health-tile deep link (PLAN §1.2).
+/// Navigation state for the Main TabView (M3-06 / M5-17 / M7-08): selected tab,
+/// the Home / Plan / Insights / Recipe tabs' typed navigation paths, and the
+/// Insights section requested by a Home health-tile deep link (PLAN §1.2).
 ///
 /// Deliberately separate from the root `AppRouter` (which owns app phases —
 /// SPEC §14 #41): this router only exists while the Main shell is on screen.
 /// Owned by `MainTabView` as `@State` and injected via `.environment`.
-/// Remaining tabs gain their own paths when their real content lands.
 @MainActor
 @Observable
 final class MainRouter {
@@ -22,6 +21,9 @@ final class MainRouter {
 
     /// The Insights tab's `NavigationStack` path (M5-17 / SPEC §14 #64).
     var insightsPath: [InsightsRoute] = []
+
+    /// The Recipe tab's `NavigationStack` path (M7-08/09).
+    var recipePath: [RecipeRoute] = []
 
     /// Health subsection a Home tile asked for; Insights lands on Performance
     /// and highlights the matching Health chip (M3-08 / M5-07 / M5-10 / SPEC §14 #61).
@@ -195,6 +197,13 @@ final class MainRouter {
                 return
             }
         }
+    }
+
+    // MARK: - Recipe tab (M7-08/09)
+
+    func openRecipeDetail(mealID: String) {
+        selectedTab = .recipe
+        recipePath.append(.detail(mealID: mealID))
     }
 
     private func pushOnHome(_ route: HomeRoute) {

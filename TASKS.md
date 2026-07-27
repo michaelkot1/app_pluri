@@ -553,13 +553,13 @@ Recipes & Nutrition (PLAN M7): Recipe tab day view with ~3 auto-suggestions per 
 
 ### Recipe tab UI
 
-- [ ] **M7-08** Replace Recipe tab placeholder with day shell: calendar-style day picker (Home spirit — SPEC §12); sections for breakfast / lunch / dinner / dessert showing ~3 suggestions from M7-06; honest empty/offline/error; `Features/Recipe/`; design tokens (`accent/pink` food moments, `status/blue` calorie affordances per `design.md`); Dynamic Type / VoiceOver / 44pt.
+- [x] **M7-08** Replace Recipe tab placeholder with day shell: calendar-style day picker (Home spirit — SPEC §12); sections for breakfast / lunch / dinner / dessert showing ~3 suggestions from M7-06; honest empty/offline/error; `Features/Recipe/`; design tokens (`accent/pink` food moments, `status/blue` calorie affordances per `design.md`); Dynamic Type / VoiceOver / 44pt.
 
-- [ ] **M7-09** Recipe detail + favorite toggle: open from a suggestion/Explore row; show MealDB content (ingredients, instructions, media when available); favorite on/off via M7-07; entry point for Log (wired in M7-12).
+- [x] **M7-09** Recipe detail + favorite toggle: open from a suggestion/Explore row; show MealDB content (ingredients, instructions, media when available); favorite on/off via M7-07; entry point for Log (wired in M7-12).
 
-- [ ] **M7-10** Explore tab + filters: cuisine, meat/protein, cook duration, portion (meal-prep vs single serving) per SPEC §12 / M7-01 value sets; results via `MealDBClient`; honest empty states.
+- [x] **M7-10** Explore tab + filters: cuisine, meat/protein, cook duration, portion (meal-prep vs single serving) per SPEC §12 / M7-01 value sets; results via `MealDBClient`; honest empty states.
 
-> **Learned during M7-08/09/10:** _(fill when Recipe UI lands — navigation shape, filter UX notes.)_
+> **Learned during M7-08/09/10:** Recipe root mirrors Insights — `RecipePrimaryTab` Day|Explore via `PluriChip` (not `Picker.segmented`). `MainRouter.recipePath` + `RecipeRoute.detail(mealID:)` for stack navigation. Day strip reuses Home calendar patterns with `accentPink` selection (no workout dots). Candidate pool = search seeds + Breakfast/Dessert category lookups (`RecipeCandidateLoader`); full recipes required for engine; SwiftData `RecipeDaySuggestionsRecord` + `RecipeCandidatePoolRecord` for #67g offline day cache (Explore stays online-only). Cuisine chips use curated validated `strArea` maps (American→`United States`, French→`France`, Indian→`India` — MealDB README caveat). Duration/portion = `RecipeExploreHeuristics` on instructions/measures (no API fields). Detail Log CTA = coming-soon stub only (M7-11/12). `mealDBClient` EnvironmentKey wired in `AppRootView` like Ask Pluri.
 
 ### Food logging
 
