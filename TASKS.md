@@ -532,13 +532,16 @@ Recipes & Nutrition (PLAN M7): Recipe tab day view with ~3 auto-suggestions per 
 
 ### API spike & clients
 
-- [ ] **M7-03** API spike: hit TheMealDB + API Ninjas Nutrition with real endpoints/keys as needed; document response shapes, rate limits, search/filter capabilities, and auth (MealDB often keyless — spike decides) in `Core/Networking/MealDB/README` and `Core/Networking/Nutrition/README` (mirror M1-01 / WorkoutX). Confirm `NUTRITION_API_KEY` → `Secrets.nutritionAPIKey` path; never commit secrets.
+- [x] **M7-03** API spike: hit TheMealDB + API Ninjas Nutrition with real endpoints/keys as needed; document response shapes, rate limits, search/filter capabilities, and auth (MealDB often keyless — spike decides) in `Core/Networking/MealDB/README` and `Core/Networking/Nutrition/README` (mirror M1-01 / WorkoutX). Confirm `NUTRITION_API_KEY` → `Secrets.nutritionAPIKey` path; never commit secrets.
 
-- [ ] **M7-04** `MealDBClient` protocol + live + mock for previews/tests: recipe search/lookup, cuisine/ingredient filters needed by day suggestions + Explore (PLAN §1.1 / SPEC §12). Typed models; no secrets in source.
+- [x] **M7-04** `MealDBClient` protocol + live + mock for previews/tests: recipe search/lookup, cuisine/ingredient filters needed by day suggestions + Explore (PLAN §1.1 / SPEC §12). Typed models; no secrets in source.
 
-- [ ] **M7-05** `NutritionClient` protocol + live + mock for previews/tests: food search + nutrition-per-serving parsing for logging (SPEC §12 Log). Inject key from `Secrets` (or EF proxy if M7-01 chose that); never hardcode.
+- [x] **M7-05** `NutritionClient` protocol + live + mock for previews/tests: food search + nutrition-per-serving parsing for logging (SPEC §12 Log). Inject key from `Secrets` (or EF proxy if M7-01 chose that); never hardcode.
 
-> **Learned during M7-03/04/05:** _(fill when spike + clients land — auth posture, rate limits, adapter quirks.)_
+> **Learned during M7-03/04/05 (2026-07-27):**
+> - **MealDB:** keyless free path `/api/json/v1/1/`; empty results = `"meals":null`; no cook-time/servings fields — Duration/Portion stay client heuristics (#67e). Cuisine = `strArea` + `filter.php?a=`; Protein = `filter.php?c=` for Chicken/Beef/Pork/Seafood/Vegetarian/Vegan. **Naming drift:** `American`→`United States`, `French`→`France`, `Indian`→`India`, `Dutch`→`Netherlands`; `list.php?a=list` is a large nationality catalog that does **not** 1:1 match filterable areas — validate before Explore. No rate-limit headers observed in spike; still surface `.rateLimited`.
+> - **Nutrition:** `NUTRITION_API_KEY` → `Secrets.nutritionAPIKey` → `X-Api-Key`; base `https://api.api-ninjas.com/v1` hardcoded. **Free tier gates `calories` + `protein_g`** (premium string) — fat/carbs/etc. still numeric. Domain optionals + SPEC §14 **#68**. Invalid key → HTTP 400. No durable food id — synthetic `name|serving_g`.
+> - **Clients:** `MealDBClient` / `NutritionClient` protocol + Live + Mock under `Core/Networking/{MealDB,Nutrition}/`; Swift Testing offline decode/mock suites. Networking `README.md` files excluded from the Pluri app target membership (avoids duplicate `Pluri.app/README.md` copy). No Recipe UI / SwiftData / suggestion engine in this slice.
 
 ### Domain: suggestions & favorites
 
