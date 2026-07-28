@@ -33,6 +33,9 @@ struct WorkoutScreenView: View {
         .background(PluriColor.bgCanvas)
         .navigationTitle(session?.title ?? "Workout")
         .navigationBarTitleDisplayMode(.inline)
+        // The screen stays mounted under a sheet; hold GIFs on their first frame
+        // so Ask Pluri isn't fighting N animations for the main thread (§14 #76).
+        .environment(\.exerciseMediaAnimationEnabled, !isCoveredBySheet)
         .id(sessionID)
         .onAppear {
             ensureViewModel()
@@ -67,9 +70,17 @@ struct WorkoutScreenView: View {
     private func screenContent(for session: PlannedSession) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: PluriSpacing.lg) {
-                timerAndMetrics
+                if let viewModel {
+                    WorkoutTimerMetricsView(viewModel: viewModel)
 
-                exercisesSection(for: session)
+                    WorkoutExerciseListView(
+                        session: session,
+                        viewModel: viewModel,
+                        usesImperialUnits: planStore.profile?.units == "imperial"
+                    )
+                } else {
+                    WorkoutTimerMetricsPlaceholderView()
+                }
 
                 if let errorMessage = viewModel?.errorMessage {
                     Text(errorMessage)
@@ -83,89 +94,6 @@ struct WorkoutScreenView: View {
             .padding(.vertical, PluriSpacing.lg)
         }
         .scrollIndicators(.hidden)
-    }
-
-    private var timerAndMetrics: some View {
-        VStack(spacing: PluriSpacing.md) {
-            PluriHeroNumeral(text: viewModel?.formattedElapsed ?? "00:00")
-                .accessibilityLabel(timerAccessibilityLabel)
-
-            HStack(spacing: PluriSpacing.lg) {
-                metricSlot(
-                    title: "Heart rate",
-                    value: viewModel?.heartRateDisplay ?? "—",
-                    accessibilityValue: heartRateAccessibility
-                )
-                metricSlot(
-                    title: "Calories",
-                    value: viewModel?.caloriesDisplay ?? "—",
-                    accessibilityValue: caloriesAccessibility
-                )
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, PluriSpacing.md)
-    }
-
-    private func metricSlot(
-        title: String,
-        value: String,
-        accessibilityValue: String
-    ) -> some View {
-        VStack(spacing: PluriSpacing.xs) {
-            Text(value)
-                .font(PluriFont.sectionHeader)
-                .foregroundStyle(
-                    value == "—" ? PluriColor.textTertiary : PluriColor.textPrimary
-                )
-                .monospacedDigit()
-            Text(title)
-                .font(PluriFont.label)
-                .foregroundStyle(PluriColor.textSecondary)
-        }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityValue)
-    }
-
-    private func exercisesSection(for session: PlannedSession) -> some View {
-        VStack(alignment: .leading, spacing: PluriSpacing.sm) {
-            Text("Exercises")
-                .font(PluriFont.overline)
-                .textCase(.uppercase)
-                .kerning(1)
-                .foregroundStyle(PluriColor.textSecondary)
-
-            let usesImperial = planStore.profile?.units == "imperial"
-            let showsLog = viewModel?.showsLiveControls == true
-            ForEach(session.exercises) { exercise in
-                WorkoutExerciseCardView(
-                    exercise: exercise,
-                    mediaURL: viewModel?.resolvedImageURL(for: exercise),
-                    showsInlineLog: showsLog,
-                    usesImperialUnits: usesImperial,
-                    loggedSetCount: viewModel?.loggedSetCountByExercise[exercise.id] ?? 0,
-                    action: {
-                        viewModel?.selectExercise(exercise.id)
-                    },
-                    onLogSet: { reps, weight in
-                        viewModel?.logSet(
-                            exercise: exercise,
-                            reps: reps,
-                            weightDisplay: weight
-                        )
-                    },
-                    onLogDuration: { seconds in
-                        viewModel?.logSet(
-                            exercise: exercise,
-                            reps: 0,
-                            weightDisplay: nil,
-                            durationSeconds: seconds
-                        )
-                    }
-                )
-            }
-        }
     }
 
     @ViewBuilder
@@ -252,38 +180,16 @@ struct WorkoutScreenView: View {
         )
     }
 
-    private var timerAccessibilityLabel: String {
-        let elapsed = viewModel?.formattedElapsed ?? "00:00"
-        if viewModel?.isRunning == true {
-            return "Workout timer, \(elapsed), running"
-        }
-        if viewModel?.isPaused == true {
-            return "Workout timer, \(elapsed), paused"
-        }
-        return "Workout timer, \(elapsed)"
-    }
-
-    private var heartRateAccessibility: String {
-        let value = viewModel?.heartRateDisplay ?? "—"
-        if value == "—" {
-            return "Heart rate, no data yet"
-        }
-        return "Heart rate, \(value) beats per minute"
-    }
-
-    private var caloriesAccessibility: String {
-        let value = viewModel?.caloriesDisplay ?? "—"
-        if value == "—" {
-            return "Calories, no data yet"
-        }
-        return "Calories, \(value) kilocalories"
-    }
-
     private func notesBinding(for exerciseID: UUID) -> Binding<String> {
         Binding(
             get: { viewModel?.notesDraft(for: exerciseID) ?? "" },
             set: { viewModel?.updateExerciseNotesDraft($0, for: exerciseID) }
         )
+    }
+
+    private var isCoveredBySheet: Bool {
+        guard let viewModel else { return false }
+        return viewModel.showsAskPluri || viewModel.selectedExerciseID != nil
     }
 
     private var askPluriBinding: Binding<Bool> {

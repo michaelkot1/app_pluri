@@ -72,8 +72,10 @@ private struct AskPluriChatContent: View {
             AskPluriComposer(
                 draft: $viewModel.draft,
                 canSend: viewModel.canSend,
-                isBusy: viewModel.isBusy,
                 onSend: {
+                    // Detached from the view's lifetime on purpose: the sheet can
+                    // be re-laid-out mid-flight and the reply must still land on
+                    // this (reference) view model (SPEC §14 #76).
                     Task { await viewModel.send() }
                 }
             )
@@ -297,11 +299,13 @@ private struct AskPluriMessageBubble: View {
 private struct AskPluriComposer: View {
     @Binding var draft: String
     var canSend: Bool
-    var isBusy: Bool
     var onSend: () -> Void
 
     var body: some View {
         HStack(alignment: .bottom, spacing: PluriSpacing.sm) {
+            // Never `.disabled()` while sending: disabling a focused TextField
+            // resigns first responder and can write its stale text back over the
+            // cleared draft, stranding the question in the box (SPEC §14 #76).
             TextField("Ask about your workout…", text: $draft, axis: .vertical)
                 .font(PluriFont.body)
                 .foregroundStyle(PluriColor.textPrimary)
@@ -310,7 +314,6 @@ private struct AskPluriComposer: View {
                 .padding(.vertical, PluriSpacing.sm)
                 .frame(minHeight: 44)
                 .background(PluriColor.bgMuted, in: .rect(cornerRadius: PluriRadius.lg))
-                .disabled(isBusy)
                 .accessibilityLabel("Message")
                 .accessibilityHint("Type a question for your coach")
 

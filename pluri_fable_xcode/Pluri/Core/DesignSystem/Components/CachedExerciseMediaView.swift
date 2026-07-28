@@ -8,6 +8,8 @@ struct CachedExerciseMediaView: View {
     var remoteURL: URL?
     var cache: ExerciseMediaCache = .shared
 
+    @Environment(\.exerciseMediaAnimationEnabled) private var animationEnabled
+
     @State private var image: UIImage?
     @State private var loadFailed = false
 
@@ -15,7 +17,7 @@ struct CachedExerciseMediaView: View {
         ZStack {
             PluriColor.bgMuted
             if let image {
-                AnimatedExerciseImageView(image: image)
+                AnimatedExerciseImageView(image: image, isAnimating: animationEnabled)
                     .scaledToFill()
             } else if loadFailed || remoteURL == nil {
                 Image(systemName: "figure.strengthtraining.traditional")
@@ -43,8 +45,13 @@ struct CachedExerciseMediaView: View {
 
         do {
             let data = try await cache.data(for: remoteURL)
-            image = Self.makeImage(from: data)
-            if image == nil {
+            // GIF frame decode is expensive; keep it off the main actor so a
+            // scrolling workout list never stalls on it (SPEC §14 #76).
+            let decoded = await Task.detached(priority: .utility) {
+                Self.makeImage(from: data)
+            }.value
+            image = decoded
+            if decoded == nil {
                 loadFailed = true
             }
         } catch {
@@ -99,17 +106,42 @@ struct CachedExerciseMediaView: View {
 /// Thin UIKit bridge so multi-frame GIF `UIImage`s actually animate.
 private struct AnimatedExerciseImageView: UIViewRepresentable {
     var image: UIImage
+    var isAnimating: Bool
 
     func makeUIView(context: Context) -> UIImageView {
         let view = UIImageView()
         view.contentMode = .scaleAspectFill
         view.clipsToBounds = true
-        view.image = image
+        apply(to: view)
         return view
     }
 
     func updateUIView(_ uiView: UIImageView, context: Context) {
-        uiView.image = image
+        apply(to: uiView)
+    }
+
+    /// Re-assigning an animated `UIImage` restarts its animation from frame
+    /// zero, so only touch the view's images when the source actually changed.
+    /// Frames go on `animationImages` and the still frame on `image`, which
+    /// makes start/stop explicit instead of implicit in the assignment.
+    private func apply(to uiView: UIImageView) {
+        let frames = image.images
+        let stillFrame = frames?.first ?? image
+        if uiView.image !== stillFrame {
+            uiView.image = stillFrame
+            uiView.animationImages = frames
+            uiView.animationDuration = image.duration
+            uiView.animationRepeatCount = 0
+        }
+
+        guard frames != nil else { return }
+        if isAnimating {
+            if !uiView.isAnimating {
+                uiView.startAnimating()
+            }
+        } else if uiView.isAnimating {
+            uiView.stopAnimating()
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os.log
 
 /// Ask Pluri chat state (M6-06 / M6-09/10): history, send, busy/offline/error,
 /// and confirm-then-apply for EF-returned plan actions via `PlanStore`.
@@ -23,6 +24,7 @@ final class AskPluriViewModel {
     private let historyLoader: any AskPluriHistoryLoading
     private let reachability: any NetworkReachability
     private let currentPlanWorkoutId: String?
+    private let logger = Logger(subsystem: "com.codewithmikey.pluri", category: "AskPluriChat")
 
     private var didStartReachability = false
 
@@ -110,6 +112,9 @@ final class AskPluriViewModel {
         }
 
         isSending = true
+        // Single exit point for the busy flag so a thrown/cancelled send can
+        // never strand the composer in its disabled state (SPEC §14 #76).
+        defer { isSending = false }
         statusMessage = nil
         draft = ""
 
@@ -147,11 +152,12 @@ final class AskPluriViewModel {
             }
         } catch let error as AskPluriClientError {
             statusMessage = userFacingMessage(for: error)
+        } catch is CancellationError {
+            // The sheet went away mid-flight; no banner, just release the composer.
+            logger.debug("ask-pluri send cancelled")
         } catch {
             statusMessage = AskPluriClientError.transport("").errorDescription
         }
-
-        isSending = false
     }
 
     /// Applies pending actions via `PlanStore` in order; stops on first failure.

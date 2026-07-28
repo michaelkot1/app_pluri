@@ -427,6 +427,176 @@ struct AskPluriViewModelTests {
         #expect(viewModel.statusMessage != nil)
     }
 
+    // MARK: - Composer state machine (SPEC §14 #76)
+
+    private func makeComposerViewModel(
+        client: MockAskPluriClient = MockAskPluriClient(),
+        reachability: MockNetworkReachability? = nil
+    ) -> AskPluriViewModel {
+        AskPluriViewModel(
+            currentPlanWorkoutId: workoutID,
+            client: client,
+            historyLoader: MockAskPluriHistoryLoader(),
+            reachability: reachability ?? MockNetworkReachability(isOnline: true)
+        )
+    }
+
+    /// Spins the main actor until `condition` holds, so tests never block on a
+    /// task that is still ramping up.
+    private func waitForMainActor(
+        _ condition: () -> Bool,
+        iterations: Int = 200
+    ) async {
+        for _ in 0..<iterations where !condition() {
+            await Task.yield()
+        }
+    }
+
+    @Test("Successful send clears the draft and re-enables the composer")
+    func successfulSendReleasesComposer() async {
+        let viewModel = makeComposerViewModel()
+
+        viewModel.draft = "How deep should I squat?"
+        await viewModel.send()
+
+        #expect(viewModel.isSending == false)
+        #expect(viewModel.isBusy == false)
+        #expect(viewModel.draft.isEmpty)
+        // Empty draft is the only thing gating Send now — typing re-enables it.
+        #expect(viewModel.canSend == false)
+        viewModel.draft = "And the next one?"
+        #expect(viewModel.canSend)
+    }
+
+    @Test("A thrown client error still releases the composer")
+    func thrownErrorReleasesComposer() async {
+        let viewModel = makeComposerViewModel(
+            client: MockAskPluriClient(errorToThrow: .transport("boom"))
+        )
+
+        viewModel.draft = "Will this fail?"
+        await viewModel.send()
+
+        #expect(viewModel.isSending == false)
+        #expect(viewModel.statusMessage != nil)
+        // The question is not lost: it stays in the transcript.
+        #expect(viewModel.messages.count == 1)
+        #expect(viewModel.messages[0].content == "Will this fail?")
+        #expect(viewModel.draft.isEmpty)
+
+        viewModel.draft = "Try again"
+        #expect(viewModel.canSend)
+    }
+
+    @Test("Cancelling an in-flight send releases the composer without a banner")
+    func cancelledSendReleasesComposer() async {
+        let viewModel = makeComposerViewModel(
+            client: MockAskPluriClient(delay: .seconds(30))
+        )
+
+        viewModel.draft = "Cancel me"
+        let task = Task { await viewModel.send() }
+        await waitForMainActor { viewModel.isSending }
+        task.cancel()
+        await task.value
+
+        #expect(viewModel.isSending == false)
+        #expect(viewModel.statusMessage == nil)
+        viewModel.draft = "Still usable?"
+        #expect(viewModel.canSend)
+    }
+
+    @Test("A second question can be asked immediately after the first completes")
+    func secondQuestionSendsImmediately() async {
+        let client = MockAskPluriClient()
+        let viewModel = makeComposerViewModel(client: client)
+
+        viewModel.draft = "First question"
+        await viewModel.send()
+        viewModel.draft = "Second question"
+        await viewModel.send()
+
+        #expect(viewModel.messages.count == 4)
+        #expect(viewModel.messages[2].content == "Second question")
+        #expect(client.lastRequest?.message == "Second question")
+        #expect(viewModel.isSending == false)
+        #expect(viewModel.draft.isEmpty)
+    }
+
+    @Test("Send is a no-op for a whitespace-only draft and leaves state untouched")
+    func whitespaceDraftIsNoOp() async {
+        let client = MockAskPluriClient()
+        let viewModel = makeComposerViewModel(client: client)
+
+        viewModel.draft = "   \n "
+        #expect(viewModel.canSend == false)
+        await viewModel.send()
+
+        #expect(client.lastRequest == nil)
+        #expect(viewModel.messages.isEmpty)
+        #expect(viewModel.isSending == false)
+        #expect(viewModel.draft == "   \n ")
+    }
+
+    @Test("A send while one is in flight is dropped without stranding state")
+    func concurrentSendIsDropped() async {
+        let client = MockAskPluriClient(delay: .milliseconds(20))
+        let viewModel = makeComposerViewModel(client: client)
+
+        viewModel.draft = "First"
+        let first = Task { await viewModel.send() }
+        await waitForMainActor { viewModel.isSending }
+        viewModel.draft = "Second"
+        await viewModel.send()
+
+        // The guard returns early and must not clear the queued draft.
+        #expect(viewModel.draft == "Second")
+        await first.value
+        #expect(viewModel.isSending == false)
+        #expect(viewModel.messages.count == 2)
+        #expect(viewModel.canSend)
+    }
+
+    @Test("Offline send keeps the composer usable for a retry")
+    func offlineSendLeavesComposerUsable() async {
+        let reachability = MockNetworkReachability(isOnline: false)
+        let viewModel = makeComposerViewModel(reachability: reachability)
+
+        viewModel.draft = "Offline question"
+        await viewModel.send()
+
+        #expect(viewModel.isSending == false)
+        #expect(viewModel.draft == "Offline question")
+        #expect(viewModel.canSend)
+
+        reachability.goOnline()
+        await viewModel.send()
+
+        #expect(viewModel.messages.count == 2)
+        #expect(viewModel.draft.isEmpty)
+    }
+
+    @Test("Reachability is restarted after tear-down so later sends still go out")
+    func sendRestartsReachabilityAfterTearDown() async {
+        let client = MockAskPluriClient()
+        let reachability = MockNetworkReachability(isOnline: true)
+        let viewModel = makeComposerViewModel(client: client, reachability: reachability)
+
+        viewModel.draft = "First"
+        await viewModel.send()
+        viewModel.tearDown()
+        #expect(reachability.isMonitoring == false)
+
+        viewModel.draft = "Second"
+        await viewModel.send()
+
+        #expect(reachability.isMonitoring)
+        #expect(reachability.startCount == 2)
+        #expect(client.lastRequest?.message == "Second")
+        #expect(viewModel.messages.count == 4)
+        #expect(viewModel.draft.isEmpty)
+    }
+
     @Test("Invalid action payloads are ignored safely on apply")
     func ignoresInvalidActions() async throws {
         let (store, service) = makePlanStore()

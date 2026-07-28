@@ -96,11 +96,16 @@ struct WorkoutExerciseCardView: View {
             stopCardTimer()
         }
         .sensoryFeedback(.success, trigger: logPulse)
+        // Only the focused card contributes a keyboard accessory. Every mounted
+        // card registering one made any keyboard (including Ask Pluri's) thrash
+        // the main thread while a workout was open (SPEC §14 #76).
         .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") {
-                    focusedField = nil
+            if focusedField != nil {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        focusedField = nil
+                    }
                 }
             }
         }
