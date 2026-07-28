@@ -29,9 +29,10 @@ struct AskPluriChatView: View {
             ensureViewModel()
             await viewModel?.onAppear()
         }
-        .onDisappear {
-            viewModel?.tearDown()
-        }
+        // Do not stop reachability in `onDisappear`: SwiftUI can fire it while
+        // the sheet is still presented (nested confirm / layout). The monitor
+        // is released when the view model deallocates (`PathMonitorReachability.deinit`).
+        // Explicit `tearDown()` remains for tests (SPEC §14 #76).
     }
 
     private func ensureViewModel() {

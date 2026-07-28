@@ -57,7 +57,8 @@ final class PathMonitorReachability: NetworkReachability {
     /// A cancelled `NWPathMonitor` never delivers another path update, so a
     /// stop → start cycle needs a brand-new monitor. Reusing the cancelled one
     /// froze `isOnline` at its last value forever (SPEC §14 #76).
-    private var monitor: NWPathMonitor?
+    /// `nonisolated(unsafe)` so `deinit` can cancel without hopping to the main actor.
+    private nonisolated(unsafe) var monitor: NWPathMonitor?
     private(set) var isOnline = true
     var onPathSatisfied: (() -> Void)?
 
@@ -65,6 +66,10 @@ final class PathMonitorReachability: NetworkReachability {
 
     func start() {
         guard monitor == nil else { return }
+        // Assume online until the first path update. A stop → start cycle must
+        // not leave `isOnline == false` while the new monitor is still spinning
+        // up, or Ask Pluri `send()` rejects at the offline guard (SPEC §14 #76).
+        isOnline = true
         let monitor = NWPathMonitor()
         monitor.pathUpdateHandler = { [weak self] path in
             Task { @MainActor in
@@ -85,4 +90,15 @@ final class PathMonitorReachability: NetworkReachability {
         monitor?.cancel()
         monitor = nil
     }
+
+    deinit {
+        monitor?.cancel()
+    }
+
+    #if DEBUG
+    /// Test seam: force last-known status without a live path update.
+    func setOnlineForTesting(_ online: Bool) {
+        isOnline = online
+    }
+    #endif
 }

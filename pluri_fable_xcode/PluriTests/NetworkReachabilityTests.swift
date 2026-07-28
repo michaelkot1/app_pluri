@@ -35,4 +35,19 @@ struct NetworkReachabilityTests {
         reachability.stop()
         #expect(reachability.isMonitoring == false)
     }
+
+    @Test("Start assumes online until the first path update")
+    func startAssumesOnlineOptimistically() {
+        let reachability = PathMonitorReachability()
+        reachability.start()
+        reachability.setOnlineForTesting(false)
+        reachability.stop()
+        #expect(reachability.isOnline == false)
+
+        reachability.start()
+        #expect(reachability.isOnline)
+        #expect(reachability.isMonitoring)
+
+        reachability.stop()
+    }
 }

@@ -546,6 +546,7 @@ struct AskPluriViewModelTests {
         viewModel.draft = "First"
         let first = Task { await viewModel.send() }
         await waitForMainActor { viewModel.isSending }
+        #expect(viewModel.isBusy)
         viewModel.draft = "Second"
         await viewModel.send()
 
@@ -555,6 +556,21 @@ struct AskPluriViewModelTests {
         #expect(viewModel.isSending == false)
         #expect(viewModel.messages.count == 2)
         #expect(viewModel.canSend)
+    }
+
+    @Test("Busy flag is true while a send is in flight")
+    func busyFlagVisibleDuringSend() async {
+        let client = MockAskPluriClient(delay: .milliseconds(40))
+        let viewModel = makeComposerViewModel(client: client)
+
+        viewModel.draft = "Show thinking"
+        let task = Task { await viewModel.send() }
+        await waitForMainActor { viewModel.isBusy }
+        #expect(viewModel.isSending)
+        #expect(viewModel.messages.count == 1)
+        #expect(viewModel.draft.isEmpty)
+        await task.value
+        #expect(viewModel.isBusy == false)
     }
 
     @Test("Offline send keeps the composer usable for a retry")

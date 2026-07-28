@@ -120,6 +120,9 @@ final class AskPluriViewModel {
 
         let userMessage = AskPluriChatMessage(role: .user, content: trimmed)
         messages.append(userMessage)
+        // Yield so `@Observable` can publish `isSending` / the busy row before
+        // the network await occupies the main actor (SPEC §14 #76).
+        await Task.yield()
 
         do {
             let response = try await client.ask(
