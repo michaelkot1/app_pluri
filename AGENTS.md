@@ -137,7 +137,7 @@ If you discover something the docs don't cover, don't silently improvise on anyt
 - **Backend:** Supabase (Auth, Postgres + RLS, Storage, Edge Functions in TypeScript/Deno).
 - **Payments:** RevenueCat (StoreKit products via ASC; RevenueCatUI paywalls).
 - **Health:** HealthKit.
-- **External APIs:** WorkoutX (exercises), Gemini via Edge Function (AI coach), TheMealDB (recipes), API Ninjas Nutrition (food logging).
+- **External APIs:** WorkoutX (exercises), TheMealDB (recipes), API Ninjas Nutrition (food logging).
 - **Dependencies:** Swift Package Manager only. Keep third-party dependencies minimal — prefer first-party frameworks; every new dependency needs a justification in the PR/commit description.
 
 

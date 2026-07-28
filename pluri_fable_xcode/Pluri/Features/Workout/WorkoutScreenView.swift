@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 
 /// Live Workout Screen (M4-07–11 / SPEC §8): idle → Start → running timer,
-/// Pause / Stop (= pause) / hold-to-finish → completion; inline Log; live HealthKit.
+/// Pause/Stop (= pause, expands controls) / hold-to-finish → completion; inline Log; live HealthKit.
 struct WorkoutScreenView: View {
     var sessionID: UUID
     var stack: WorkoutDetailStack = .home
@@ -34,7 +34,7 @@ struct WorkoutScreenView: View {
         .navigationTitle(session?.title ?? "Workout")
         .navigationBarTitleDisplayMode(.inline)
         // The screen stays mounted under a sheet; hold GIFs on their first frame
-        // so Ask Pluri isn't fighting N animations for the main thread (§14 #76).
+        // so the sheet isn't fighting N animations for the main thread (§14 #76).
         .environment(\.exerciseMediaAnimationEnabled, !isCoveredBySheet)
         .id(sessionID)
         .onAppear {
@@ -47,12 +47,6 @@ struct WorkoutScreenView: View {
         .onDisappear {
             holdTask?.cancel()
             viewModel?.tearDown()
-        }
-        .pluriBottomSheet(
-            isPresented: askPluriBinding,
-            detents: [.medium, .large]
-        ) {
-            AskPluriChatView(currentPlanWorkoutId: sessionID.uuidString)
         }
         .pluriBottomSheet(isPresented: exerciseSheetBinding) {
             if let session, let exercise = selectedExercise(in: session) {
@@ -87,80 +81,25 @@ struct WorkoutScreenView: View {
                         .font(PluriFont.label)
                         .foregroundStyle(PluriColor.statusRedSoft)
                 }
-
-                actionsSection
             }
             .padding(.horizontal, PluriSpacing.lg)
-            .padding(.vertical, PluriSpacing.lg)
+            .padding(.top, PluriSpacing.lg)
+            // Keep the last card clear of the floating controls.
+            .padding(.bottom, PluriSpacing.xxl + PluriSpacing.xxl)
         }
         .scrollIndicators(.hidden)
-    }
-
-    @ViewBuilder
-    private var actionsSection: some View {
-        VStack(spacing: PluriSpacing.sm) {
-            if viewModel?.showsLiveControls == true {
-                if viewModel?.isPaused == true {
-                    Button("Resume") {
-                        viewModel?.resume()
-                    }
-                    .buttonStyle(.pluriPrimary)
-                } else {
-                    Button("Pause") {
-                        viewModel?.pause()
-                    }
-                    .buttonStyle(.pluriSecondary)
-
-                    // Stop pauses only; hold-to-finish opens completion (§14 #55c).
-                    Button("Stop") {
-                        viewModel?.stop()
-                    }
-                    .buttonStyle(.pluriSecondary)
-                }
-
-                holdToFinishButton
-            } else {
-                Button("Start") {
-                    viewModel?.start()
-                }
-                .buttonStyle(.pluriPrimary)
-            }
-
-            Button("Ask Pluri") {
-                viewModel?.showsAskPluri = true
-            }
-            .buttonStyle(.pluriSecondary)
-            .accessibilityHint("Opens your coach chat for this workout")
-        }
-    }
-
-    private var holdToFinishButton: some View {
-        Text("Hold to finish")
-            .font(PluriFont.label)
-            .foregroundStyle(PluriColor.textPrimary)
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 50)
-            .background(PluriColor.bgMuted, in: .rect(cornerRadius: PluriRadius.xl))
-            .overlay {
-                GeometryReader { geo in
-                    PluriColor.brandOrange.opacity(0.35)
-                        .frame(width: geo.size.width * holdProgress)
-                        .clipShape(.rect(cornerRadius: PluriRadius.xl))
-                }
-                .allowsHitTesting(false)
-            }
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in
-                        beginHoldIfNeeded()
-                    }
-                    .onEnded { _ in
-                        cancelHold()
-                    }
+        .overlay(alignment: .bottom) {
+            WorkoutLiveControlsBar(
+                showsLiveControls: viewModel?.showsLiveControls == true,
+                isPaused: viewModel?.isPaused == true,
+                holdProgress: holdProgress,
+                onStart: { viewModel?.start() },
+                onPauseOrStop: { viewModel?.stop() },
+                onResume: { viewModel?.resume() },
+                onHoldChanged: { beginHoldIfNeeded() },
+                onHoldEnded: { cancelHold() }
             )
-            .accessibilityLabel("Hold to finish workout")
-            .accessibilityHint("Press and hold to open the workout summary")
-            .accessibilityAddTraits(.isButton)
+        }
     }
 
     private func exerciseDetailSheet(for exercise: PlannedExercise) -> some View {
@@ -189,14 +128,7 @@ struct WorkoutScreenView: View {
 
     private var isCoveredBySheet: Bool {
         guard let viewModel else { return false }
-        return viewModel.showsAskPluri || viewModel.selectedExerciseID != nil
-    }
-
-    private var askPluriBinding: Binding<Bool> {
-        Binding(
-            get: { viewModel?.showsAskPluri ?? false },
-            set: { viewModel?.showsAskPluri = $0 }
-        )
+        return viewModel.selectedExerciseID != nil
     }
 
     private var exerciseSheetBinding: Binding<Bool> {
@@ -365,8 +297,6 @@ enum WorkoutScreenPreviewFactory {
         .environment(SupabaseAuthService(supabaseService: SupabaseService(), restoreOnLaunch: false))
         .environment(repository)
         .environment(sync)
-        .environment(\.askPluriClient, MockAskPluriClient())
-        .environment(\.askPluriHistoryLoader, MockAskPluriHistoryLoader())
         .modelContainer(container)
     }
 

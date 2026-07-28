@@ -39,7 +39,6 @@
 				Core/Networking/MealDB/README.md,
 				Core/Networking/Nutrition/README.md,
 				Core/Networking/WorkoutX/README.md,
-				Features/AskPluri/.gitkeep,
 				Features/Community/.gitkeep,
 				Features/Home/.gitkeep,
 				Features/Insights/.gitkeep,

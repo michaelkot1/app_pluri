@@ -434,9 +434,11 @@ HealthKit Insights & Pluri Score (PLAN M5): full HealthKit *reads* (steps, sleep
 
 ---
 
-## M6 — Ask Pluri (AI Coach)
+## M6 — Ask Pluri (AI Coach) — ARCHIVED
 
-Ask Pluri (AI Coach) (PLAN M6): `ask-pluri` Edge Function with Gemini, context grounding, chat UI on the Workout Screen, add/remove-workout actions, coach persona & safety rails. Builds on M4's Ask Pluri stub and M3 `PlanStore` / `PlanMutator`. **Exit:** mid-workout questions answered with user-specific context; plan edits via chat work.
+> **Archived (2026-07-28) — SPEC §14 #77.** Ask Pluri was shipped (tasks below remain checked for history) then **removed from the product**: Feature/Networking/tests/`ask-pluri` EF source deleted; Workout Screen + Plan Overview entry points removed. **Not active work.** Owner follow-ups: drop remote `chat_messages` (keep past migration file) and undeploy remote `ask-pluri`. Restartable `PathMonitorReachability` from the mid-workout freeze fix is retained for SyncEngine.
+
+Ask Pluri (AI Coach) (PLAN M6): ~~`ask-pluri` Edge Function with Gemini…~~ **Removed.** Historical exit: mid-workout questions + plan edits via chat.
 
 ### Scope & decisions (do first — unblock payload, persistence, and tool schema)
 

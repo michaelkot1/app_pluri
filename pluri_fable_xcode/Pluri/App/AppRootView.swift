@@ -115,11 +115,6 @@ struct AppRootView: View {
         .environment(syncEngine)
         .environment(planStore)
         .environment(themeStore)
-        .environment(\.askPluriClient, LiveAskPluriClient(client: supabaseService.client))
-        .environment(
-            \.askPluriHistoryLoader,
-            LiveAskPluriHistoryLoader(client: supabaseService.client)
-        )
         .environment(\.mealDBClient, LiveMealDBClient())
         .environment(\.nutritionClient, LiveNutritionClient())
         .onChange(of: router.phase) { _, newPhase in

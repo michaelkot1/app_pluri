@@ -1,14 +1,13 @@
 import SwiftUI
 
 /// Plan Overview info page (M3-12 / SPEC §6.1): explains what each workout
-/// color means, how to read the Pluri Score, and how to talk to Ask Pluri.
+/// color means and how to read the Pluri Score.
 struct PlanOverviewView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: PluriSpacing.lg) {
                 WorkoutColorsCard()
                 PluriScoreExplainerCard()
-                AskPluriExplainerCard()
             }
             .padding(.horizontal, PluriSpacing.lg)
             .padding(.vertical, PluriSpacing.lg)
@@ -84,32 +83,6 @@ private struct PluriScoreExplainerCard: View {
                     .foregroundStyle(PluriColor.textSecondary)
 
                 Text("The score on your Home page is a sample for now — your real Pluri Score arrives with Insights.")
-                    .font(PluriFont.label)
-                    .foregroundStyle(PluriColor.textTertiary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-}
-
-/// How to use Ask Pluri (SPEC §6.1 / §10 / #43) — soft educational tone.
-private struct AskPluriExplainerCard: View {
-    var body: some View {
-        PluriCard {
-            VStack(alignment: .leading, spacing: PluriSpacing.sm) {
-                Text("Talking to Pluri")
-                    .font(PluriFont.sectionHeader)
-                    .foregroundStyle(PluriColor.textPrimary)
-
-                Text("Ask Pluri is your in-app coach: a kind, informative chat that knows your plan and your past workouts. Ask about exercises, how hard to push, or what to change next.")
-                    .font(PluriFont.body)
-                    .foregroundStyle(PluriColor.textSecondary)
-
-                Text("You can also ask Pluri to adjust your plan — like adding or removing a workout. Pluri will always show you the change and wait for your OK before anything moves.")
-                    .font(PluriFont.body)
-                    .foregroundStyle(PluriColor.textSecondary)
-
-                Text("Open Ask Pluri from any Workout Screen — before you start or while you're training.")
                     .font(PluriFont.label)
                     .foregroundStyle(PluriColor.textTertiary)
             }

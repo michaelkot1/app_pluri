@@ -11,10 +11,10 @@ Derived from [`SPEC.md`](SPEC.md). Ground rules in [`AGENTS.md`](AGENTS.md). Wor
 ```
 ┌─────────────────────────── iOS App (Swift / SwiftUI) ───────────────────────────┐
 │  Features (MVVM):  Onboarding · Paywall · Home · Plan · Workout · Insights ·    │
-│                    Community · Recipe · AskPluri · Profile                      │
+│                    Community · Recipe · Profile                                 │
 │  Services (protocol-based, injected):                                           │
 │    SupabaseService · WorkoutXClient · HealthKitService · StoreKitService ·      │
-│    NutritionClient · MealDBClient · AskPluriClient · PlanEngine · ScoreEngine   │
+│    NutritionClient · MealDBClient · PlanEngine · ScoreEngine                    │
 │  Persistence: SwiftData (offline-first workout logs, cached exercises) + Sync   │
 └──────────┬──────────────────────────────┬───────────────────────────────────────┘
            │ anon key + RLS               │ HTTPS
@@ -22,9 +22,7 @@ Derived from [`SPEC.md`](SPEC.md). Ground rules in [`AGENTS.md`](AGENTS.md). Wor
    │  Supabase          │        │  External APIs   │
    │  Auth · Postgres   │        │  WorkoutX        │
    │  Storage (images)  │        │  TheMealDB       │
-   │  Edge Functions ───┼──────► │  API Ninjas      │
-   │   └─ ask-pluri ────┼──────► │  Gemini (key     │
-   │      (service key) │        │   server-side)   │
+   │  Edge Functions    │        │  API Ninjas      │
    └────────────────────┘        └──────────────────┘
                                   HealthKit / StoreKit are on-device Apple frameworks.
 ```
@@ -51,9 +49,9 @@ Derived from [`SPEC.md`](SPEC.md). Ground rules in [`AGENTS.md`](AGENTS.md). Wor
   - `posts`, `post_likes`, `post_comments`, `post_polls`, `poll_votes`, `saved_posts` — community (posts publicly readable; writes owner-only; moderation columns from day one: reported/hidden).
   - `food_logs` — nutrition entries (food, serving, calories, macros, meal, date).
   - `recipe_favorites` — user ↔ MealDB recipe ids.
-  - `chat_messages` — Ask Pluri history.
+  - `chat_messages` — **legacy** Ask Pluri history (feature archived — SPEC §14 #77; table may remain remotely until owner drops it; do not delete the past migration).
 - **Edge Functions:**
-  - `ask-pluri` — receives the user's message + auth JWT, loads plan/history context from Postgres, calls Gemini, returns reply; handles "add/remove workout" as structured tool-style actions **returned to the client** (not applied in the EF — client confirms via `PlanStore`/`PlanMutator`; SPEC §14 #66h).
+  - ~~`ask-pluri`~~ — **archived** (SPEC §14 #77). Source removed from repo; remote undeploy is an owner follow-up. Historical behavior: Gemini coach + structured add/remove actions returned to the client (#66h).
   - `generate-plan` — plan-generation endpoint so the algorithm can evolve server-side without app releases. Calls WorkoutX, applies equipment/injury/goal/duration filters, writes plan rows. (Client keeps a thin fallback only if latency demands it.)
   - `delete-account` — verifies the caller's JWT, deletes owned rows (`profiles` CASCADE to plan/session tables), then `auth.admin.deleteUser`. Uses the server-side `SUPABASE_SERVICE_ROLE_KEY` only (never in the iOS bundle). Live deletion is blocked until M0-11 supplies a real service-role key (`supabase secrets set`).
 - **HealthKit data stays on-device** (SPEC §13); only user-initiated workout syncs write to Apple Health, and Pluri Score inputs are computed on-device.
@@ -100,9 +98,8 @@ Workout Detail page, live Workout Screen (exercise cards, expanded sheets with v
 Full HealthKit read integration (steps, sleep, heart rate, calories), Today's Health live tiles, Insights page (Performance + Workouts tabs, weekly filters, all-time stats, Bevel-style health insights), manual "+" activity logging, real Pluri Score engine.
 **Exit:** Insights reflect real logged + health data; score updates daily.
 
-### M6 — Ask Pluri (AI Coach)
-`ask-pluri` Edge Function with Gemini, context grounding from user data, chat UI on Workout Screen, add/remove-workout actions, coach persona & safety rails.
-**Exit:** mid-workout questions answered with user-specific context; plan edits via chat work.
+### M6 — Ask Pluri (AI Coach) — ARCHIVED
+Shipped then **removed from the product** (SPEC §14 #77 / 2026-07-28). Not active work. Historical exit was mid-workout coach Q&A + plan edits via chat. Repo no longer contains Ask Pluri UI/client/`ask-pluri` EF source; remote `chat_messages` / EF undeploy remain owner follow-ups.
 
 ### M7 — Recipes & Nutrition
 Recipe page (day view, ~3 auto-suggestions per meal filtered by allergies/calories), Explore filters, favorites + similarity-biased suggestions, food logging via Nutrition API (serving sizes, calorie tracking vs. maintenance).
@@ -119,7 +116,7 @@ Outdoor Run stub screen, notification settings & full notification types, locali
 ### Dependency notes
 
 - M1 needs M0's design system and WorkoutX client. M2 needs M1's data to persist. M3–M4 need M2's auth.
-- M5 depends on M4 (sessions to analyze). M6 depends on M3/M4 (plan mutations, workout context). M7 and M8 are independent of each other and can be reordered or parallelized.
+- M5 depends on M4 (sessions to analyze). ~~M6 depends on M3/M4~~ (M6 archived — #77). M7 and M8 are independent of each other and can be reordered or parallelized.
 - Pluri Score appears as UI in M3 but gets its real engine in M5 — deliberate, so Home ships early.
 
 ---
@@ -131,5 +128,4 @@ Outdoor Run stub screen, notification settings & full notification types, locali
 | WorkoutX API shape/limits unknown | M1 starts with an API spike task; cache aggressively; keep an adapter layer so a different exercise DB could swap in |
 | Plan quality (garbage plans kill trust) | Deterministic, unit-tested `PlanEngine`; seed-based snapshot tests; manual review of generated plans for representative personas |
 | StoreKit review rejections | Follow trial-disclosure rules early (M2), test with sandbox + TestFlight |
-| Gemini free-tier rate limits | Edge Function queues/throttles; graceful "coach is busy" state |
 | UGC moderation scope creep | Minimal viable moderation (report + hide + block) built into schema from M0 |

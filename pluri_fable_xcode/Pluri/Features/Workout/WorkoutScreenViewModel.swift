@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// Live Workout Screen (M4-09/10/11): running timer, Pause / Resume / Stop (= pause),
+/// Live Workout Screen (M4-09/10/11): running timer, Pause/Stop (= pause), Resume,
 /// hold-to-finish → completion, inline set logging, and HealthKit metrics while unpaused.
 @MainActor
 @Observable
@@ -20,8 +20,6 @@ final class WorkoutScreenViewModel {
     private(set) var logFeedbackTick = 0
     var errorMessage: String?
     var selectedExerciseID: UUID?
-    /// Ask Pluri chat sheet visibility (M6-07 / SPEC §14 #66).
-    var showsAskPluri = false
     /// Set when hold-to-finish hands off to the completion summary (M4-12 / §14 #55c).
     private(set) var pendingCompletion: WorkoutCompletionHandoff?
 

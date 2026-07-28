@@ -6,13 +6,7 @@
 #   supabase secrets set GEMINI_MODEL=gemini-flash-latest
 #
 # The iOS app only ships the publishable/anon key. See AGENTS.md §2 / SPEC §15.
-# Deploy ask-pluri:
-#   supabase functions deploy ask-pluri
 
 [functions.delete-account]
-# JWT is verified in the function via auth.getUser(); keep gateway verify on.
-verify_jwt = true
-
-[functions.ask-pluri]
 # JWT is verified in the function via auth.getUser(); keep gateway verify on.
 verify_jwt = true
