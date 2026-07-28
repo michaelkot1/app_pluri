@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// A wrapping grid of `PluriChip`s — used for both single-select (Q1–Q4,
-/// Q10, Q13) and multi-select (Q6, Q7, Q12) questions, since a plain `HStack`
-/// would overflow for longer option lists (Q6 has 34 equipment items).
+/// A wrapping grid of `PluriChip`s — used for dense multi-select lists
+/// (Q6 equipment, Q7 body areas, Q8 weekdays, Q12 allergies). Text
+/// single-select screens use `OnboardingSelectRowList` / tiles instead.
 struct PluriChipGrid<Item: Hashable>: View {
     let items: [Item]
     var isSelected: (Item) -> Bool

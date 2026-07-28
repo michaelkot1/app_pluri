@@ -18,6 +18,12 @@ enum Weekday: Int, CaseIterable, Identifiable, Sendable {
 
     var id: Self { self }
 
+    /// Locale-correct full day name (e.g. "Monday"), for vertical list rows.
+    var title: String {
+        let symbols = Calendar.current.standaloneWeekdaySymbols
+        return symbols[rawValue - 1]
+    }
+
     /// Locale-correct short day name (e.g. "Mon", "Tue"), via `Calendar`
     /// rather than a hardcoded string table.
     var shortTitle: String {

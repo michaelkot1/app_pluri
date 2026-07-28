@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Q3 (M1-09) — weight-training experience, single-select.
+/// Defaults to `.oneToSixMonths`.
 struct Q3ExperienceView: View {
     @Bindable var answers: OnboardingAnswers
     var progress: Double?
@@ -10,10 +11,9 @@ struct Q3ExperienceView: View {
         OnboardingScaffold(
             progress: progress,
             title: "How long have you been weight training?",
-            isContinueEnabled: answers.experience != nil,
             onContinue: onContinue
         ) {
-            PluriChipGrid(
+            OnboardingSelectRowList(
                 items: ExperienceLevel.allCases,
                 isSelected: { answers.experience == $0 },
                 label: \.title,

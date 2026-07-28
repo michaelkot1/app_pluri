@@ -1,30 +1,40 @@
 import SwiftUI
 
-/// One selected injury area with its 1–5 pain-level stepper (Q7, M1-11).
+/// One selected injury area with a 1–5 pain-level slider (Q7, M1-11).
 struct InjuryPainRow: View {
     var area: BodyArea
     @Binding var painLevel: Int
 
+    private var sliderValue: Binding<Double> {
+        Binding(
+            get: { Double(painLevel) },
+            set: { painLevel = Int($0.rounded()) }
+        )
+    }
+
     var body: some View {
         PluriCard {
-            HStack {
-                Text(area.title)
-                    .font(PluriFont.label)
-                    .foregroundStyle(PluriColor.textPrimary)
+            VStack(alignment: .leading, spacing: PluriSpacing.sm) {
+                HStack {
+                    Text(area.title)
+                        .font(PluriFont.label)
+                        .foregroundStyle(PluriColor.textPrimary)
 
-                Spacer()
+                    Spacer()
 
-                Text("\(painLevel)/5")
-                    .font(PluriFont.metricValue)
-                    .foregroundStyle(PluriColor.brandOrange)
+                    Text("\(painLevel)/5")
+                        .font(PluriFont.metricValue)
+                        .foregroundStyle(PluriColor.textPrimary)
+                        .accessibilityHidden(true)
+                }
 
-                Stepper("Pain level", value: $painLevel, in: 1...5)
-                    .labelsHidden()
-                    .fixedSize()
+                Slider(value: sliderValue, in: 1...5, step: 1)
+                    .tint(PluriColor.selectionFill)
+                    .accessibilityLabel("Pain level for \(area.title)")
+                    .accessibilityValue("\(painLevel) of 5")
             }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text("\(area.title), pain level \(painLevel) of 5"))
+        .accessibilityElement(children: .contain)
     }
 }
 

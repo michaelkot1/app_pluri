@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Q2 (M1-09) — main goal, single-select.
+/// Q2 (M1-09) — main goal, single-select. Defaults to `.generalFitness`.
 struct Q2GoalView: View {
     @Bindable var answers: OnboardingAnswers
     var progress: Double?
@@ -10,10 +10,9 @@ struct Q2GoalView: View {
         OnboardingScaffold(
             progress: progress,
             title: "What's your main goal?",
-            isContinueEnabled: answers.goal != nil,
             onContinue: onContinue
         ) {
-            PluriChipGrid(
+            OnboardingSelectRowList(
                 items: Goal.allCases,
                 isSelected: { answers.goal == $0 },
                 label: \.title,

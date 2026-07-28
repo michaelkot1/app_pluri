@@ -21,7 +21,6 @@ struct Q11AboutYouView: View {
             progress: progress,
             title: "About you",
             subtitle: "This helps us tailor your plan and maintenance calories.",
-            isContinueEnabled: answers.gender != nil,
             onContinue: onContinue
         ) {
             VStack(alignment: .leading, spacing: PluriSpacing.lg) {
@@ -31,7 +30,7 @@ struct Q11AboutYouView: View {
                     Text("Gender")
                         .font(PluriFont.label)
                         .foregroundStyle(PluriColor.textSecondary)
-                    PluriChipGrid(
+                    OnboardingSelectRowList(
                         items: Gender.allCases,
                         isSelected: { answers.gender == $0 },
                         label: \.title,

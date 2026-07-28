@@ -72,4 +72,11 @@ enum PluriColor {
     static let textTertiary = Color("TextTertiary")
     /// Hairline separators, chart gridlines.
     static let lineDivider = Color("LineDivider")
+
+    // MARK: Selection (onboarding questionnaire)
+
+    /// Near-black fill for selected option rows/tiles/chips — not brand orange.
+    static let selectionFill = Color("SelectionFill")
+    /// Text/icon color on top of `selectionFill`.
+    static let selectionOnFill = Color("SelectionOnFill")
 }

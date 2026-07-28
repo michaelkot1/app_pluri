@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// Selectable chip for questionnaire options, allergies, equipment, etc.
-/// Selected chips fill with brand orange; unselected sit on the muted surface.
-/// Supports a disabled "coming soon" state for v2 options.
+/// Selectable chip for dense multi-select lists (equipment, allergies, body
+/// areas, weekdays). Selected chips use near-black `selection/fill`; brand
+/// orange stays on the Continue CTA only. Supports a disabled "coming soon"
+/// state for v2 options.
 struct PluriChip: View {
     var title: LocalizedStringKey
     var isSelected: Bool
@@ -18,7 +19,7 @@ struct PluriChip: View {
                 .frame(minHeight: 44)
                 .background(background, in: .capsule)
                 .overlay {
-                    if !isSelected {
+                    if !isSelected && isEnabled {
                         Capsule().strokeBorder(PluriColor.lineDivider, lineWidth: 1)
                     }
                 }
@@ -30,12 +31,12 @@ struct PluriChip: View {
 
     private var foreground: Color {
         if !isEnabled { return PluriColor.textTertiary }
-        return isSelected ? .white : PluriColor.textPrimary
+        return isSelected ? PluriColor.selectionOnFill : PluriColor.textPrimary
     }
 
     private var background: Color {
         if !isEnabled { return PluriColor.bgMuted }
-        return isSelected ? PluriColor.brandOrange : PluriColor.bgSurface
+        return isSelected ? PluriColor.selectionFill : PluriColor.bgMuted
     }
 }
 

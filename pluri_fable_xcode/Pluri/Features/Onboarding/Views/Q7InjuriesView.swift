@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Q7 (M1-11) — injuries: multi-select body areas, each with a 1–5 pain
-/// stepper. Selecting an area adds it with a default mid pain level;
+/// slider. Selecting an area adds it with a default mid pain level;
 /// deselecting removes it. No injuries selected is a valid, common answer.
 struct Q7InjuriesView: View {
     @Bindable var answers: OnboardingAnswers

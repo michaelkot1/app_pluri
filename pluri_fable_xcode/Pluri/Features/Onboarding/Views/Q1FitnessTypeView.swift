@@ -14,12 +14,13 @@ struct Q1FitnessTypeView: View {
             title: "What type of fitness would you like to do?",
             onContinue: onContinue
         ) {
-            PluriChipGrid(
+            OnboardingSelectTileGrid(
                 items: FitnessType.allCases,
                 isSelected: { answers.fitnessType == $0 },
                 isEnabled: \.isAvailable,
-                label: { $0.isAvailable ? $0.title : "\($0.title) · Coming soon" },
-                action: { answers.fitnessType = $0 }
+                title: { $0.isAvailable ? $0.title : "\($0.title) · Coming soon" },
+                systemImage: \.systemImage,
+                action: { if $0.isAvailable { answers.fitnessType = $0 } }
             )
         }
     }

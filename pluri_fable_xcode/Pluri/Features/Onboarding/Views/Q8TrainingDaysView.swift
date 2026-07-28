@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Q8 (M1-12) — weekday picker, default Mon/Wed/Fri, enforcing 2–6 days
-/// (SPEC §3.2).
+/// (SPEC §3.2). Vertical multi-select rows; tap toggles each day.
 struct Q8TrainingDaysView: View {
     @Bindable var answers: OnboardingAnswers
     var progress: Double?
@@ -22,10 +22,10 @@ struct Q8TrainingDaysView: View {
             onContinue: onContinue
         ) {
             VStack(alignment: .leading, spacing: PluriSpacing.sm) {
-                PluriChipGrid(
+                OnboardingSelectRowList(
                     items: Weekday.displayOrder,
                     isSelected: { answers.trainingDays.contains($0) },
-                    label: \.shortTitle,
+                    label: \.title,
                     action: toggle
                 )
 

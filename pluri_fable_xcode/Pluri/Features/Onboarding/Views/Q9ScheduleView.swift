@@ -17,7 +17,7 @@ struct Q9ScheduleView: View {
         ) {
             VStack(alignment: .leading, spacing: PluriSpacing.xl) {
                 VStack(alignment: .leading, spacing: PluriSpacing.sm) {
-                    PluriChipGrid(
+                    OnboardingSelectRowList(
                         items: ScheduleType.allCases,
                         isSelected: { answers.scheduleType == $0 },
                         label: \.title,

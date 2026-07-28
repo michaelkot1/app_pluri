@@ -13,7 +13,7 @@ struct Q13StartDateView: View {
             onContinue: onContinue
         ) {
             VStack(alignment: .leading, spacing: PluriSpacing.lg) {
-                PluriChipGrid(
+                OnboardingSelectRowList(
                     items: StartDateOption.allCases,
                     isSelected: { answers.startDateOption == $0 },
                     label: \.title,

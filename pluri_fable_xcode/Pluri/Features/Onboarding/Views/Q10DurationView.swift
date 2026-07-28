@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Q10 (M1-13) — session duration, single-select.
+/// Q10 (M1-13) — session duration, single-select. Defaults to `.oneHour`.
 struct Q10DurationView: View {
     @Bindable var answers: OnboardingAnswers
     var progress: Double?
@@ -12,7 +12,7 @@ struct Q10DurationView: View {
             title: "How much time do you want to devote each workout?",
             onContinue: onContinue
         ) {
-            PluriChipGrid(
+            OnboardingSelectRowList(
                 items: SessionDuration.allCases,
                 isSelected: { answers.sessionDuration == $0 },
                 label: \.title,

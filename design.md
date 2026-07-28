@@ -64,16 +64,23 @@ approachable and non-clinical.
 |---|---|---|
 | `bg/canvas` | `#FBFAF7` | App background (warm off-white/cream) |
 | `bg/surface` | `#FFFFFF` | Cards, sheets, tab bar |
-| `bg/muted` | `#F2F2F0` | Inset rows, secondary chips |
+| `bg/muted` | `#F2F2F0` | Inset rows, secondary chips, unselected onboarding options |
 | `text/primary` | `#1C1C1E` | Headlines, big numerals |
-| `text/secondary` | `#6E6E73` | Labels, captions, metadata |
+| `text/secondary` | `#6E6E73` | Labels, captions, metadata, onboarding subtitles |
 | `text/tertiary` | `#B0B0B5` | Disabled, "No Data", axis labels |
 | `line/divider` | `#ECECEC` | Hairline separators, chart gridlines |
 
+### Selection (onboarding questionnaire)
+| Token | Approx. Hex | Role |
+|---|---|---|
+| `selection/fill` | `#1C1C1E` (light) / `#F5F4F1` (dark) | Selected option row, tile, or chip fill — near-black, **not** brand orange |
+| `selection/on-fill` | `#FFFFFF` (light) / `#1C1C1E` (dark) | Text/icon on top of `selection/fill` |
+
 **Role principles**
 
-- Orange is precious — reserve it for the single most important action or the
-  active state on a screen. Overusing it breaks the calm.
+- Orange is precious — reserve it for the single most important action on a
+  screen (onboarding: the bottom Continue CTA only). Selected questionnaire
+  options use `selection/fill`, never orange.
 - Green = permission & balance (on-path, rest, recovery). Never use green to mean
   "go harder."
 - Warm sunrise gradients belong to celebratory/hero data; keep them behind a
@@ -134,10 +141,40 @@ approachable and non-clinical.
 | Token | Value | Usage |
 |---|---|---|
 | `radius/sm` | 8px | Small chips, inset elements |
-| `radius/md` | 16px | Inputs, small tiles |
+| `radius/md` | 16px | Inputs, small tiles, **onboarding select rows & tiles** |
 | `radius/lg` | 20–24px | Cards, sheets |
-| `radius/xl` | 28px | Pill buttons, tab bar |
+| `radius/xl` | 28px | Pill buttons, tab bar, onboarding Continue CTA |
 | `radius/full` | 999px | Radios, thumbs, circular icons, capsule gauges |
+
+---
+
+## 5.1 Onboarding questionnaire patterns
+
+Strava-inspired DNA for preference screens (keep Pluri content / progress bar):
+
+- **Canvas:** Keep `bg/canvas` (`#FBFAF7` cream). Pure white would be closer to
+  Strava, but cream matches Pluri’s warm atmosphere and still reads as a light
+  airy questionnaire surface — do not switch to white unless product asks.
+- **Title:** Large bold (`displayNumeral` / ~largeTitle); subtitle in
+  `text/secondary` with airy spacing below.
+- **Selection:** Full-width rounded rows (`OnboardingSelectRow`, `radius/md`)
+  for text options and multi-select lists (training days, equipment items);
+  2-col icon tiles (`OnboardingSelectTile`) for short icon sets (e.g. fitness
+  type). Equipment (Q6) is a vertical categorized list (section overlines +
+  `OnboardingSelectRow` per item). Training days (Q8) use the same row list
+  with multi-select toggle. Dense multi-select that still fits chips
+  (allergies, body areas) stays on `PluriChip` / `PluriChipGrid`. Selected
+  state always uses `selection/fill` (black), not orange.
+- **Injury severity (Q7):** After selecting body-area chips, each active area
+  shows a 1–5 `Slider` (not steppers); tint with `selection/fill`. Empty
+  injuries = healthy remains valid.
+- **CTA:** Full-width pill Continue pinned at the bottom. Enabled = `brand/orange`
+  + white label. Disabled = soft peach (`brand/coral-soft` at ~55% opacity) with
+  slightly translucent white label — never leave Continue gated on nil required
+  singles; seed defaults instead.
+- **Defaults:** Required preference screens always have a preselected value
+  (goal, experience, regularity, location, gender, etc.). Optional multi-selects
+  like injuries may start empty (“healthy”).
 
 ---
 

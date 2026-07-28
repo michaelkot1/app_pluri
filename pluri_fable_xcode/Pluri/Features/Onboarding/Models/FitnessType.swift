@@ -12,4 +12,12 @@ enum FitnessType: String, CaseIterable, Identifiable, Sendable {
     var isAvailable: Bool { self == .workout }
 
     var title: String { rawValue }
+
+    var systemImage: String {
+        switch self {
+        case .workout: "dumbbell.fill"
+        case .cardio: "figure.run"
+        case .flexibility: "figure.flexibility"
+        }
+    }
 }

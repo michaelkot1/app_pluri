@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Q4 (M1-09) — training regularity, single-select.
+/// Defaults to `.onAndOff`.
 struct Q4RegularityView: View {
     @Bindable var answers: OnboardingAnswers
     var progress: Double?
@@ -10,10 +11,9 @@ struct Q4RegularityView: View {
         OnboardingScaffold(
             progress: progress,
             title: "Do you weight train regularly?",
-            isContinueEnabled: answers.regularity != nil,
             onContinue: onContinue
         ) {
-            PluriChipGrid(
+            OnboardingSelectRowList(
                 items: RegularityLevel.allCases,
                 isSelected: { answers.regularity == $0 },
                 label: \.title,

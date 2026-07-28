@@ -16,16 +16,16 @@ final class OnboardingAnswers {
     // Q1
     var fitnessType: FitnessType = .workout
 
-    // Q2–Q4
-    var goal: Goal?
-    var experience: ExperienceLevel?
-    var regularity: RegularityLevel?
+    // Q2–Q4 — seeded so Continue is enabled on entry (required singles never empty)
+    var goal: Goal? = .generalFitness
+    var experience: ExperienceLevel? = .oneToSixMonths
+    var regularity: RegularityLevel? = .onAndOff
 
-    // Q5–Q6
-    var location: WorkoutLocation?
-    var equipment: Set<String> = []
+    // Q5–Q6 — location seeds commercial-gym equipment defaults
+    var location: WorkoutLocation? = .commercialGym
+    var equipment: Set<String> = EquipmentCatalog.defaultSelection(for: .commercialGym)
 
-    // Q7 — area -> pain level (1...5)
+    // Q7 — area -> pain level (1...5); empty means healthy (no fake injury)
     var injuries: [BodyArea: Int] = [:]
 
     // Q8–Q9
@@ -36,9 +36,9 @@ final class OnboardingAnswers {
     // Q10
     var sessionDuration: SessionDuration = .oneHour
 
-    // Q11 (canonical metric)
+    // Q11 (canonical metric) — gender preselected; age/height/weight seed on Q11 appear
     var age: Int?
-    var gender: Gender?
+    var gender: Gender? = .other
     var heightCM: Double?
     var weightKG: Double?
 

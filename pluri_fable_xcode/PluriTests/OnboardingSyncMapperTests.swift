@@ -179,6 +179,11 @@ struct OnboardingSyncMapperTests {
     func incompleteAnswersThrow() {
         let answers = OnboardingAnswers()
         answers.name = "Nobody"
+        // Defaults seed Q2–Q5; clear them to assert the incomplete guard still fires.
+        answers.goal = nil
+        answers.experience = nil
+        answers.regularity = nil
+        answers.location = nil
         #expect(throws: PluriSyncError.incompleteAnswers) {
             try OnboardingSyncMapper.profileRow(userID: UUID(), answers: answers)
         }

@@ -1,5 +1,14 @@
 import Foundation
 
+/// Display grouping for Q6 equipment — editorial categories over the flat
+/// WorkoutX list. IDs/strings stay identical to `all`; only presentation changes.
+struct EquipmentCategory: Identifiable, Sendable, Hashable {
+    let title: String
+    let items: [String]
+
+    var id: String { title }
+}
+
 /// Q6 equipment data — the WorkoutX equipment list (SPEC §3.2) plus the
 /// Home Gym / Small Gym / Bodyweight auto-select subsets.
 ///
@@ -18,43 +27,73 @@ import Foundation
 /// - **Bodyweight**: no equipment at all, plus the handful of items that
 ///   are themselves just bodyweight-assist tools (bands, rollers).
 enum EquipmentCatalog {
-    /// The full WorkoutX equipment list, SPEC §3.2 Q6.
-    static let all: [String] = [
-        "Assisted",
-        "Assisted (towel)",
-        "Band",
-        "Barbell",
-        "Body Weight",
-        "Body Weight (with Resistance Band)",
-        "Bosu Ball",
-        "Cable",
-        "Dumbbell",
-        "Dumbbell (used as Handles for Deeper Range)",
-        "Dumbbell + Exercise Ball",
-        "Dumbbell + Exercise Ball + Tennis Ball",
-        "Elliptical Machine",
-        "Ez Barbell",
-        "Ez Barbell + Exercise Ball",
-        "Hammer",
-        "Kettlebell",
-        "Leverage Machine",
-        "Medicine Ball",
-        "Olympic Barbell",
-        "Resistance Band",
-        "Roller",
-        "Rope",
-        "Skierg Machine",
-        "Sled Machine",
-        "Smith Machine",
-        "Stability Ball",
-        "Stationary Bike",
-        "Stepmill Machine",
-        "Tire",
-        "Trap Bar",
-        "Upper Body Ergometer",
-        "Weighted",
-        "Wheel Roller",
+    /// Grouped for the Q6 vertical list UI. Every item in `all` appears
+    /// exactly once across these categories.
+    static let categories: [EquipmentCategory] = [
+        EquipmentCategory(
+            title: "Bodyweight",
+            items: [
+                "Body Weight",
+                "Body Weight (with Resistance Band)",
+                "Weighted",
+                "Assisted",
+                "Assisted (towel)",
+            ]
+        ),
+        EquipmentCategory(
+            title: "Free weights",
+            items: [
+                "Barbell",
+                "Ez Barbell",
+                "Ez Barbell + Exercise Ball",
+                "Olympic Barbell",
+                "Trap Bar",
+                "Dumbbell",
+                "Dumbbell (used as Handles for Deeper Range)",
+                "Dumbbell + Exercise Ball",
+                "Dumbbell + Exercise Ball + Tennis Ball",
+                "Kettlebell",
+                "Medicine Ball",
+                "Hammer",
+            ]
+        ),
+        EquipmentCategory(
+            title: "Machines",
+            items: [
+                "Cable",
+                "Leverage Machine",
+                "Smith Machine",
+                "Sled Machine",
+            ]
+        ),
+        EquipmentCategory(
+            title: "Cardio",
+            items: [
+                "Elliptical Machine",
+                "Skierg Machine",
+                "Stationary Bike",
+                "Stepmill Machine",
+                "Upper Body Ergometer",
+            ]
+        ),
+        EquipmentCategory(
+            title: "Accessories",
+            items: [
+                "Band",
+                "Resistance Band",
+                "Bosu Ball",
+                "Stability Ball",
+                "Roller",
+                "Wheel Roller",
+                "Rope",
+                "Tire",
+            ]
+        ),
     ]
+
+    /// The full WorkoutX equipment list, SPEC §3.2 Q6.
+    /// Flattened from `categories` so IDs stay in sync with the UI groups.
+    static let all: [String] = categories.flatMap(\.items)
 
     private static let homeGym: Set<String> = [
         "Band", "Barbell", "Body Weight", "Body Weight (with Resistance Band)",
