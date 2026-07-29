@@ -34,6 +34,48 @@ struct CommunityViewModelTests {
         #expect(vm.canPost == true)
     }
 
+    @Test("Create Post invokes onCreated and reloads the shared feed")
+    func createPostAppearsInFeed() async {
+        let client = MockCommunityClient(posts: [])
+        let feed = CommunityFeedViewModel(
+            client: client,
+            mode: .feed,
+            reachability: MockNetworkReachability(isOnline: true)
+        )
+        var createdTitle: String?
+        let create = CreateCommunityPostViewModel(client: client) { post in
+            createdTitle = post.title
+            feed.reload()
+        }
+        create.title = "A small win"
+        create.body = "I trained consistently today"
+
+        let submitted = await create.submit()
+        await waitUntil { feed.loadState == .loaded }
+
+        #expect(submitted)
+        #expect(create.didPost)
+        #expect(create.isSubmitting == false)
+        #expect(create.errorMessage == nil)
+        #expect(createdTitle == "A small win")
+        #expect(feed.posts.first?.title == "A small win")
+    }
+
+    @Test("Create Post surfaces a gentle client error")
+    func createPostErrorState() async {
+        let client = MockCommunityClient(posts: [], errorToThrow: .unauthorized)
+        let create = CreateCommunityPostViewModel(client: client)
+        create.title = "A small win"
+        create.body = "I trained consistently today"
+
+        let submitted = await create.submit()
+
+        #expect(submitted == false)
+        #expect(create.didPost == false)
+        #expect(create.isSubmitting == false)
+        #expect(create.errorMessage?.localizedStandardContains("Sign in") == true)
+    }
+
     @Test("Feed VM shows offline without inventing posts")
     func feedOffline() async {
         let reachability = MockNetworkReachability(isOnline: false)

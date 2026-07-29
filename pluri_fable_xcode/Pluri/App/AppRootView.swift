@@ -22,6 +22,7 @@ struct AppRootView: View {
     @State private var syncEngine: SupabaseSyncEngine
     @State private var workoutSessionRepository: SwiftDataWorkoutSessionRepository
     @State private var planStore: PlanStore
+    @State private var communityClient: LiveCommunityClient
     @State private var router = AppRouter()
     @State private var themeStore = ThemeStore()
 
@@ -32,6 +33,7 @@ struct AppRootView: View {
     init(modelContainer: ModelContainer) {
         let supabase = SupabaseService()
         _supabaseService = State(initialValue: supabase)
+        _communityClient = State(initialValue: LiveCommunityClient(client: supabase.client))
         let auth = SupabaseAuthService(supabaseService: supabase)
         _authService = State(initialValue: auth)
         _subscriptionService = State(initialValue: SubscriptionService())
@@ -117,13 +119,7 @@ struct AppRootView: View {
         .environment(themeStore)
         .environment(\.mealDBClient, LiveMealDBClient())
         .environment(\.nutritionClient, LiveNutritionClient())
-        // DEBUG uses mock fixtures so Feed · Discover · Saved are demonstrable without
-        // a seeded backend; Release uses the live Supabase client (SPEC §14 #72d).
-        #if DEBUG
-        .environment(\.communityClient, MockCommunityClient())
-        #else
-        .environment(\.communityClient, LiveCommunityClient(client: supabaseService.client))
-        #endif
+        .environment(\.communityClient, communityClient)
         .onChange(of: router.phase) { _, newPhase in
             // The shared plan store (M3-04) tracks the Main phase: hydrate it
             // from the router's restored state on entry, blank it on reroute

@@ -70,9 +70,16 @@ struct CommunityView: View {
         savedViewModel: CommunityFeedViewModel
     ) -> some View {
         VStack(spacing: 0) {
-            CommunityHubTabPicker(selectedTab: $selectedTab)
+            Text("Connect, share, and celebrate progress together.")
+                .font(PluriFont.body)
+                .foregroundStyle(PluriColor.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, PluriSpacing.lg)
                 .padding(.top, PluriSpacing.sm)
+
+            CommunityHubTabPicker(selectedTab: $selectedTab)
+                .padding(.horizontal, PluriSpacing.lg)
+                .padding(.vertical, PluriSpacing.md)
 
             switch selectedTab {
             case .feed:

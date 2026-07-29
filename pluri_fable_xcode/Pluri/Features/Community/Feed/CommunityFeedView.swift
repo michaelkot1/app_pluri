@@ -6,23 +6,19 @@ struct CommunityFeedView: View {
     var onCreatePost: () -> Void
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            CommunityPostListView(
-                viewModel: viewModel,
-                emptyTitle: "No posts yet",
-                emptyMessage: "Be the first to share a win, ask a gear question, or post a workout."
-            )
-
+        CommunityPostListView(
+            viewModel: viewModel,
+            emptyTitle: "Start the conversation",
+            emptyMessage: "Share a win, ask a question, or post a workout for the Community."
+        )
+        .safeAreaInset(edge: .bottom) {
             Button("Create post", systemImage: "plus") {
                 onCreatePost()
             }
-            .labelStyle(.iconOnly)
-            .font(PluriFont.sectionHeader)
-            .foregroundStyle(.white)
-            .frame(width: 56, height: 56)
-            .background(PluriColor.brandOrange, in: .circle)
-            .padding(.trailing, PluriSpacing.lg)
-            .padding(.bottom, PluriSpacing.lg)
+            .buttonStyle(.pluriPrimary)
+            .padding(.horizontal, PluriSpacing.lg)
+            .padding(.vertical, PluriSpacing.sm)
+            .background(PluriColor.bgCanvas.opacity(0.96))
             .accessibilityLabel("Create post")
             .accessibilityHint("Compose a new Community post")
         }

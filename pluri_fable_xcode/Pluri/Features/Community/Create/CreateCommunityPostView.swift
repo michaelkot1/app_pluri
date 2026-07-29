@@ -7,9 +7,15 @@ struct CreateCommunityPostView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        let photoButtonTitle = viewModel.selectedImageData == nil ? "Add photo" : "Change photo"
+
         NavigationStack {
             Form {
-                Section("Type") {
+                Section {
+                    CommunityPostComposerIntroView()
+                }
+
+                Section("Post type") {
                     Picker("Post type", selection: $viewModel.postType) {
                         ForEach(CommunityPostType.allCases, id: \.self) { type in
                             Text(type.createTitle).tag(type)
@@ -18,20 +24,35 @@ struct CreateCommunityPostView: View {
                     .pickerStyle(.menu)
                 }
 
-                Section("Post") {
-                    TextField("Title", text: $viewModel.title)
+                Section("Your post") {
+                    TextField("Add a clear title", text: $viewModel.title)
                         .font(PluriFont.body)
                         .accessibilityLabel("Post title")
-                    TextField("Body", text: $viewModel.body, axis: .vertical)
+                    TextField("What would you like to share?", text: $viewModel.body, axis: .vertical)
                         .lineLimit(4...10)
                         .font(PluriFont.body)
                         .accessibilityLabel("Post body")
-                    Text("\(viewModel.bodyWordCount) words · need \(CommunityTextRules.minimumBodyWordCount)")
-                        .font(PluriFont.overline)
-                        .foregroundStyle(PluriColor.textTertiary)
-                        .accessibilityLabel(
-                            "\(viewModel.bodyWordCount) words, need \(CommunityTextRules.minimumBodyWordCount)"
+                    HStack(spacing: PluriSpacing.xs) {
+                        Image(
+                            systemName: viewModel.bodyWordCount >= CommunityTextRules.minimumBodyWordCount
+                                ? "checkmark.circle.fill"
+                                : "circle"
                         )
+                        Text(
+                            viewModel.bodyWordCount >= CommunityTextRules.minimumBodyWordCount
+                                ? "Ready to share"
+                                : "\(viewModel.bodyWordCount) of \(CommunityTextRules.minimumBodyWordCount) words"
+                        )
+                    }
+                    .font(PluriFont.overline)
+                    .foregroundStyle(
+                        viewModel.bodyWordCount >= CommunityTextRules.minimumBodyWordCount
+                            ? PluriColor.statusGreenDeep
+                            : PluriColor.textTertiary
+                    )
+                    .accessibilityLabel(
+                        "\(viewModel.bodyWordCount) words, need \(CommunityTextRules.minimumBodyWordCount)"
+                    )
                 }
 
                 if viewModel.postType == .shareWorkout {
@@ -54,10 +75,7 @@ struct CreateCommunityPostView: View {
 
                 Section("Optional") {
                     PhotosPicker(selection: $viewModel.selectedPhotoItem, matching: .images) {
-                        Label(
-                            viewModel.selectedImageData == nil ? "Add photo" : "Change photo",
-                            systemImage: "photo"
-                        )
+                        Label(photoButtonTitle, systemImage: "photo")
                         .frame(minHeight: 44)
                     }
                     .onChange(of: viewModel.selectedPhotoItem) { _, _ in
@@ -76,9 +94,10 @@ struct CreateCommunityPostView: View {
 
                 if let errorMessage = viewModel.errorMessage {
                     Section {
-                        Text(errorMessage)
+                        Label(errorMessage, systemImage: "exclamationmark.circle")
                             .font(PluriFont.body)
                             .foregroundStyle(PluriColor.textSecondary)
+                            .accessibilityLabel("Couldn't post. \(errorMessage)")
                     }
                 }
             }
@@ -89,22 +108,12 @@ struct CreateCommunityPostView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .disabled(viewModel.isSubmitting)
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Post") {
-                        Task {
-                            if await viewModel.submit() {
-                                dismiss()
-                            }
-                        }
-                    }
-                    .disabled(!viewModel.canPost || viewModel.isSubmitting)
-                    .bold()
-                    .accessibilityHint(
-                        viewModel.canPost
-                            ? "Publish this Community post"
-                            : "Add a title and at least three body words to post"
-                    )
+            }
+            .safeAreaInset(edge: .bottom) {
+                CommunityPostSubmitBar(viewModel: viewModel) {
+                    dismiss()
                 }
             }
         }

@@ -53,6 +53,8 @@ struct CommunityPostCardView: View {
                     pollBlock(poll)
                 }
 
+                Divider()
+                    .overlay(PluriColor.lineDivider)
                 actions
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -62,14 +64,25 @@ struct CommunityPostCardView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: PluriSpacing.sm) {
+            Text(String(post.author.displayName.prefix(1)).uppercased())
+                .font(PluriFont.label)
+                .bold()
+                .foregroundStyle(PluriColor.brandOrangeDeep)
+                .frame(width: 44, height: 44)
+                .background(PluriColor.brandCoralSoft.opacity(0.18), in: .circle)
+                .accessibilityHidden(true)
+
             VStack(alignment: .leading, spacing: PluriSpacing.xs) {
                 Text(post.author.displayName)
                     .font(PluriFont.label)
                     .foregroundStyle(PluriColor.textPrimary)
-                Text(post.postType.createTitle)
-                    .font(PluriFont.overline)
-                    .foregroundStyle(PluriColor.textTertiary)
-                    .textCase(.uppercase)
+                HStack(spacing: PluriSpacing.xs) {
+                    Text(post.postType.createTitle)
+                    Text("·")
+                    Text(post.createdAt, format: .relative(presentation: .named))
+                }
+                .font(PluriFont.overline)
+                .foregroundStyle(PluriColor.textTertiary)
             }
             Spacer(minLength: 0)
             Menu {
@@ -120,7 +133,7 @@ struct CommunityPostCardView: View {
             Text(poll.question)
                 .font(PluriFont.label)
                 .foregroundStyle(PluriColor.textPrimary)
-            ForEach(Array(poll.options.enumerated()), id: \.offset) { index, option in
+            ForEach(poll.options.enumerated(), id: \.offset) { index, option in
                 let count = index < poll.voteCounts.count ? poll.voteCounts[index] : 0
                 let isSelected = poll.viewerOptionIndex == index
                 Button {

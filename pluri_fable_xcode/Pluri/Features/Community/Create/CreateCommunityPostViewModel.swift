@@ -22,6 +22,7 @@ final class CreateCommunityPostViewModel {
     var selectedImageContentType = "image/jpeg"
     var selectedImageExtension = "jpg"
     var isSubmitting = false
+    var didPost = false
     var errorMessage: String?
 
     private let client: any CommunityClient
@@ -75,6 +76,7 @@ final class CreateCommunityPostViewModel {
     func submit() async -> Bool {
         guard canPost, !isSubmitting else { return false }
         isSubmitting = true
+        didPost = false
         errorMessage = nil
         defer { isSubmitting = false }
 
@@ -113,6 +115,7 @@ final class CreateCommunityPostViewModel {
 
         do {
             let post = try await client.createPost(draft)
+            didPost = true
             onCreated(post)
             return true
         } catch {
