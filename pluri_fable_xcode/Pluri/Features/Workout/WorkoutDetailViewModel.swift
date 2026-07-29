@@ -8,6 +8,7 @@ import Observation
 final class WorkoutDetailViewModel {
     private(set) var notesDraft = ""
     private(set) var isSkipping = false
+    private(set) var isUnskipping = false
     var errorMessage: String?
 
     private let sessionID: UUID
@@ -66,7 +67,7 @@ final class WorkoutDetailViewModel {
     /// Skips a `.scheduled` workout, then discards any local in-progress
     /// session so Skip doesn't orphan progress (SPEC §14 #53).
     func skip(using planStore: PlanStore) async {
-        guard !isSkipping else { return }
+        guard !isSkipping, !isUnskipping else { return }
         isSkipping = true
         errorMessage = nil
         defer { isSkipping = false }
@@ -76,6 +77,21 @@ final class WorkoutDetailViewModel {
             if let inProgress = try? repository.inProgressSession(for: sessionID) {
                 try? repository.discard(sessionId: inProgress.id)
             }
+        } catch {
+            errorMessage = PlanChangeErrorMessage.message(for: error)
+        }
+    }
+
+    /// Restores a skipped workout to scheduled. The in-progress workout
+    /// discarded by Skip is intentionally not recreated until Start.
+    func unskip(using planStore: PlanStore) async {
+        guard !isSkipping, !isUnskipping else { return }
+        isUnskipping = true
+        errorMessage = nil
+        defer { isUnskipping = false }
+
+        do {
+            try await planStore.unskipWorkout(id: sessionID)
         } catch {
             errorMessage = PlanChangeErrorMessage.message(for: error)
         }

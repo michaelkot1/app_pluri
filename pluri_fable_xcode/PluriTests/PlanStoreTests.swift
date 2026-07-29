@@ -817,20 +817,60 @@ struct PlanStoreTests {
         #expect(reconciler.reconciledPlans.isEmpty)
     }
 
-    @Test("Skip / complete reject already-finished workouts")
-    func skipAndCompleteRejectFinished() async throws {
+    @Test("Unskipping restores scheduled status and persists it")
+    func unskipWorkoutSucceeds() async throws {
+        let plan = makeScheduledPlan()
+        let reconciler = MockWorkoutReminderReconciler()
+        let (store, service) = makeStore(plan: plan, reminderReconciler: reconciler)
+        let target = plan.weeks[0].sessions[1] // W1 Wed, skipped
+
+        try await store.unskipWorkout(id: target.id)
+
+        let updatedPlan = try #require(store.plan)
+        let updated = try #require(PlanMutator.session(withID: target.id, in: updatedPlan))
+        #expect(updated.status == .scheduled)
+        #expect(service.statusCalls.count == 1)
+        #expect(service.statusCalls.first?.changedWorkouts.first?.status == WorkoutStatus.scheduled.rawValue)
+        #expect(reconciler.reconciledPlans == [updatedPlan])
+    }
+
+    @Test("A failed unskip rolls the local plan back and does not reconcile")
+    func unskipRollsBackOnServiceFailure() async throws {
+        let plan = makeScheduledPlan()
+        let service = MockPlanMutationService()
+        service.nextError = .networkUnavailable
+        let reconciler = MockWorkoutReminderReconciler()
+        let (store, _) = makeStore(plan: plan, service: service, reminderReconciler: reconciler)
+        let target = plan.weeks[0].sessions[1]
+
+        await #expect(throws: PluriSyncError.networkUnavailable) {
+            try await store.unskipWorkout(id: target.id)
+        }
+        #expect(store.plan == plan)
+        #expect(reconciler.reconciledPlans.isEmpty)
+    }
+
+    @Test("Skip, unskip, and complete enforce valid status transitions")
+    func statusChangesRejectInvalidTransitions() async throws {
         let plan = makeScheduledPlan()
         let sync = MockSyncEngine()
         sync.flushOnEnqueue = false
         let (store, service) = makeStore(plan: plan, syncEngine: sync)
         let completed = plan.weeks[0].sessions[0]
         let skipped = plan.weeks[0].sessions[1]
+        let scheduled = plan.weeks[1].sessions[0]
 
         await #expect(throws: PlanMutationError.workoutFinished) {
             try await store.skipWorkout(id: completed.id)
         }
         await #expect(throws: PlanMutationError.workoutFinished) {
             try await store.skipWorkout(id: skipped.id)
+        }
+        await #expect(throws: PlanMutationError.workoutFinished) {
+            try await store.unskipWorkout(id: completed.id)
+        }
+        await #expect(throws: PlanMutationError.workoutFinished) {
+            try await store.unskipWorkout(id: scheduled.id)
         }
         await #expect(throws: PlanMutationError.workoutFinished) {
             try await store.markWorkoutCompleted(id: completed.id, sessionId: UUID())
@@ -902,6 +942,9 @@ struct PlanStoreTests {
         }
         await #expect(throws: PlanMutationError.noPlan) {
             try await store.skipWorkout(id: UUID())
+        }
+        await #expect(throws: PlanMutationError.noPlan) {
+            try await store.unskipWorkout(id: UUID())
         }
         await #expect(throws: PlanMutationError.noPlan) {
             try await store.markWorkoutCompleted(id: UUID(), sessionId: UUID())

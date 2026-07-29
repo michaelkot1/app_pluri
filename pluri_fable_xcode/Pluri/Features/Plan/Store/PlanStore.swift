@@ -224,6 +224,26 @@ final class PlanStore {
         await reconcileReminders()
     }
 
+    /// Restores a skipped workout to scheduled using the same optimistic,
+    /// persisted, rollback-safe path as Skip.
+    func unskipWorkout(id: UUID) async throws {
+        guard let plan else { throw PlanMutationError.noPlan }
+        let snapshot = plan
+        let result = try PlanMutator.unskippingWorkout(id: id, in: plan)
+
+        applyPlan(result.plan)
+        do {
+            try await mutationService.updateWorkoutStatus(
+                planID: plan.id,
+                changedWorkouts: result.changedSessions.map(workoutRow)
+            )
+        } catch {
+            applyPlan(snapshot)
+            throw error
+        }
+        await reconcileReminders()
+    }
+
     /// Marks a scheduled workout completed after Save (M4-04 / SPEC §14 #52):
     /// optimistic local apply, enqueue SyncEngine for the session (and linked
     /// plan status on flush), reconcile reminders after the *local* apply.

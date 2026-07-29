@@ -224,12 +224,24 @@ nonisolated enum PlanMutator {
         )
     }
 
-    // MARK: - Skip / complete (M4-04)
+    // MARK: - Skip / unskip / complete (M4-04)
 
     /// Marks a scheduled workout as `skipped`. Only `.scheduled` workouts may
     /// change — finished history is immutable (SPEC §14 #50b / #52).
     static func skippingWorkout(id: UUID, in plan: GeneratedPlan) throws -> StatusChangeResult {
         try applyingStatus(.skipped, toWorkoutID: id, in: plan)
+    }
+
+    /// Restores a skipped workout to the schedule. Completed workouts remain
+    /// immutable and cannot be restored through this path.
+    static func unskippingWorkout(id: UUID, in plan: GeneratedPlan) throws -> StatusChangeResult {
+        guard let existing = session(withID: id, in: plan) else {
+            throw PlanMutationError.workoutNotFound
+        }
+        guard existing.status == .skipped else {
+            throw PlanMutationError.workoutFinished
+        }
+        return try replacingStatus(.scheduled, for: existing, in: plan)
     }
 
     /// Marks a scheduled workout as `completed`. Session link lives on
@@ -337,6 +349,14 @@ nonisolated enum PlanMutator {
             throw PlanMutationError.workoutFinished
         }
 
+        return try replacingStatus(status, for: existing, in: plan)
+    }
+
+    private static func replacingStatus(
+        _ status: WorkoutStatus,
+        for existing: PlannedSession,
+        in plan: GeneratedPlan
+    ) throws -> StatusChangeResult {
         let updated = PlannedSession(
             id: existing.id,
             title: existing.title,
@@ -352,7 +372,7 @@ nonisolated enum PlanMutator {
             exercises: existing.exercises
         )
         let newPlan = replacingSession(updated, in: plan)
-        guard let placed = placedSession(withID: id, in: newPlan) else {
+        guard let placed = placedSession(withID: existing.id, in: newPlan) else {
             throw PlanMutationError.workoutNotFound
         }
         return StatusChangeResult(plan: newPlan, changedSessions: [placed])

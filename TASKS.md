@@ -284,6 +284,7 @@ Core of the app (PLAN M4): Workout Detail, live Workout Screen, completion summa
 
 - [x] **M4-05** Replace `WorkoutDetailStubView` with the real Detail page: focus-driven title/type/color, equipment rollup for the whole session, exercise list + set counts, **View Workout** → live Screen. Reachable from Home Record menu, selected-day card, and Week Overview (typed routes already stubbed in M3).
 - [x] **M4-06** Skip workout action + Workout Notes bottom sheet on Detail (SPEC §7); skip persists via M4-04 and stays gentle (no scolding).
+- [x] **M4-06a** Redesign Workout Detail with Runna-inspired workout-color hero, action row, individual exercise cards, bottom Notes entry, sticky **Start Workout**, and reversible Skip / Unskip status.
 
 > **Learned during M4-05/06 (2026-07-25):** real `WorkoutDetailView` + `WorkoutDetailViewModel` replace the stub; entry points = Record menu, Home day-card row tap, Week Overview. **View Workout** pushes typed `HomeRoute`/`PlanRoute.workoutScreen` (live Screen in M4-07/08). Notes sheet uses `.pluriBottomSheet`; first save `startOrResume` then `updateWorkoutNotes` (SPEC §14 #53). Skip only when `.scheduled`, via `PlanStore.skipWorkout`, then discards any local in-progress session for that workout. `SwiftDataWorkoutSessionRepository` is `@Observable` and injected from `AppRootView`.
 

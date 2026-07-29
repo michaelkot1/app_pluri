@@ -160,4 +160,53 @@ struct WorkoutDetailViewModelTests {
         #expect(updated.status == .skipped)
         #expect(try repo.inProgressSession(for: target.id) == nil)
     }
+
+    @Test("Unskip restores a skipped workout to scheduled")
+    func unskipRestoresScheduledStatus() async throws {
+        let container = try makeContainer()
+        let repo = makeRepository(in: container)
+        let plan = makeScheduledPlan()
+        let target = try #require(plan.weeks.first?.sessions.first)
+        let store = PlanStore(mutationService: MockPlanMutationService())
+        store.configure(
+            from: RestoredUserState(
+                profile: RestoredProfile(
+                    displayName: "Alex",
+                    goal: .buildMuscle,
+                    experience: .oneToSixMonths,
+                    regularity: .onAndOff,
+                    location: .commercialGym,
+                    injuries: [:],
+                    trainingDays: [.monday, .wednesday, .friday],
+                    scheduleType: .scheduled,
+                    planLengthWeeks: 1,
+                    sessionDuration: .fortyFiveMinutes,
+                    age: 28,
+                    gender: .male,
+                    heightCM: 178,
+                    weightKG: 75,
+                    allergies: [],
+                    equipment: ["Barbell"],
+                    startDate: plan.startDate,
+                    maintenanceCalories: 2400,
+                    units: "metric",
+                    onboardingCompleted: true
+                ),
+                plan: plan
+            )
+        )
+        try await store.skipWorkout(id: target.id)
+        let viewModel = WorkoutDetailViewModel(
+            sessionID: target.id,
+            repository: repo,
+            userIDProvider: { UUID() }
+        )
+
+        await viewModel.unskip(using: store)
+
+        #expect(viewModel.errorMessage == nil)
+        #expect(viewModel.isUnskipping == false)
+        let updatedPlan = try #require(store.plan)
+        #expect(PlanMutator.session(withID: target.id, in: updatedPlan)?.status == .scheduled)
+    }
 }

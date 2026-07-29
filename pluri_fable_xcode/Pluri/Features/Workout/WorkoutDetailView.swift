@@ -1,17 +1,16 @@
 import SwiftData
 import SwiftUI
 
-/// Which Main tab stack owns this Detail push — View Workout stays on the
-/// same stack (Home / Plan / Insights) that opened Detail (SPEC §14 #42d / #64).
+/// Which Main tab stack owns this Detail push — Start Workout stays on the
+/// same stack (Home / Plan / Insights) that opened Detail.
 enum WorkoutDetailStack: Sendable {
     case home
     case plan
     case insights
 }
 
-/// Workout Detail (M4-05/06 / SPEC §7): focus-driven title/type/color,
-/// equipment rollup, exercise list with set counts, View Workout → Screen
-/// (M4-07/08), Skip + Notes.
+/// Runna-inspired workout overview with focus-driven color, status actions,
+/// per-exercise cards, notes, and a sticky Start Workout action.
 struct WorkoutDetailView: View {
     var sessionID: UUID
     var stack: WorkoutDetailStack
@@ -37,8 +36,16 @@ struct WorkoutDetailView: View {
             }
         }
         .background(PluriColor.bgCanvas)
-        .navigationTitle(session?.title ?? "Workout")
+        .navigationTitle(weekTitle)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbar {
+            if let session {
+                ToolbarItem(placement: .topBarTrailing) {
+                    statusIndicator(for: session.status)
+                }
+            }
+        }
         .id(sessionID)
         .onAppear {
             ensureViewModel()
@@ -59,64 +66,99 @@ struct WorkoutDetailView: View {
         return PlanMutator.session(withID: sessionID, in: plan)
     }
 
+    private var weekTitle: String {
+        guard let plan = planStore.plan,
+              let week = plan.weeks.first(where: { week in
+                  week.sessions.contains { $0.id == sessionID }
+              })
+        else {
+            return "Workout"
+        }
+        return "Week \(week.number)"
+    }
+
     @ViewBuilder
     private func detailContent(for session: PlannedSession) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: PluriSpacing.lg) {
-                headerCard(for: session)
+            VStack(alignment: .leading, spacing: 0) {
+                WorkoutDetailHeroView(session: session)
 
-                if !session.equipmentNeeded.isEmpty {
-                    equipmentSection(for: session)
+                WorkoutDetailActionRow(
+                    status: session.status,
+                    isUpdatingStatus: isUpdatingStatus,
+                    statusAction: { toggleSkipStatus(for: session) }
+                )
+                .padding(.horizontal, PluriSpacing.lg)
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: PluriSpacing.lg) {
+                    if !session.equipmentNeeded.isEmpty {
+                        equipmentSection(for: session)
+                    }
+
+                    exercisesSection(for: session)
+
+                    if let errorMessage = viewModel?.errorMessage {
+                        Text(errorMessage)
+                            .font(PluriFont.label)
+                            .foregroundStyle(PluriColor.statusRedSoft)
+                    }
+
+                    notesButton
                 }
-
-                exercisesSection(for: session)
-
-                if let errorMessage = viewModel?.errorMessage {
-                    Text(errorMessage)
-                        .font(PluriFont.label)
-                        .foregroundStyle(PluriColor.statusRedSoft)
-                }
-
-                actionsSection(for: session)
+                .padding(.horizontal, PluriSpacing.lg)
+                .padding(.vertical, PluriSpacing.xl)
             }
-            .padding(.horizontal, PluriSpacing.lg)
-            .padding(.vertical, PluriSpacing.lg)
         }
         .scrollIndicators(.hidden)
+        // Let the hero wash continue under status/nav; content pads itself.
+        .ignoresSafeArea(edges: .top)
+        .safeAreaInset(edge: .bottom) {
+            if session.status == .scheduled {
+                startWorkoutBar
+            }
+        }
     }
 
-    private func headerCard(for session: PlannedSession) -> some View {
-        PluriCard {
-            HStack(alignment: .top, spacing: PluriSpacing.sm) {
-                RoundedRectangle(cornerRadius: PluriRadius.sm)
-                    .fill(WorkoutColorResolver.token(for: session).color)
-                    .frame(width: 4)
+    private var isUpdatingStatus: Bool {
+        viewModel?.isSkipping == true || viewModel?.isUnskipping == true
+    }
 
-                VStack(alignment: .leading, spacing: PluriSpacing.xs) {
-                    Text(session.title)
-                        .font(PluriFont.sectionHeader)
-                        .foregroundStyle(PluriColor.textPrimary)
-                    Text(subtitle(for: session))
-                        .font(PluriFont.label)
-                        .foregroundStyle(PluriColor.textSecondary)
-                    if let statusLabel = statusLabel(for: session.status) {
-                        Text(statusLabel)
-                            .font(PluriFont.label)
-                            .foregroundStyle(PluriColor.textTertiary)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+    private func statusIndicator(for status: WorkoutStatus) -> some View {
+        Image(systemName: statusIndicatorImage(for: status))
+            .font(.body.bold())
+            .foregroundStyle(PluriColor.textPrimary)
+            .frame(width: 44, height: 44)
+            .overlay {
+                RoundedRectangle(cornerRadius: PluriRadius.sm)
+                    .stroke(PluriColor.textSecondary.opacity(0.7), lineWidth: 1.5)
+                    .frame(width: 28, height: 28)
             }
+            .accessibilityLabel(statusIndicatorLabel(for: status))
+    }
+
+    private func statusIndicatorImage(for status: WorkoutStatus) -> String {
+        switch status {
+        case .scheduled: ""
+        case .skipped: "minus"
+        case .completed: "checkmark"
+        }
+    }
+
+    private func statusIndicatorLabel(for status: WorkoutStatus) -> String {
+        switch status {
+        case .scheduled: "Workout scheduled"
+        case .skipped: "Workout skipped"
+        case .completed: "Workout completed"
         }
     }
 
     private func equipmentSection(for session: PlannedSession) -> some View {
         VStack(alignment: .leading, spacing: PluriSpacing.sm) {
-            Text("Equipment needed")
-                .font(PluriFont.overline)
-                .textCase(.uppercase)
-                .kerning(1)
-                .foregroundStyle(PluriColor.textSecondary)
+            Label("Equipment", systemImage: "dumbbell")
+                .font(PluriFont.sectionHeader)
+                .foregroundStyle(PluriColor.textPrimary)
 
             LazyVGrid(
                 columns: [GridItem(.adaptive(minimum: 110), spacing: PluriSpacing.sm)],
@@ -137,60 +179,55 @@ struct WorkoutDetailView: View {
     }
 
     private func exercisesSection(for session: PlannedSession) -> some View {
-        VStack(alignment: .leading, spacing: PluriSpacing.sm) {
-            Text("Exercises")
-                .font(PluriFont.overline)
-                .textCase(.uppercase)
-                .kerning(1)
-                .foregroundStyle(PluriColor.textSecondary)
+        VStack(alignment: .leading, spacing: PluriSpacing.md) {
+            Label("Exercises", systemImage: "list.bullet.rectangle")
+                .font(PluriFont.sectionHeader)
+                .foregroundStyle(PluriColor.textPrimary)
 
-            PluriCard {
-                VStack(spacing: PluriSpacing.sm) {
-                    ForEach(session.exercises) { exercise in
-                        HStack(alignment: .firstTextBaseline) {
-                            VStack(alignment: .leading, spacing: PluriSpacing.xs) {
-                                Text(exercise.name)
-                                    .font(PluriFont.body)
-                                    .foregroundStyle(PluriColor.textPrimary)
-                                Text("\(exercise.sets) sets")
-                                    .font(PluriFont.label)
-                                    .foregroundStyle(PluriColor.textTertiary)
-                            }
-                            Spacer(minLength: PluriSpacing.md)
-                            Text(exercise.setsRepsSummary)
-                                .font(PluriFont.label)
-                                .foregroundStyle(PluriColor.textSecondary)
-                                .monospacedDigit()
-                        }
-                        .frame(minHeight: 44, alignment: .leading)
-                        .accessibilityElement(children: .combine)
-                    }
-                }
+            ForEach(session.exercises.enumerated(), id: \.element.id) { index, exercise in
+                WorkoutDetailExerciseCard(
+                    exercise: exercise,
+                    number: index + 1,
+                    workoutColor: WorkoutColorResolver.token(for: session).color
+                )
             }
         }
     }
 
-    private func actionsSection(for session: PlannedSession) -> some View {
-        VStack(spacing: PluriSpacing.sm) {
-            Button("View Workout") {
-                openWorkoutScreen()
+    private var notesButton: some View {
+        Button {
+            viewModel?.loadNotes()
+            showsNotesSheet = true
+        } label: {
+            HStack {
+                Label("Workout Notes", systemImage: "note.text")
+                    .font(PluriFont.body)
+                    .bold()
+                Spacer()
+                Image(systemName: "chevron.right")
             }
-            .buttonStyle(.pluriPrimary)
-
-            Button("Workout Notes") {
-                viewModel?.loadNotes()
-                showsNotesSheet = true
-            }
-            .buttonStyle(.pluriSecondary)
-
-            if session.status == .scheduled {
-                Button("Skip workout") {
-                    Task { await viewModel?.skip(using: planStore) }
-                }
-                .buttonStyle(.pluriSecondary)
-                .disabled(viewModel?.isSkipping == true)
-            }
+            .foregroundStyle(PluriColor.textPrimary)
+            .padding(.horizontal, PluriSpacing.md)
+            .frame(minHeight: 56)
+            .background(PluriColor.bgSurface, in: .rect(cornerRadius: PluriRadius.md))
         }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens workout notes")
+    }
+
+    private var startWorkoutBar: some View {
+        Button("Start Workout", systemImage: "play.fill") {
+            openWorkoutScreen()
+        }
+        .font(PluriFont.label)
+        .bold()
+        .foregroundStyle(.white)
+        .padding(.horizontal, PluriSpacing.lg)
+        .frame(maxWidth: .infinity, minHeight: 52)
+        .background(.black, in: .capsule)
+        .buttonStyle(.plain)
+        .padding(.horizontal, PluriSpacing.lg)
+        .padding(.vertical, PluriSpacing.sm)
     }
 
     private var notesSheet: some View {
@@ -248,6 +285,17 @@ struct WorkoutDetailView: View {
         )
     }
 
+    private func toggleSkipStatus(for session: PlannedSession) {
+        switch session.status {
+        case .scheduled:
+            Task { await viewModel?.skip(using: planStore) }
+        case .skipped:
+            Task { await viewModel?.unskip(using: planStore) }
+        case .completed:
+            break
+        }
+    }
+
     private func openWorkoutScreen() {
         switch stack {
         case .home:
@@ -256,23 +304,6 @@ struct WorkoutDetailView: View {
             router.openPlanWorkoutScreen(sessionID: sessionID)
         case .insights:
             router.openInsightsWorkoutScreen(planWorkoutID: sessionID)
-        }
-    }
-
-    private func subtitle(for session: PlannedSession) -> String {
-        let duration = Duration.seconds(session.durationMinutes * 60)
-            .formatted(.units(allowed: [.hours, .minutes], width: .abbreviated))
-        return "\(session.workoutType.title) · \(duration) · \(session.exercises.count) exercises"
-    }
-
-    private func statusLabel(for status: WorkoutStatus) -> String? {
-        switch status {
-        case .scheduled:
-            nil
-        case .completed:
-            "Completed"
-        case .skipped:
-            "Skipped"
         }
     }
 }
