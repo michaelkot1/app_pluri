@@ -46,10 +46,13 @@ Derived from [`SPEC.md`](SPEC.md). Ground rules in [`AGENTS.md`](AGENTS.md). Wor
   - `workout_sessions` — actual performances: started/ended, duration, notes, synced-to-health flag; plus manual logs (§9.3).
   - `set_logs` — session_id, exercise, set #, reps, weight (or time).
   - `pluri_scores` — daily score snapshots.
-  - `posts`, `post_likes`, `post_comments`, `post_polls`, `poll_votes`, `saved_posts` — community (posts publicly readable; writes owner-only; moderation columns from day one: reported/hidden).
+  - `posts`, `post_likes`, `post_comments`, `post_polls`, `poll_votes`, `saved_posts` — community (posts publicly readable when not staff-`hidden`; writes owner-only; moderation columns from day one: `reported` / `report_count`, staff `hidden`; optional `workout_snapshot` jsonb for Share Workout).
+  - `post_reports`, `post_hides`, `user_blocks` — UGC moderation (reporter/hider/blocker scoped; unique pairs; feed filters per SPEC §14 #72).
+  - `community_author_profiles` — narrow table (`id`, `display_name`) synced for feed author attribution without exposing full `profiles` rows (SPEC §14 #73).
   - `food_logs` — nutrition entries (food, serving, calories, macros, meal, date).
   - `recipe_favorites` — user ↔ MealDB recipe ids.
   - `chat_messages` — **legacy** Ask Pluri history (feature archived — SPEC §14 #77; table may remain remotely until owner drops it; do not delete the past migration).
+  - Storage bucket **`post-images`** — public-read; authenticated upload under `{user_id}/…` (SPEC §14 #72c).
 - **Edge Functions:**
   - ~~`ask-pluri`~~ — **archived** (SPEC §14 #77). Source removed from repo; remote undeploy is an owner follow-up. Historical behavior: Gemini coach + structured add/remove actions returned to the client (#66h).
   - `generate-plan` — plan-generation endpoint so the algorithm can evolve server-side without app releases. Calls WorkoutX, applies equipment/injury/goal/duration filters, writes plan rows. (Client keeps a thin fallback only if latency demands it.)
@@ -106,8 +109,8 @@ Recipe page (day view, ~3 auto-suggestions per meal filtered by allergies/calori
 **Exit:** user gets daily recipe suggestions and can log foods with calorie totals.
 
 ### M8 — Community
-Feed (posts, likes, comments, polls), create-post flow with type/image/poll and the 3-word rule, search, saved posts, Explore Spaces directory, **moderation (report/block/hide)** — App Review blocker.
-**Exit:** users can post, interact, search, save; UGC moderation in place.
+Runna-like hub (**Feed · Discover · Saved**): feed (posts, likes, comments, polls, author name + engagement counts), create-post flow with type/image/poll and the 3-word rule, search, saved posts, Discover (Explore Spaces directory + Challenges coming-soon stubs), **moderation (report/block/hide)** — App Review blocker. Live clubs / live Challenges / follow & full public profiles = v2.
+**Exit:** users can post, interact, search, save; Discover stubs are honest; UGC moderation in place; author attribution + like/comment counts on cards.
 
 ### M9 — Polish & Launch
 Outdoor Run stub screen, notification settings & full notification types, localization pass, accessibility audit, performance pass (media caching, <100 ms logging), App Store assets, privacy nutrition labels, TestFlight beta → submission.

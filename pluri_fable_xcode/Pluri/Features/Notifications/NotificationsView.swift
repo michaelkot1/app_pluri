@@ -1,12 +1,14 @@
 import SwiftUI
 import UserNotifications
 
-/// Notifications page shell (SPEC §5.3, M3-15): a functional upcoming-workout
-/// reminders toggle backed by `WorkoutReminderService`, with the community
-/// rows (M8) and the late-day reschedule nudge (M4) as honest placeholders.
+/// Notifications page (SPEC §5.3, M3-15 / M8-12): upcoming-workout reminders
+/// toggle, live Community replies to the user's posts, clubs stub, late-day nudge stub.
 struct NotificationsView: View {
     @Environment(WorkoutReminderService.self) private var reminderService
     @Environment(PlanStore.self) private var planStore
+    @Environment(\.communityClient) private var communityClient
+
+    @State private var repliesViewModel: CommunityRepliesViewModel?
 
     var body: some View {
         List {
@@ -21,12 +23,13 @@ struct NotificationsView: View {
             }
 
             Section {
-                LabeledContent("Replies to your posts", value: "Coming soon")
+                communityRepliesContent
+
                 LabeledContent("Clubs & groups", value: "Coming soon")
             } header: {
                 Text("Community")
             } footer: {
-                Text("Community notifications arrive when Community launches.")
+                Text(communityFooter)
             }
 
             Section {
@@ -43,7 +46,48 @@ struct NotificationsView: View {
         .navigationTitle("Notifications")
         .task {
             await reminderService.refresh()
+            ensureRepliesViewModel()
+            await repliesViewModel?.load()
         }
+    }
+
+    @ViewBuilder
+    private var communityRepliesContent: some View {
+        if let repliesViewModel {
+            switch repliesViewModel.loadState {
+            case .idle, .loading:
+                ProgressView("Loading replies…")
+                    .accessibilityLabel("Loading replies")
+            case .offline:
+                Text("Replies need a connection. Check your network and try again.")
+                    .foregroundStyle(PluriColor.textSecondary)
+            case .error(let message):
+                Text(message)
+                    .foregroundStyle(PluriColor.textSecondary)
+            case .empty:
+                Text("No replies yet")
+                    .foregroundStyle(PluriColor.textSecondary)
+            case .loaded:
+                ForEach(repliesViewModel.replies) { reply in
+                    VStack(alignment: .leading, spacing: PluriSpacing.xs) {
+                        Text("\(reply.comment.author.displayName) replied to “\(reply.postTitle)”")
+                            .font(PluriFont.label)
+                            .foregroundStyle(PluriColor.textPrimary)
+                        Text(reply.comment.body)
+                            .font(PluriFont.body)
+                            .foregroundStyle(PluriColor.textSecondary)
+                            .lineLimit(3)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            }
+        } else {
+            ProgressView("Loading replies…")
+        }
+    }
+
+    private var communityFooter: String {
+        "Replies to your posts show up here. Club messages arrive when clubs launch. Push delivery is later."
     }
 
     private var remindersBinding: Binding<Bool> {
@@ -64,6 +108,12 @@ struct NotificationsView: View {
         }
         return "A gentle reminder on the morning of each scheduled workout, at 8:00 AM."
     }
+
+    private func ensureRepliesViewModel() {
+        if repliesViewModel == nil {
+            repliesViewModel = CommunityRepliesViewModel(client: communityClient)
+        }
+    }
 }
 
 #if DEBUG
@@ -73,6 +123,7 @@ struct NotificationsView: View {
     }
     .environment(WorkoutReminderService.preview())
     .environment(HomePreviewData.readyStore())
+    .environment(\.communityClient, MockCommunityClient())
 }
 
 #Preview("Reminders on") {
@@ -81,6 +132,7 @@ struct NotificationsView: View {
     }
     .environment(WorkoutReminderService.preview(status: .authorized, optedIn: true))
     .environment(HomePreviewData.readyStore())
+    .environment(\.communityClient, MockCommunityClient())
 }
 
 #Preview("Permission denied") {
@@ -89,5 +141,6 @@ struct NotificationsView: View {
     }
     .environment(WorkoutReminderService.preview(status: .denied))
     .environment(HomePreviewData.readyStore())
+    .environment(\.communityClient, MockCommunityClient())
 }
 #endif

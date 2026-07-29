@@ -16,6 +16,7 @@ struct MainRouterTests {
         #expect(router.homePath.isEmpty)
         #expect(router.planPath.isEmpty)
         #expect(router.insightsPath.isEmpty)
+        #expect(router.communityPath.isEmpty)
         #expect(router.insightsSection == .general)
     }
 
@@ -298,5 +299,24 @@ struct MainRouterTests {
 
         #expect(router.selectedTab == .insights)
         #expect(router.insightsPath == [.workoutDetail(planWorkoutID: planWorkoutID)])
+    }
+}
+
+// MARK: - Community tab (M8-05)
+
+extension MainRouterTests {
+    @Test("Community search and calendar stay on the Community stack")
+    func communityPushesStayOnCommunity() {
+        let router = MainRouter()
+
+        router.openCommunitySearch()
+        #expect(router.selectedTab == .community)
+        #expect(router.communityPath == [.search])
+        #expect(router.homePath.isEmpty)
+
+        router.openCommunityCalendar()
+        #expect(router.selectedTab == .community)
+        #expect(router.communityPath == [.search, .calendar])
+        #expect(router.homePath.isEmpty)
     }
 }

@@ -1,8 +1,8 @@
 import Foundation
 import Observation
 
-/// Navigation state for the Main TabView (M3-06 / M5-17 / M7-08): selected tab,
-/// the Home / Plan / Insights / Recipe tabs' typed navigation paths, and the
+/// Navigation state for the Main TabView (M3-06 / M5-17 / M7-08 / M8-05): selected tab,
+/// the Home / Plan / Insights / Recipe / Community tabs' typed navigation paths, and the
 /// Insights section requested by a Home health-tile deep link (PLAN §1.2).
 ///
 /// Deliberately separate from the root `AppRouter` (which owns app phases —
@@ -24,6 +24,9 @@ final class MainRouter {
 
     /// The Recipe tab's `NavigationStack` path (M7-08/09).
     var recipePath: [RecipeRoute] = []
+
+    /// The Community tab's `NavigationStack` path (M8-05).
+    var communityPath: [CommunityRoute] = []
 
     /// Health subsection a Home tile asked for; Insights lands on Performance
     /// and highlights the matching Health chip (M3-08 / M5-07 / M5-10 / SPEC §14 #61).
@@ -204,6 +207,20 @@ final class MainRouter {
     func openRecipeDetail(mealID: String) {
         selectedTab = .recipe
         recipePath.append(.detail(mealID: mealID))
+    }
+
+    // MARK: - Community tab (M8-05 / SPEC §14 #44)
+
+    /// Search pushed inside the Community stack — no Home jump.
+    func openCommunitySearch() {
+        selectedTab = .community
+        communityPath.append(.search)
+    }
+
+    /// Calendar pushed inside the Community stack (not `openCalendar()` Home).
+    func openCommunityCalendar() {
+        selectedTab = .community
+        communityPath.append(.calendar)
     }
 
     private func pushOnHome(_ route: HomeRoute) {
