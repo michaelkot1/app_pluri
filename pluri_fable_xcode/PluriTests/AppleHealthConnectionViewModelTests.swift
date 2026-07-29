@@ -13,29 +13,28 @@ struct AppleHealthConnectionViewModelTests {
 
         #expect(viewModel.statusLabel == "Not connected")
         #expect(viewModel.showsConnectButton)
-        #expect(!viewModel.showsSettingsLink)
         #expect(viewModel.footerText.contains("Connect"))
     }
 
-    @Test("Authorized shows Connected without Connect CTA")
+    @Test("Fully readable access is a clean status row with no action")
     func authorizedLabels() {
         let healthKit = MockHealthKitReading(authorizationStatus: .authorized)
         let viewModel = AppleHealthConnectionViewModel(healthKit: healthKit)
 
         #expect(viewModel.statusLabel == "Connected")
+        #expect(viewModel.hasCompleteAccess)
         #expect(!viewModel.showsConnectButton)
-        #expect(viewModel.showsSettingsLink)
+        #expect(viewModel.footerText.contains("stay on this device"))
     }
 
-    @Test("Denied shows Settings guidance without Connect CTA")
-    func deniedFooter() {
+    @Test("Denied keeps Connect so the sheet can be asked for again")
+    func deniedOffersConnect() {
         let healthKit = MockHealthKitReading(authorizationStatus: .denied)
         let viewModel = AppleHealthConnectionViewModel(healthKit: healthKit)
 
         #expect(viewModel.statusLabel == "Not connected")
-        #expect(!viewModel.showsConnectButton)
-        #expect(viewModel.showsSettingsLink)
-        #expect(viewModel.footerText.contains("Settings"))
+        #expect(viewModel.showsConnectButton)
+        #expect(viewModel.footerText.contains("Tap Connect"))
     }
 
     @Test("Unavailable shows Not available and no actions")
@@ -45,8 +44,24 @@ struct AppleHealthConnectionViewModelTests {
 
         #expect(viewModel.statusLabel == "Not available")
         #expect(!viewModel.showsConnectButton)
-        #expect(!viewModel.showsSettingsLink)
         #expect(viewModel.footerText.contains("isn't available"))
+    }
+
+    /// The point of the whole section: an incomplete grant is never a dead end that
+    /// hands the user off to Settings — there is always a Connect button to tap.
+    @Test("Every incomplete state on a HealthKit device offers Connect")
+    func incompleteAccessAlwaysOffersConnect() async {
+        for status in [
+            HealthKitReadAuthorizationStatus.notDetermined,
+            .denied,
+        ] {
+            let healthKit = MockHealthKitReading(authorizationStatus: status)
+            let viewModel = AppleHealthConnectionViewModel(healthKit: healthKit)
+            await viewModel.refresh()
+
+            #expect(!viewModel.hasCompleteAccess)
+            #expect(viewModel.showsConnectButton)
+        }
     }
 
     @Test("connect requests authorization then refreshes")
@@ -74,8 +89,8 @@ struct AppleHealthConnectionViewModelTests {
         #expect(viewModel.unreadableMetrics.isEmpty)
     }
 
-    @Test("connect surfaces Settings guidance when the request fails")
-    func connectDeniedShowsSettings() async {
+    @Test("A failed request keeps Connect and invites another try")
+    func connectFailureInvitesRetry() async {
         let healthKit = MockHealthKitReading(authorizationStatus: .notDetermined)
         healthKit.statusAfterAuthorizationRequest = .denied
         let viewModel = AppleHealthConnectionViewModel(healthKit: healthKit)
@@ -83,20 +98,20 @@ struct AppleHealthConnectionViewModelTests {
         await viewModel.connect()
 
         #expect(viewModel.authorizationStatus == .denied)
-        #expect(!viewModel.showsConnectButton)
-        #expect(viewModel.showsSettingsLink)
-        #expect(viewModel.footerText.contains("Settings"))
+        #expect(viewModel.showsConnectButton)
+        #expect(viewModel.footerText.contains("Tap Connect"))
         #expect(viewModel.unreadableMetrics.isEmpty)
     }
 
-    @Test("connect is a no-op when already denied")
-    func connectIgnoredWhenDenied() async {
+    @Test("connect asks HealthKit again when access was refused before")
+    func connectRetriesWhenDenied() async {
         let healthKit = MockHealthKitReading(authorizationStatus: .denied)
         let viewModel = AppleHealthConnectionViewModel(healthKit: healthKit)
 
         await viewModel.connect()
 
-        #expect(healthKit.authorizationRequestCount == 0)
+        #expect(healthKit.authorizationRequestCount == 1)
+        #expect(viewModel.authorizationStatus == .authorized)
     }
 
     @Test("connect is a no-op when HealthKit is unavailable")
@@ -140,11 +155,72 @@ struct AppleHealthConnectionViewModelTests {
 
         await viewModel.refresh()
 
-        #expect(viewModel.statusLabel == "Connected")
+        #expect(viewModel.statusLabel == "Partly connected")
+        #expect(!viewModel.hasCompleteAccess)
+        #expect(viewModel.showsConnectButton)
         #expect(viewModel.unreadableMetrics == [.sleep, .heartRate])
         #expect(viewModel.unreadableMetricList.contains("Sleep"))
         #expect(viewModel.unreadableMetricList.contains("Heart Rate"))
-        #expect(viewModel.footerText.contains("Settings"))
+        #expect(viewModel.footerText.contains("Tap Connect"))
+    }
+
+    @Test("A connect that changed nothing explains where access lives, without a link")
+    func connectThatOpensNothingExplainsWhereAccessLives() async {
+        let calendar = Calendar.current
+        let healthKit = MockHealthKitReading(
+            authorizationStatus: .notDetermined,
+            todayFixture: HealthDaySnapshot(
+                dayStart: calendar.startOfDay(for: .now),
+                stepCount: 9_446,
+                sleepHours: nil,
+                averageHeartRateBPM: nil,
+                activeEnergyKilocalories: 420
+            ),
+            calendar: calendar
+        )
+        let viewModel = AppleHealthConnectionViewModel(healthKit: healthKit, calendar: calendar)
+
+        await viewModel.connect()
+
+        #expect(viewModel.connectLeftCategoriesClosed)
+        #expect(viewModel.showsConnectButton)
+        #expect(viewModel.footerText.contains("only asks once per category"))
+        #expect(viewModel.footerText.contains("Privacy & Security › Health › Pluri"))
+        #expect(viewModel.footerText.contains("Pluri works fine without them"))
+        #expect(!viewModel.footerText.contains("Open Settings"))
+    }
+
+    @Test("Access granted later clears the already-asked guidance")
+    func completeAccessClearsGuidance() async {
+        let calendar = Calendar.current
+        let healthKit = MockHealthKitReading(
+            authorizationStatus: .notDetermined,
+            todayFixture: HealthDaySnapshot(
+                dayStart: calendar.startOfDay(for: .now),
+                stepCount: 9_446,
+                sleepHours: nil,
+                averageHeartRateBPM: nil,
+                activeEnergyKilocalories: 420
+            ),
+            calendar: calendar
+        )
+        let viewModel = AppleHealthConnectionViewModel(healthKit: healthKit, calendar: calendar)
+        await viewModel.connect()
+        #expect(viewModel.connectLeftCategoriesClosed)
+
+        healthKit.todayFixture = HealthDaySnapshot(
+            dayStart: calendar.startOfDay(for: .now),
+            stepCount: 9_446,
+            sleepHours: 7.25,
+            averageHeartRateBPM: 68,
+            activeEnergyKilocalories: 420
+        )
+        await viewModel.refresh()
+
+        #expect(!viewModel.connectLeftCategoriesClosed)
+        #expect(viewModel.hasCompleteAccess)
+        #expect(viewModel.statusLabel == "Connected")
+        #expect(!viewModel.showsConnectButton)
     }
 
     @Test("Not-connected status never claims a category is unreadable")

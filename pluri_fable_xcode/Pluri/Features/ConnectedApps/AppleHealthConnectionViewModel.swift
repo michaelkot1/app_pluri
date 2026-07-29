@@ -2,12 +2,13 @@ import Foundation
 import Observation
 
 /// Drives Apple Health connection status + Connect CTA for Connected Apps,
-/// Profile, and the Plan nudge (M5-03 / SPEC §14 #57b).
+/// Profile, and the Plan nudge (M5-03 / SPEC §14 #57b / #78).
 ///
-/// HealthKit never reports which *read* types the user actually granted, so after a
-/// completed prompt this model probes a short window of samples and names the
-/// categories Pluri still can't see — that's the only honest way to explain partial
-/// grants instead of leaving Home and Insights quietly empty (SPEC §14 #78).
+/// Connect always goes through the system HealthKit sheet — Pluri never sends the user
+/// out to the Settings app. HealthKit presents that sheet whenever any requested type
+/// has not been asked about yet, so the CTA stays available while anything is missing:
+/// read authorization is deliberately uninformative, so "missing" is judged from
+/// `HealthKitReading`'s prompt-needed status plus a probe for readable samples.
 @MainActor
 @Observable
 final class AppleHealthConnectionViewModel {
@@ -23,17 +24,21 @@ final class AppleHealthConnectionViewModel {
     /// Categories with no readable samples in the probe window, once connected.
     private(set) var unreadableMetrics: [HealthMetricKind] = []
 
+    /// True once a completed Connect left categories unreadable — iOS treats those as
+    /// already answered and draws nothing, so tapping again can't bring the sheet back.
+    private(set) var connectLeftCategoriesClosed = false
+
     init(healthKit: any HealthKitReading, calendar: Calendar = .current) {
         self.healthKit = healthKit
         self.calendar = calendar
         self.authorizationStatus = healthKit.authorizationStatus
     }
 
-    /// Connected / Not connected / Not available — Profile + Connected Apps labels.
+    /// Connected / Partly connected / Not connected / Not available.
     var statusLabel: String {
         switch authorizationStatus {
         case .authorized:
-            "Connected"
+            hasCompleteAccess ? "Connected" : "Partly connected"
         case .notDetermined, .denied:
             "Not connected"
         case .unavailable:
@@ -41,36 +46,42 @@ final class AppleHealthConnectionViewModel {
         }
     }
 
-    /// Connect only when the system still wants a prompt (never after denial).
-    var showsConnectButton: Bool {
-        authorizationStatus == .notDetermined
+    /// Everything Pluri reads is granted and returning samples.
+    var hasCompleteAccess: Bool {
+        authorizationStatus == .authorized && unreadableMetrics.isEmpty
     }
 
-    /// Once iOS has taken the answer it won't ask again, so offer Settings instead.
-    var showsSettingsLink: Bool {
+    /// Offered whenever HealthKit exists and something is still missing. Tapping it always
+    /// calls `requestAuthorization`; iOS decides whether the sheet appears.
+    var showsConnectButton: Bool {
         switch authorizationStatus {
-        case .authorized, .denied:
-            true
-        case .notDetermined, .unavailable:
+        case .unavailable:
             false
+        case .notDetermined, .denied:
+            true
+        case .authorized:
+            !unreadableMetrics.isEmpty
         }
     }
 
-    /// Gentle Settings guidance when denied or partially granted; privacy note otherwise.
+    /// Privacy note when fully connected, otherwise gentle guidance — text only, since
+    /// Pluri never hands the user off to Settings (SPEC §14 #78).
     var footerText: String {
         switch authorizationStatus {
-        case .denied:
-            "Apple Health access is turned off for Pluri in iOS Settings. You can turn it on there whenever you're ready."
         case .unavailable:
             "Apple Health isn't available on this device."
+        case .notDetermined:
+            "Connect to show Today's Health on Home and Insights. Pluri never uploads your Health samples."
+        case .denied:
+            "Apple Health didn't hand over access last time. Tap Connect to ask again — Pluri never uploads your Health samples."
         case .authorized:
             if unreadableMetrics.isEmpty {
                 "Steps, sleep, heart rate, and active energy stay on this device for Home tiles, Insights, and Pluri Score."
+            } else if connectLeftCategoriesClosed {
+                "Apple Health only asks once per category, so Connect won't bring the prompt back for \(unreadableMetricList). You can switch those on whenever you like in the Settings app, under Privacy & Security › Health › Pluri. Pluri works fine without them."
             } else {
-                "Pluri can't read \(unreadableMetricList) yet. Open Settings › Privacy & Security › Health › Pluri to turn those categories on."
+                "Pluri can't read \(unreadableMetricList) yet. Tap Connect and Apple Health will ask about whatever it hasn't asked about before."
             }
-        case .notDetermined:
-            "Connect to show Today's Health on Home and Insights. Pluri never uploads your Health samples."
         }
     }
 
@@ -83,15 +94,19 @@ final class AppleHealthConnectionViewModel {
         await healthKit.refreshAuthorizationStatus()
         authorizationStatus = healthKit.authorizationStatus
         await refreshUnreadableMetrics()
+        if hasCompleteAccess {
+            connectLeftCategoriesClosed = false
+        }
     }
 
-    /// Presents the system HealthKit sheet, then refreshes status.
+    /// Presents the system HealthKit sheet, then refreshes status. Never leaves the app.
     func connect() async {
         guard showsConnectButton, !isConnecting else { return }
         isConnecting = true
         defer { isConnecting = false }
         await healthKit.requestAuthorization()
         await refresh()
+        connectLeftCategoriesClosed = !hasCompleteAccess
     }
 
     // MARK: - Private

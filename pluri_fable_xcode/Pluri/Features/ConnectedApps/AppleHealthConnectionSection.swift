@@ -1,15 +1,15 @@
 import SwiftUI
 
 /// Shared Apple Health status row + Connect CTA for Connected Apps and Profile
-/// (M5-03 / SPEC §14 #57b). Owns its view model so any `List` screen can drop the
-/// section in with just the injected reader. Refreshes when the row appears and
-/// when the scene becomes active, so a grant made in Settings shows up on return.
+/// (M5-03 / SPEC §14 #57b / #78). Owns its view model so any `List` screen can drop
+/// the section in with just the injected reader. Connect presents the system HealthKit
+/// sheet and never navigates out of the app. Refreshes when the row appears and when
+/// the scene becomes active, so access changed elsewhere shows up on return.
 struct AppleHealthConnectionSection: View {
     @State private var viewModel: AppleHealthConnectionViewModel
     private let headerTitle: String
 
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.openURL) private var openURL
 
     init(healthKit: any HealthKitReading, headerTitle: String) {
         _viewModel = State(initialValue: AppleHealthConnectionViewModel(healthKit: healthKit))
@@ -47,15 +47,6 @@ struct AppleHealthConnectionSection: View {
                 .disabled(viewModel.isConnecting)
                 .accessibilityHint("Requests Apple Health access for steps, sleep, heart rate, and active energy")
             }
-
-            if viewModel.showsSettingsLink, let settingsURL = SystemSettingsLink.pluriSettings {
-                Button("Open Settings", systemImage: "gear") {
-                    openURL(settingsURL)
-                }
-                .foregroundStyle(PluriColor.brandOrange)
-                .frame(minHeight: 44)
-                .accessibilityHint("Opens Pluri in iOS Settings, where Apple Health access is managed")
-            }
         } header: {
             Text(headerTitle)
         } footer: {
@@ -83,7 +74,7 @@ struct AppleHealthConnectionSection: View {
     }
 }
 
-#Preview("Connected, sleep unreadable") {
+#Preview("Partly connected") {
     List {
         AppleHealthConnectionSection(
             healthKit: MockHealthKitReading(
