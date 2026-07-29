@@ -371,6 +371,10 @@ HealthKit Insights & Pluri Score (PLAN M5): full HealthKit *reads* (steps, sleep
 
 > **Learned during M5-06 (2026-07-26):** `HomePluriScoreCard` shows live `pluriScore` (no Sample badge / sample disclaimer); `HomeView` refreshes score with health on appear / foreground / plan status fingerprint (#57d). `PlanOverviewView.PluriScoreExplainerCard` rewritten for live consistency-first + HealthKit second layer + ±3/day on-device. SPEC #41f/#43 softened; #59 records wiring. `HomeViewModelTests` replaced stub-score labeling with live refresh + tile tests.
 
+- [x] **M5-20** Redesign Home into a unified schedule/activity card, live Pluri Score ring hero, and responsive four-metric Health grid. Surface the current flexible pool, add user-scoped local goals for steps/sleep/active energy with baseline-derived suggestions, keep average HR baseline-only, and remove the Outdoor Run stub from Home (SPEC §5 / §14 #81).
+
+> **Learned during M5-20 (2026-07-29):** `HomeScheduleCard` combines the seven-day strip, selected-day rows, completion header, calendar route, and real “Anytime this week” pool. `HomePluriScoreHero` retains the real `ScoreEngine.Result` components. `HealthMetricGoalStore` persists only confirmed per-user goals in `UserDefaults`; cards fall back to `HealthInsightsEngine` baselines and active energy now appears alongside steps/sleep/average HR. Record Workout contains only real planned sessions and disappears when none are available. Goal store and Home presentation logic are unit-tested; tokens/patterns are documented in `design.md`.
+
 ### Insights Performance
 
 - [x] **M5-07** Replace `InsightsPlaceholderView` with the Insights shell: **Performance** \| **Workouts** tabs, calendar + **"+"** in the top bar (SPEC §9); honor `insightsSection` deep links from Home health tiles.

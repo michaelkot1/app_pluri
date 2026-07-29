@@ -136,6 +136,27 @@ approachable and non-clinical.
 - **Whitespace is a feature, not filler.** Abundant negative space is core to the
   "gentle, unhurried" feel — resist the urge to fill it.
 
+### Home data presentation
+
+- **Schedule surface:** Calendar context and selected activity share one
+  `bg/surface` card (`radius/lg`, Elevation 1). Use a compact seven-day strip;
+  keep the month/completion label and View calendar action in the same card.
+  Flexible sessions follow a divider under the label **Anytime this week**.
+- **Pluri Score hero:** The score uses a 12pt circular track with a
+  `brand/orange` → `sunrise/core` → `brand/coral-soft` angular fill. Place the
+  existing sunrise radial gradient behind this ring at restrained opacity.
+  This is the only ambient glow on Home. Show real consistency and Health
+  components beside the ring; do not add achievement claims.
+- **Health goal progress:** Use a two-column adaptive grid (collapse naturally
+  for large Dynamic Type). A thin progress bar appears only when the user has
+  explicitly saved a goal. Without one, show the user's available baseline and
+  a 44pt **Set goal** action; never draw progress against a default target.
+  Average heart rate is comparison-only and never receives a progress bar.
+- **Metric accents:** Steps = `brand/orange`; Sleep = `status/blue`; Active
+  Energy = `sunrise/core`; Average Heart Rate = `accent/pink`. Accent is limited
+  to the icon well, progress fill, and goal action; values remain
+  `text/primary` for consistent readability.
+
 **Border Radius Scale**
 
 | Token | Value | Usage |

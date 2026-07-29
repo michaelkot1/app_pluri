@@ -255,7 +255,11 @@ struct HealthKitReadingTests {
         reader.startObservingHealthChanges {
             refreshCount += 1
             Task {
-                await viewModel.refreshHealthTiles(using: reader)
+                await viewModel.refreshHealthMetrics(
+                    using: reader,
+                    userID: "observer-user",
+                    asOf: todayStart
+                )
                 await viewModel.refreshPluriScore(
                     sessions: [],
                     healthKit: reader,

@@ -18,6 +18,7 @@ struct HomeView: View {
 
     @State private var viewModel = HomeViewModel()
     @State private var showsRecordMenu = false
+    @State private var goalMetric: HomeHealthMetricPresentation?
 
     var body: some View {
         ScrollView {
@@ -33,20 +34,23 @@ struct HomeView: View {
                 case .empty:
                     HomeMessageCard(
                         title: "No active plan yet",
-                        message: "We couldn't find an active plan on your account. Plan tools arrive with the next update."
+                        message: "Create a plan to see your weekly schedule and start planned workouts here."
                     )
                 case .ready:
                     HomePlanContent(viewModel: viewModel)
                 }
 
-                HomePluriScoreCard(
-                    score: viewModel.pluriScore,
-                    subtitle: viewModel.scoreSubtitle
-                )
+                HomePluriScoreHero(presentation: viewModel.scorePresentation)
 
-                HomeHealthTiles(metrics: viewModel.healthTileMetrics) { section in
-                    router.openInsights(section: section)
-                }
+                HomeHealthMetricsGrid(
+                    metrics: viewModel.healthMetrics,
+                    onOpen: { section in
+                        router.openInsights(section: section)
+                    },
+                    onEditGoal: { metric in
+                        goalMetric = metric
+                    }
+                )
             }
             .padding(.horizontal, PluriSpacing.lg)
             .padding(.top, PluriSpacing.lg)
@@ -77,14 +81,27 @@ struct HomeView: View {
             }
         }
         .overlay(alignment: .bottom) {
-            HomeRecordWorkoutButton {
-                showsRecordMenu = true
+            if !recordOptions.isEmpty {
+                HomeRecordWorkoutButton {
+                    showsRecordMenu = true
+                }
+                .padding(.bottom, PluriSpacing.md)
             }
-            .padding(.bottom, PluriSpacing.md)
         }
         .confirmationDialog("Record Workout", isPresented: $showsRecordMenu, titleVisibility: .visible) {
-            ForEach(viewModel.recordOptions(todaysSessions: planStore.todaysSessions)) { option in
+            ForEach(recordOptions) { option in
                 HomeRecordOptionButton(option: option)
+            }
+        }
+        .sheet(item: $goalMetric) { metric in
+            HomeHealthGoalEditor(metric: metric) { target in
+                guard let kind = metric.kind.goalKind else { return }
+                viewModel.setHealthGoal(target, for: kind, userID: authService.appUserID)
+                Task { await refreshHealthAndScore() }
+            } onClear: {
+                guard let kind = metric.kind.goalKind else { return }
+                viewModel.clearHealthGoal(for: kind, userID: authService.appUserID)
+                Task { await refreshHealthAndScore() }
             }
         }
         .task(id: scoreRefreshToken) {
@@ -127,8 +144,19 @@ struct HomeView: View {
         return HomeViewModel.scoreRefreshToken(sessions: sessions)
     }
 
+    private var recordOptions: [HomeRecordOption] {
+        viewModel.recordOptions(
+            todaysSessions: planStore.todaysSessions,
+            flexibleSessions: planStore.currentFlexiblePool
+        )
+    }
+
     private func refreshHealthAndScore() async {
-        await viewModel.refreshHealthTiles(using: healthKitService)
+        await viewModel.refreshHealthMetrics(
+            using: healthKitService,
+            userID: authService.appUserID,
+            asOf: planStore.now()
+        )
         let sessions = planStore.plan?.weeks.flatMap(\.sessions) ?? []
         await viewModel.refreshPluriScore(
             sessions: sessions,
@@ -151,42 +179,38 @@ struct HomeView: View {
     }
 }
 
-/// Month header + calendar strip + selected-day card for the ready state.
+/// Unified schedule card for the ready state.
 private struct HomePlanContent: View {
     var viewModel: HomeViewModel
 
     @Environment(PlanStore.self) private var planStore
+    @Environment(MainRouter.self) private var router
 
     var body: some View {
         let today = planStore.today
         let selectedDay = viewModel.resolvedSelectedDay(today: today)
         let sessionsByDay = planStore.sessionsByDay
 
-        VStack(alignment: .leading, spacing: PluriSpacing.md) {
-            HomeMonthHeader(
-                summary: viewModel.monthSummary(containing: today, sessionsByDay: sessionsByDay)
-            )
-
-            HomeCalendarStrip(
-                days: viewModel.monthDays(containing: today),
-                selectedDay: selectedDay,
-                today: today,
-                sessionsByDay: sessionsByDay
-            ) { day in
+        HomeScheduleCard(
+            summary: viewModel.monthSummary(containing: today, sessionsByDay: sessionsByDay),
+            days: viewModel.weekDays(containing: selectedDay),
+            selectedDay: selectedDay,
+            today: today,
+            sessionsByDay: sessionsByDay,
+            selectedSessions: planStore.sessions(on: selectedDay),
+            flexibleSessions: planStore.currentFlexiblePool,
+            onSelectDay: { day in
                 viewModel.select(day: day)
+            },
+            onViewCalendar: {
+                router.openCalendar()
             }
-
-            HomeSelectedDayCard(
-                day: selectedDay,
-                isToday: Calendar.current.isDate(selectedDay, inSameDayAs: today),
-                sessions: planStore.sessions(on: selectedDay)
-            )
-        }
+        )
     }
 }
 
 /// One Record Workout menu choice, routed through the `MainRouter` (M3-09):
-/// today's scheduled workout → Detail (M4-05); Outdoor Run stays a stub.
+/// planned workout → Detail (M4-05). No stub destinations are offered.
 private struct HomeRecordOptionButton: View {
     var option: HomeRecordOption
 
@@ -197,10 +221,6 @@ private struct HomeRecordOptionButton: View {
         case .scheduledWorkout(let session):
             Button(session.title) {
                 router.openWorkoutDetail(sessionID: session.id)
-            }
-        case .outdoorRun:
-            Button("Outdoor Run") {
-                router.openOutdoorRunStub()
             }
         }
     }

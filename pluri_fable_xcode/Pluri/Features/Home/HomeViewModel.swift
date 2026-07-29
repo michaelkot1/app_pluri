@@ -1,10 +1,8 @@
 import Foundation
 import Observation
 
-/// Home screen logic (M3-07..09 / M5-04..06): calendar-strip day selection,
-/// month summary counting, Record Workout menu derivation, Today's Health
-/// tile formatting, and live Pluri Score refresh — kept out of the views so
-/// it's unit-testable. Plan data itself stays in the shared `PlanStore`.
+/// Home presentation logic for schedule selection, Health goals/baselines, and
+/// the live Pluri Score. Plan data itself stays in the shared `PlanStore`.
 @MainActor
 @Observable
 final class HomeViewModel {
@@ -12,18 +10,15 @@ final class HomeViewModel {
     /// "follow today" (SPEC §14 #41 default).
     private(set) var selectedDay: Date?
 
-    /// Formatted Today's Health tile values (M5-04).
-    private(set) var healthTileMetrics = HomeHealthTileMetrics.empty
+    private(set) var healthMetrics = HomeHealthMetricPresentation.emptyMetrics
+    private(set) var scoreResult: ScoreEngine.Result?
+    private(set) var scorePresentation = HomePluriScorePresentation.loading
 
-    /// Live Pluri Score 0…100 (M5-06). `nil` until the first refresh completes.
-    private(set) var pluriScore: Int?
-
-    /// Short kind subtitle under the score numeral.
-    private(set) var scoreSubtitle =
-        "Consistency first — HealthKit adds a gentle second layer on this device."
+    var pluriScore: Int? { scoreResult?.score }
 
     private let calendar: Calendar
     private let defaults: UserDefaults
+    private let goalStore: HealthMetricGoalStore
 
     init(
         calendar: Calendar = .current,
@@ -31,6 +26,7 @@ final class HomeViewModel {
     ) {
         self.calendar = calendar
         self.defaults = defaults
+        goalStore = HealthMetricGoalStore(defaults: defaults)
     }
 
     // MARK: - Day selection
@@ -46,20 +42,14 @@ final class HomeViewModel {
 
     // MARK: - Calendar strip
 
-    /// Every day (start-of-day) of the month containing `date`, for the
-    /// scrollable strip.
-    func monthDays(containing date: Date) -> [Date] {
-        guard let month = calendar.dateInterval(of: .month, for: date) else {
+    /// Compact seven-day window containing the selected date.
+    func weekDays(containing date: Date) -> [Date] {
+        guard let interval = calendar.dateInterval(of: .weekOfYear, for: date) else {
             return [calendar.startOfDay(for: date)]
         }
-        var days: [Date] = []
-        var cursor = month.start
-        while cursor < month.end {
-            days.append(cursor)
-            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
-            cursor = next
+        return (0..<7).compactMap {
+            calendar.date(byAdding: .day, value: $0, to: interval.start)
         }
-        return days
     }
 
     // MARK: - Month summary
@@ -84,45 +74,100 @@ final class HomeViewModel {
 
     // MARK: - Record Workout menu (M3-09)
 
-    /// The floating-menu options: today's first scheduled workout when one
-    /// exists (hidden, not disabled, when none — SPEC §14 #41), then Outdoor
-    /// Run always.
-    func recordOptions(todaysSessions: [PlannedSession]) -> [HomeRecordOption] {
-        var options: [HomeRecordOption] = []
-        if let first = todaysSessions.first {
-            options.append(.scheduledWorkout(first))
-        }
-        options.append(.outdoorRun)
-        return options
+    /// Real workouts available to start from Home. Completed/skipped sessions
+    /// and the former Outdoor Run stub are intentionally absent.
+    func recordOptions(
+        todaysSessions: [PlannedSession],
+        flexibleSessions: [PlannedSession] = []
+    ) -> [HomeRecordOption] {
+        let available = (todaysSessions + flexibleSessions).filter { $0.status == .scheduled }
+        return available.map(HomeRecordOption.scheduledWorkout)
     }
 
-    // MARK: - Today's Health tiles (M5-04)
+    // MARK: - Health metrics and goals
 
-    /// Formats tile values from a day snapshot + auth posture (SPEC §14 #57c).
-    /// Authorized empties → "No data yet"; not connected → "Enable Health".
-    func healthTileMetrics(
-        snapshot: HealthDaySnapshot,
-        authorizationStatus: HealthKitReadAuthorizationStatus
-    ) -> HomeHealthTileMetrics {
-        let emptyCopy = emptyHealthCopy(for: authorizationStatus)
-        return HomeHealthTileMetrics(
-            stepsValue: formatSteps(snapshot.stepCount) ?? emptyCopy,
-            sleepValue: formatSleepHours(snapshot.sleepHours) ?? emptyCopy,
-            heartRateValue: formatHeartRate(snapshot.averageHeartRateBPM) ?? emptyCopy,
-            isEmptyPlaceholder: snapshot.stepCount == nil
-                && snapshot.sleepHours == nil
-                && snapshot.averageHeartRateBPM == nil
-        )
-    }
-
-    /// Pulls today's snapshot and updates tile display state.
-    func refreshHealthTiles(using healthKit: any HealthKitReading) async {
+    /// Pulls today's values and the user's own Health history. Goals are local
+    /// and user-scoped; when absent, cards show an honest baseline comparison.
+    func refreshHealthMetrics(
+        using healthKit: any HealthKitReading,
+        userID: String?,
+        asOf: Date = .now
+    ) async {
         await healthKit.refreshAuthorizationStatus()
-        let snapshot = await healthKit.todaySnapshot(calendar: calendar)
-        healthTileMetrics = healthTileMetrics(
+        let snapshot = await healthKit.daySnapshot(for: asOf, calendar: calendar)
+        let asOfDay = calendar.startOfDay(for: asOf)
+        let historyStart = calendar.date(
+            byAdding: .day,
+            value: -(ScoreEngine.healthBaselineDays + ScoreEngine.healthRecentDays),
+            to: asOfDay
+        ) ?? asOfDay
+        let history = healthKit.authorizationStatus == .authorized
+            ? await healthKit.dailyHistory(from: historyStart, through: asOfDay, calendar: calendar)
+            : []
+        healthMetrics = makeHealthMetrics(
             snapshot: snapshot,
-            authorizationStatus: healthKit.authorizationStatus
+            history: history,
+            authorizationStatus: healthKit.authorizationStatus,
+            userID: userID,
+            asOf: asOf
         )
+    }
+
+    func setHealthGoal(_ target: Double, for kind: HealthMetricGoal.Kind, userID: String?) {
+        goalStore.setGoal(target, for: kind, userID: userID)
+    }
+
+    /// Goals are optional (SPEC §14 #81), so a user can always step back to
+    /// baseline-only framing.
+    func clearHealthGoal(for kind: HealthMetricGoal.Kind, userID: String?) {
+        goalStore.removeGoal(for: kind, userID: userID)
+    }
+
+    func makeHealthMetrics(
+        snapshot: HealthDaySnapshot,
+        history: [HealthDaySnapshot],
+        authorizationStatus: HealthKitReadAuthorizationStatus,
+        userID: String?,
+        asOf: Date
+    ) -> [HomeHealthMetricPresentation] {
+        [
+            makeHealthMetric(
+                kind: .steps,
+                value: snapshot.stepCount,
+                insight: HealthInsightsEngine.insight(
+                    for: .steps, history: history, asOf: asOf, calendar: calendar
+                ),
+                authorizationStatus: authorizationStatus,
+                userID: userID
+            ),
+            makeHealthMetric(
+                kind: .sleep,
+                value: snapshot.sleepHours,
+                insight: HealthInsightsEngine.insight(
+                    for: .sleep, history: history, asOf: asOf, calendar: calendar
+                ),
+                authorizationStatus: authorizationStatus,
+                userID: userID
+            ),
+            makeHealthMetric(
+                kind: .activeEnergy,
+                value: snapshot.activeEnergyKilocalories,
+                insight: HealthInsightsEngine.insight(
+                    for: .calories, history: history, asOf: asOf, calendar: calendar
+                ),
+                authorizationStatus: authorizationStatus,
+                userID: userID
+            ),
+            makeHealthMetric(
+                kind: .averageHeartRate,
+                value: snapshot.averageHeartRateBPM,
+                insight: HealthInsightsEngine.insight(
+                    for: .activeHeartRate, history: history, asOf: asOf, calendar: calendar
+                ),
+                authorizationStatus: authorizationStatus,
+                userID: userID
+            ),
+        ]
     }
 
     // MARK: - Pluri Score (M5-05 / M5-06)
@@ -197,10 +242,8 @@ final class HomeViewModel {
             userID: userID,
             defaults: defaults
         )
-        pluriScore = result.score
-        scoreSubtitle = result.usedHealthComponent
-            ? "Consistency first, with a gentle HealthKit layer — moves slowly (±3/day)."
-            : "Based on plan consistency for now — connect Apple Health for a second layer."
+        scoreResult = result
+        scorePresentation = HomePluriScorePresentation(result: result)
     }
 
     /// Fingerprint of dated session statuses so Home can refresh when completion changes.
@@ -230,6 +273,75 @@ final class HomeViewModel {
         return "\(bpm) BPM"
     }
 
+    func formatActiveEnergy(_ value: Double?) -> String? {
+        guard let value else { return nil }
+        return "\(Int(value.rounded()).formatted(.number)) kcal"
+    }
+
+    private func makeHealthMetric(
+        kind: HomeHealthMetricPresentation.Kind,
+        value: Double?,
+        insight: HealthInsightsEngine.MetricInsight,
+        authorizationStatus: HealthKitReadAuthorizationStatus,
+        userID: String?
+    ) -> HomeHealthMetricPresentation {
+        let formattedValue = format(value, for: kind) ?? emptyHealthCopy(for: authorizationStatus)
+        let goalKind = kind.goalKind
+        let goal = goalKind.flatMap { goalStore.goal(for: $0, userID: userID) }
+        let progress = goal.flatMap { goal in
+            value.map { min(max($0 / goal.target, 0), 1) }
+        }
+        let detail: String
+        if let goal {
+            detail = "Goal \(format(goal.target, for: kind) ?? "")"
+        } else if let baseline = insight.baselineAverage {
+            detail = "Usual \(format(baseline, for: kind) ?? "")"
+        } else if kind == .averageHeartRate {
+            detail = "Baseline builds from your history"
+        } else {
+            detail = "Set a personal goal"
+        }
+
+        return HomeHealthMetricPresentation(
+            kind: kind,
+            value: formattedValue,
+            detail: detail,
+            progress: progress,
+            goal: goal?.target,
+            suggestedGoal: suggestedGoal(from: insight.baselineAverage, for: kind)
+        )
+    }
+
+    private func format(_ value: Double?, for kind: HomeHealthMetricPresentation.Kind) -> String? {
+        switch kind {
+        case .steps:
+            formatSteps(value)
+        case .sleep:
+            formatSleepHours(value)
+        case .activeEnergy:
+            formatActiveEnergy(value)
+        case .averageHeartRate:
+            formatHeartRate(value)
+        }
+    }
+
+    private func suggestedGoal(
+        from baseline: Double?,
+        for kind: HomeHealthMetricPresentation.Kind
+    ) -> Double? {
+        guard let baseline, baseline > 0 else { return nil }
+        switch kind {
+        case .steps:
+            return max((baseline / 500).rounded() * 500, 500)
+        case .sleep:
+            return max((baseline * 2).rounded() / 2, 0.5)
+        case .activeEnergy:
+            return max((baseline / 25).rounded() * 25, 25)
+        case .averageHeartRate:
+            return nil
+        }
+    }
+
     private func emptyHealthCopy(for status: HealthKitReadAuthorizationStatus) -> String {
         switch status {
         case .authorized:
@@ -242,26 +354,74 @@ final class HomeViewModel {
     }
 }
 
-/// Display strings for the three Today's Health tiles (M5-04).
-struct HomeHealthTileMetrics: Equatable, Sendable {
-    var stepsValue: String
-    var sleepValue: String
-    var heartRateValue: String
-    var isEmptyPlaceholder: Bool
+struct HomePluriScorePresentation: Equatable, Sendable {
+    var score: Int?
+    var consistency: String
+    var health: String
+    var subtitle: String
 
-    static let empty = HomeHealthTileMetrics(
-        stepsValue: "No data yet",
-        sleepValue: "No data yet",
-        heartRateValue: "No data yet",
-        isEmptyPlaceholder: true
+    static let loading = HomePluriScorePresentation(
+        score: nil,
+        consistency: "Consistency —",
+        health: "Health —",
+        subtitle: "Updating from your plan and on-device health history."
     )
 
-    func value(for section: InsightsSection) -> String {
-        switch section {
-        case .steps, .general: stepsValue
-        case .sleep: sleepValue
-        case .activeHeartRate: heartRateValue
-        case .calories: "—"
+    init(result: ScoreEngine.Result) {
+        score = result.score
+        consistency = "Consistency \(Int(result.consistencyComponent.rounded()))"
+        if let healthComponent = result.healthComponent {
+            health = "Health \(Int(healthComponent.rounded()))"
+            subtitle = "Your plan consistency and personal health trend, balanced gently."
+        } else {
+            health = "Health not available"
+            subtitle = "Based on plan consistency until enough Apple Health history is available."
         }
+    }
+
+    private init(score: Int?, consistency: String, health: String, subtitle: String) {
+        self.score = score
+        self.consistency = consistency
+        self.health = health
+        self.subtitle = subtitle
+    }
+}
+
+struct HomeHealthMetricPresentation: Identifiable, Equatable, Sendable {
+    enum Kind: String, CaseIterable, Sendable {
+        case steps
+        case sleep
+        case activeEnergy
+        case averageHeartRate
+
+        var goalKind: HealthMetricGoal.Kind? {
+            switch self {
+            case .steps: .steps
+            case .sleep: .sleep
+            case .activeEnergy: .activeEnergy
+            case .averageHeartRate: nil
+            }
+        }
+    }
+
+    var id: Kind { kind }
+    var kind: Kind
+    var value: String
+    var detail: String
+    var progress: Double?
+    var goal: Double?
+    var suggestedGoal: Double?
+
+    static let emptyMetrics = Kind.allCases.map {
+        HomeHealthMetricPresentation(
+            kind: $0,
+            value: "No data yet",
+            detail: $0 == .averageHeartRate
+                ? "Baseline builds from your history"
+                : "Set a personal goal",
+            progress: nil,
+            goal: nil,
+            suggestedGoal: nil
+        )
     }
 }

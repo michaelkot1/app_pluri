@@ -12,32 +12,30 @@ struct HomeSelectedDayCard: View {
     @Environment(MainRouter.self) private var router
 
     var body: some View {
-        PluriCard {
-            VStack(alignment: .leading, spacing: PluriSpacing.sm) {
-                Text(dayTitle)
-                    .font(PluriFont.overline)
-                    .textCase(.uppercase)
-                    .kerning(1)
-                    .foregroundStyle(PluriColor.textSecondary)
+        VStack(alignment: .leading, spacing: PluriSpacing.sm) {
+            Text(dayTitle)
+                .font(PluriFont.overline)
+                .textCase(.uppercase)
+                .kerning(1)
+                .foregroundStyle(PluriColor.textSecondary)
 
-                if sessions.isEmpty {
-                    Text("Nothing scheduled — rest is part of the plan too.")
-                        .font(PluriFont.body)
-                        .foregroundStyle(PluriColor.textSecondary)
-                } else {
-                    ForEach(sessions) { session in
-                        Button {
-                            router.openWorkoutDetail(sessionID: session.id)
-                        } label: {
-                            HomeSessionRow(session: session)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityHint("Opens the workout details")
+            if sessions.isEmpty {
+                Text("Nothing scheduled — rest is part of the plan too.")
+                    .font(PluriFont.body)
+                    .foregroundStyle(PluriColor.textSecondary)
+            } else {
+                ForEach(sessions) { session in
+                    Button {
+                        router.openWorkoutDetail(sessionID: session.id)
+                    } label: {
+                        HomeSessionRow(session: session)
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens the workout details")
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var dayTitle: String {
@@ -46,7 +44,7 @@ struct HomeSelectedDayCard: View {
 }
 
 /// One workout line: color bar, title, type + duration, status mark.
-private struct HomeSessionRow: View {
+struct HomeSessionRow: View {
     var session: PlannedSession
 
     var body: some View {

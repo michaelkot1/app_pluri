@@ -52,21 +52,6 @@ struct HomeViewModelTests {
         #expect(viewModel.resolvedSelectedDay(today: monday) == day(2))
     }
 
-    // MARK: - Calendar strip
-
-    @Test("Month days cover the whole month at start-of-day")
-    func monthDays() throws {
-        let viewModel = makeViewModel()
-        let days = viewModel.monthDays(containing: monday)
-
-        let month = try #require(calendar.dateInterval(of: .month, for: monday))
-        let expectedCount = calendar.dateComponents([.day], from: month.start, to: month.end).day
-        #expect(days.count == expectedCount)
-        #expect(days.first == month.start)
-        #expect(days.allSatisfy { calendar.startOfDay(for: $0) == $0 })
-        #expect(days.contains(monday))
-    }
-
     // MARK: - Month summary
 
     @Test("Month summary counts only that month's dated workouts, completed as done")
@@ -104,28 +89,31 @@ struct HomeViewModelTests {
 
     // MARK: - Record Workout menu (M3-09)
 
-    @Test("Record menu offers only Outdoor Run when nothing is scheduled today")
+    @Test("Record menu is absent when no real planned workout is available")
     func recordOptionsWithoutTodaySession() {
         let viewModel = makeViewModel()
 
-        #expect(viewModel.recordOptions(todaysSessions: []) == [.outdoorRun])
+        #expect(viewModel.recordOptions(todaysSessions: []) == [])
     }
 
-    @Test("Record menu offers today's workout first, using the first of several")
+    @Test("Record menu offers scheduled dated and flexible workouts")
     func recordOptionsWithTodaySessions() {
         let viewModel = makeViewModel()
         let first = makeSession(title: "Upper Body")
         let second = makeSession(title: "Extra Credit")
 
-        let options = viewModel.recordOptions(todaysSessions: [first, second])
+        let options = viewModel.recordOptions(
+            todaysSessions: [first],
+            flexibleSessions: [second]
+        )
 
-        #expect(options == [.scheduledWorkout(first), .outdoorRun])
+        #expect(options == [.scheduledWorkout(first), .scheduledWorkout(second)])
     }
 
-    // MARK: - Health tiles (M5-04)
+    // MARK: - Health metrics
 
-    @Test("Authorized snapshot formats steps, sleep hours, and BPM")
-    func healthTileFormattingPopulated() {
+    @Test("Health presentations include active energy and accurately named average HR")
+    func healthMetricFormattingPopulated() {
         let viewModel = makeViewModel()
         let snapshot = HealthDaySnapshot(
             dayStart: monday,
@@ -135,52 +123,72 @@ struct HomeViewModelTests {
             activeEnergyKilocalories: 420
         )
 
-        let metrics = viewModel.healthTileMetrics(
+        let metrics = viewModel.makeHealthMetrics(
             snapshot: snapshot,
-            authorizationStatus: .authorized
+            history: [],
+            authorizationStatus: .authorized,
+            userID: "user",
+            asOf: monday
         )
 
-        #expect(metrics.stepsValue == 8_432.formatted(.number))
-        #expect(metrics.sleepValue == "7.5 hr")
-        #expect(metrics.heartRateValue == "\(68.formatted(.number)) BPM")
-        #expect(metrics.isEmptyPlaceholder == false)
+        #expect(metrics.first(where: { $0.kind == .steps })?.value == 8_432.formatted(.number))
+        #expect(metrics.first(where: { $0.kind == .sleep })?.value == "7.5 hr")
+        #expect(metrics.first(where: { $0.kind == .activeEnergy })?.value == "420 kcal")
+        #expect(metrics.first(where: { $0.kind == .averageHeartRate })?.value == "68 BPM")
     }
 
-    @Test("Authorized empty metrics say No data yet")
-    func healthTileAuthorizedEmpty() {
-        let viewModel = makeViewModel()
-        let metrics = viewModel.healthTileMetrics(
-            snapshot: .empty(dayStart: monday),
-            authorizationStatus: .authorized
+    @Test("Saved goals drive progress while heart rate stays baseline-only")
+    func healthGoalsAndHeartRateBaseline() throws {
+        let suite = "pluri.tests.home.goals.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let viewModel = makeViewModel(defaults: defaults)
+        viewModel.setHealthGoal(10_000, for: .steps, userID: "user")
+        let history = [-7, -8, -9].map { offset in
+            HealthDaySnapshot(
+                dayStart: day(offset),
+                stepCount: 8_000,
+                sleepHours: 7,
+                averageHeartRateBPM: 65,
+                activeEnergyKilocalories: 400
+            )
+        }
+        let snapshot = HealthDaySnapshot(
+            dayStart: monday,
+            stepCount: 8_000,
+            sleepHours: 7,
+            averageHeartRateBPM: 70,
+            activeEnergyKilocalories: 400
         )
-        #expect(metrics.stepsValue == "No data yet")
-        #expect(metrics.sleepValue == "No data yet")
-        #expect(metrics.heartRateValue == "No data yet")
-        #expect(metrics.isEmptyPlaceholder == true)
-    }
 
-    @Test("Not connected metrics say Enable Health")
-    func healthTileEnableHealthCopy() {
-        let viewModel = makeViewModel()
-        let metrics = viewModel.healthTileMetrics(
-            snapshot: .empty(dayStart: monday),
-            authorizationStatus: .notDetermined
+        let metrics = viewModel.makeHealthMetrics(
+            snapshot: snapshot,
+            history: history + [snapshot],
+            authorizationStatus: .authorized,
+            userID: "user",
+            asOf: monday
         )
-        #expect(metrics.stepsValue == "Enable Health")
-        #expect(metrics.value(for: .sleep) == "Enable Health")
+        let steps = try #require(metrics.first { $0.kind == .steps })
+        let heart = try #require(metrics.first { $0.kind == .averageHeartRate })
+
+        #expect(steps.progress == 0.8)
+        #expect(steps.detail.localizedStandardContains("10,000"))
+        #expect(heart.progress == nil)
+        #expect(heart.goal == nil)
+        #expect(heart.detail.localizedStandardContains("usual"))
     }
 
-    @Test("refreshHealthTiles pulls today snapshot from the reader")
-    func refreshHealthTilesUsesReader() async {
+    @Test("Health refresh pulls today and baseline history")
+    func refreshHealthMetricsUsesReader() async {
         let healthKit = MockHealthKitReading(authorizationStatus: .authorized)
         let viewModel = makeViewModel()
 
-        await viewModel.refreshHealthTiles(using: healthKit)
+        await viewModel.refreshHealthMetrics(using: healthKit, userID: "user")
 
         #expect(healthKit.refreshCount == 1)
         #expect(healthKit.daySnapshotRequestCount == 1)
-        #expect(viewModel.healthTileMetrics.isEmptyPlaceholder == false)
-        #expect(viewModel.healthTileMetrics.stepsValue != "No data yet")
+        #expect(healthKit.historyRequestCount == 1)
+        #expect(viewModel.healthMetrics.count == 4)
     }
 
     // MARK: - Live score (M5-06)
@@ -214,8 +222,8 @@ struct HomeViewModelTests {
 
         #expect(viewModel.pluriScore != nil)
         #expect((0...100).contains(viewModel.pluriScore ?? -1))
-        #expect(viewModel.scoreSubtitle.localizedStandardContains("consistency"))
-        #expect(!viewModel.scoreSubtitle.localizedStandardContains("sample"))
+        #expect(viewModel.scorePresentation.consistency.localizedStandardContains("consistency"))
+        #expect(viewModel.scorePresentation.health == "Health not available")
         let stored = PluriScoreStore.load(userID: "test-user", defaults: defaults)
         #expect(stored?.score == Double(viewModel.pluriScore ?? -1))
     }
