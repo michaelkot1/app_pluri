@@ -453,12 +453,12 @@ struct WorkoutScreenViewModelTests {
         #expect(viewModelA.isPaused)
     }
 
-    @Test("resolvedImageURL prefers planned URL then catalog fallback")
-    func resolvedImageURLFallback() {
+    @Test("resolvedVideoURL prefers planned URL then catalog fallback")
+    func resolvedVideoURLFallback() {
         let container = try! makeContainer()
         let repo = makeRepository(in: container)
-        let plannedURL = URL(string: "https://example.com/planned.gif")!
-        let catalogURL = URL(string: "https://example.com/catalog.gif")!
+        let plannedURL = URL(string: "https://cdn.example/exercises/planned.mp4")!
+        let catalogURL = URL(string: "https://cdn.example/exercises/catalog.mp4")!
         let catalog = Exercise(
             id: "bench",
             name: "Bench",
@@ -467,8 +467,8 @@ struct WorkoutScreenViewModelTests {
             targetMuscle: "Pectorals",
             secondaryMuscles: [],
             instructions: [],
-            imageURL: catalogURL,
-            videoURL: nil
+            imageURL: nil,
+            videoURL: catalogURL
         )
         let viewModel = WorkoutScreenViewModel(
             sessionID: UUID(),
@@ -484,14 +484,17 @@ struct WorkoutScreenViewModelTests {
             equipment: "Barbell",
             targetMuscle: "Pectorals",
             secondaryMuscles: [],
-            imageURL: plannedURL,
+            imageURL: nil,
+            videoURL: plannedURL,
             order: 0,
             sets: 3,
             reps: 10
         )
-        #expect(viewModel.resolvedImageURL(for: withPlanned) == plannedURL)
+        #expect(viewModel.resolvedVideoURL(for: withPlanned) == plannedURL)
 
+        // A plan generated before the mirror covered this exercise carries no
+        // video of its own and must pick the catalog's up (SPEC §14 #79).
         let withoutPlanned = makeExercise()
-        #expect(viewModel.resolvedImageURL(for: withoutPlanned) == catalogURL)
+        #expect(viewModel.resolvedVideoURL(for: withoutPlanned) == catalogURL)
     }
 }

@@ -123,6 +123,10 @@ nonisolated struct ExerciseCachedMetadata: Codable, Hashable, Sendable, Equatabl
     var secondaryMuscles: [String]
     var imageURL: String?
 
+    /// Mirrored MP4 CDN URL (SPEC §14 #79). Absent on rows written before the
+    /// mirror shipped, which decode to `nil` and fall back to the catalog.
+    var videoURL: String? = nil
+
     enum CodingKeys: String, CodingKey {
         case name
         case bodyPart = "body_part"
@@ -130,6 +134,7 @@ nonisolated struct ExerciseCachedMetadata: Codable, Hashable, Sendable, Equatabl
         case targetMuscle = "target_muscle"
         case secondaryMuscles = "secondary_muscles"
         case imageURL = "image_url"
+        case videoURL = "video_url"
     }
 }
 

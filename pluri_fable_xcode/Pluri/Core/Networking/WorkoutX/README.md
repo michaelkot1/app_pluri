@@ -78,17 +78,52 @@ Fields actually observed across a 50-item sample (superset): `id`, `name`,
 - **Image/animation:** `gifUrl` — an animated GIF, e.g.
   `https://api.workoutxapp.com/v1/gifs/{id}.gif`. This is the only visual
   media the live API provides.
-- **Video URL:** **no such field or endpoint exists.** Tried
+- **The GIF URL needs auth.** An unauthenticated `GET` returns **401** — the
+  same `X-WorkoutX-Key` header the JSON endpoints want. That header can never
+  ship in the iOS bundle (AGENTS §2), and with a ~500/month quota, users
+  scrolling a workout would burn it. So no Pluri screen ever loads `gifUrl`.
+- **Video URL:** **no such field or endpoint exists upstream.** Tried
   `GET /exercises/{id}/video`, `GET /videos/{id}.mp4`, and
   `GET /exercises?media=video` — all either `404` or ignored (no effect on
   response shape). SPEC §8 ("image/animation ↔ video toggle... video = real
-  person performing the exercise") assumes a video URL the real API doesn't
-  supply.
-- **Decision (recorded in SPEC.md §14):** the domain `Exercise` model keeps
-  an optional `videoURL: URL?` so the adapter layer and any future UI toggle
-  have a place to plug in a video source (e.g. a different provider, or a
-  future WorkoutX tier), but the current DTO→domain mapping always sets it to
-  `nil`. This keeps M1-02/M1-03 unblocked without inventing data.
+  person performing the exercise") assumes a video the real API doesn't supply.
+- **Decision (SPEC §14 #79, supersedes the always-`nil` interim of #11):**
+  Pluri mirrors its own media. Each GIF is fetched **exactly once**, server-side,
+  transcoded to a small looping MP4, and uploaded to the public-read
+  `exercise-media` Storage bucket; `exercises.video_url` holds the resulting CDN
+  URL and `Exercise.videoURL` is populated from it. `gif_url` keeps its original
+  WorkoutX value as provenance. Exercises the job hasn't covered yet have
+  `video_url = nil` and show a placeholder — never a broken frame.
+
+## Mirroring exercise media (owner-run)
+
+`Scripts/mirror_exercise_media.mjs` is the only path that produces MP4s: it
+needs local **ffmpeg**, which Supabase Edge Functions (Deno) don't have. Node
+≥ 20, no npm dependencies. Secrets come from the gitignored repo-root `.env`
+(`WORKOUTX_API_KEY` plus `SUPABASE_URL` and `SUPABASE_SECRET_KEY` — the
+`SUPABASE_SERVICE_ROLE_KEY` slot currently holds an anon JWT, which cannot
+write Storage).
+
+```bash
+brew install ffmpeg
+
+# See what a run would touch, without spending any quota.
+node Scripts/mirror_exercise_media.mjs --hot-set --dry-run
+
+# Cover the ~89 exercises real plans reference, 25 at a time.
+node Scripts/mirror_exercise_media.mjs --hot-set --limit=25
+
+# Then backfill the catalog tail (ordered by popularity_rank).
+node Scripts/mirror_exercise_media.mjs --limit=25
+
+# One-offs / re-encodes.
+node Scripts/mirror_exercise_media.mjs --ids=0001,0031 --force
+```
+
+Each line logs the GIF → MP4 size and WorkoutX's remaining quota headers; the
+run aborts on `401`/`429` rather than draining the monthly budget. Already
+mirrored rows are skipped unless `--force`. Typical output is ~30 KB of MP4 per
+exercise from a ~400 KB GIF.
 
 ## Pagination
 

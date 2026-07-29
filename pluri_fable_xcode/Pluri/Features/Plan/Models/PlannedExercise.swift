@@ -14,7 +14,14 @@ nonisolated struct PlannedExercise: Identifiable, Hashable, Sendable {
     let equipment: String
     let targetMuscle: String
     let secondaryMuscles: [String]
+
+    /// Original WorkoutX GIF URL, snapshotted for provenance only — it is not
+    /// loadable without the upstream API key (SPEC §14 #79).
     let imageURL: URL?
+
+    /// Mirrored MP4 CDN URL for this exercise, snapshotted so an offline plan
+    /// row can still play its demo (SPEC §14 #79).
+    let videoURL: URL?
 
     /// Position within its session (0-based), so ordering is stable.
     let order: Int
@@ -31,6 +38,7 @@ nonisolated struct PlannedExercise: Identifiable, Hashable, Sendable {
         targetMuscle: String,
         secondaryMuscles: [String],
         imageURL: URL?,
+        videoURL: URL? = nil,
         order: Int,
         sets: Int,
         reps: Int
@@ -43,6 +51,7 @@ nonisolated struct PlannedExercise: Identifiable, Hashable, Sendable {
         self.targetMuscle = targetMuscle
         self.secondaryMuscles = secondaryMuscles
         self.imageURL = imageURL
+        self.videoURL = videoURL
         self.order = order
         self.sets = sets
         self.reps = reps

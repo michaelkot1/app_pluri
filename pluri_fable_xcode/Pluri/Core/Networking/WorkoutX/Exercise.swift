@@ -16,12 +16,14 @@ struct Exercise: Identifiable, Hashable, Sendable {
     let secondaryMuscles: [String]
     let instructions: [String]
 
-    /// Animated GIF/image demonstrating the exercise.
+    /// Original WorkoutX animated GIF. Kept as provenance only: the upstream
+    /// host requires an `X-WorkoutX-Key` header the app must never ship, so no
+    /// Pluri screen loads this URL (SPEC §14 #79).
     let imageURL: URL?
 
-    /// A video of a person performing the exercise (SPEC §8's image ↔ video
-    /// toggle). The live WorkoutX API has no video field today — see
-    /// `Core/Networking/WorkoutX/README.md`. Kept optional so a future
-    /// provider or WorkoutX tier can populate it without a model change.
+    /// Public CDN URL of Pluri's own mirrored MP4 loop — the media every
+    /// exercise surface actually plays. `nil` until the mirror job
+    /// (`Scripts/mirror_exercise_media.mjs`) has covered this exercise, in
+    /// which case the UI shows a placeholder (SPEC §14 #79).
     let videoURL: URL?
 }

@@ -22,7 +22,7 @@ struct WorkoutExerciseListView: View {
                 ForEach(session.exercises) { exercise in
                     WorkoutExerciseCardView(
                         exercise: exercise,
-                        mediaURL: viewModel.resolvedImageURL(for: exercise),
+                        videoURL: viewModel.resolvedVideoURL(for: exercise),
                         showsInlineLog: viewModel.showsLiveControls,
                         usesImperialUnits: usesImperialUnits,
                         loggedSetCount: viewModel.loggedSetCountByExercise[exercise.id] ?? 0,

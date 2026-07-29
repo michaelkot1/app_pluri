@@ -1,8 +1,10 @@
 import CryptoKit
 import Foundation
 
-/// Disk cache for exercise GIF/image assets under `URL.cachesDirectory`
-/// (M4-08 / SPEC §13). Offline sessions can still show previously seen media.
+/// Disk cache for exercise media under `URL.cachesDirectory` (M4-08 / SPEC §13).
+/// Offline sessions can still show previously seen media. Since SPEC §14 #79 the
+/// payload is a mirrored MP4 loop rather than a WorkoutX GIF, so callers mostly
+/// want `localFileURL(byCaching:)` — `AVPlayer` plays straight off disk.
 actor ExerciseMediaCache {
     private let rootDirectory: URL
     private let downloader: any ExerciseMediaDownloading
@@ -32,6 +34,23 @@ actor ExerciseMediaCache {
         try ensureRootDirectory()
         try downloaded.write(to: fileURL, options: .atomic)
         return downloaded
+    }
+
+    /// On-disk location of the media, downloading it first if needed. Handing
+    /// `AVPlayer` a file URL keeps the bytes out of memory and means a cached
+    /// exercise plays with no network at all.
+    func localFileURL(byCaching remoteURL: URL) async throws -> URL {
+        let fileURL = localFileURL(for: remoteURL)
+        if let attributes = try? fileManager.attributesOfItem(atPath: fileURL.path(percentEncoded: false)),
+           let size = attributes[.size] as? Int,
+           size > 0 {
+            return fileURL
+        }
+
+        let downloaded = try await downloader.download(remoteURL)
+        try ensureRootDirectory()
+        try downloaded.write(to: fileURL, options: .atomic)
+        return fileURL
     }
 
     /// Whether a completed file already exists on disk (tests + diagnostics).

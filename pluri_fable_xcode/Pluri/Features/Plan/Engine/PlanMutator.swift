@@ -167,6 +167,7 @@ nonisolated enum PlanMutator {
                 targetMuscle: exercise.targetMuscle,
                 secondaryMuscles: exercise.secondaryMuscles,
                 imageURL: exercise.imageURL,
+                videoURL: exercise.videoURL,
                 order: exercise.order,
                 sets: exercise.sets,
                 reps: exercise.reps

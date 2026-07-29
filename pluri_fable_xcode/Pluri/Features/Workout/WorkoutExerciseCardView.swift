@@ -5,9 +5,9 @@ import SwiftUI
 /// a compact inline Log (and optional duration timer) expands without crowding.
 struct WorkoutExerciseCardView: View {
     var exercise: PlannedExercise
-    /// Resolved media URL (`PlannedExercise.imageURL` ?? catalog). Defaults to
-    /// the planned exercise's own URL when omitted.
-    var mediaURL: URL? = nil
+    /// Resolved mirrored-video URL (`PlannedExercise.videoURL` ?? catalog).
+    /// Defaults to the planned exercise's own URL when omitted.
+    var videoURL: URL? = nil
     var showsInlineLog: Bool = false
     var usesImperialUnits: Bool = false
     var loggedSetCount: Int = 0
@@ -34,7 +34,7 @@ struct WorkoutExerciseCardView: View {
             Button(action: action) {
                 PluriCard {
                     HStack(alignment: .top, spacing: PluriSpacing.md) {
-                        CachedExerciseMediaView(remoteURL: mediaURL ?? exercise.imageURL)
+                        CachedExerciseMediaView(videoURL: videoURL ?? exercise.videoURL)
                             .frame(width: 72, height: 72)
                             .clipShape(.rect(cornerRadius: PluriRadius.md))
                             .accessibilityHidden(true)

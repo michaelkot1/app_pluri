@@ -33,8 +33,8 @@ struct WorkoutScreenView: View {
         .background(PluriColor.bgCanvas)
         .navigationTitle(session?.title ?? "Workout")
         .navigationBarTitleDisplayMode(.inline)
-        // The screen stays mounted under a sheet; hold GIFs on their first frame
-        // so the sheet isn't fighting N animations for the main thread (§14 #76).
+        // The screen stays mounted under a sheet; pause the exercise loops so
+        // the sheet isn't fighting N video players for resources (§14 #76).
         .environment(\.exerciseMediaAnimationEnabled, !isCoveredBySheet)
         .id(sessionID)
         .onAppear {
@@ -103,11 +103,10 @@ struct WorkoutScreenView: View {
     }
 
     private func exerciseDetailSheet(for exercise: PlannedExercise) -> some View {
-        let catalog = viewModel?.catalogExercise(for: exercise)
-        return WorkoutExerciseDetailSheet(
+        WorkoutExerciseDetailSheet(
             exercise: exercise,
             descriptionText: viewModel?.description(for: exercise) ?? "",
-            videoURL: catalog?.videoURL,
+            videoURL: viewModel?.resolvedVideoURL(for: exercise),
             notesDraft: notesBinding(for: exercise.id),
             errorMessage: viewModel?.errorMessage,
             onSaveNotes: {

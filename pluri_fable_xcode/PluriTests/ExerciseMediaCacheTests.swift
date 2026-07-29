@@ -47,6 +47,33 @@ struct ExerciseMediaCacheTests {
         #expect(counter.count == 1)
     }
 
+    @Test("File-URL path downloads once, then replays from disk (SPEC §14 #79)")
+    func fileURLMissThenHit() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "ExerciseMediaCacheVideo-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let remoteURL = URL(string: "https://cdn.example/exercise-media/exercises/0031.mp4")!
+        let payload = Data("mp4-bytes".utf8)
+        let counter = DownloadCounter()
+        let cache = ExerciseMediaCache(
+            rootDirectory: root,
+            downloader: FakeDownloader(payload: payload, counter: counter)
+        )
+
+        let first = try await cache.localFileURL(byCaching: remoteURL)
+        #expect(first.pathExtension == "mp4")
+        #expect(try Data(contentsOf: first) == payload)
+        #expect(counter.count == 1)
+
+        // AVPlayer plays straight off this path, so a second request must not
+        // hit the network again.
+        let second = try await cache.localFileURL(byCaching: remoteURL)
+        #expect(second == first)
+        #expect(counter.count == 1)
+    }
+
     @Test("Local file URL is stable for the same remote URL")
     func stableFileURL() async {
         let root = FileManager.default.temporaryDirectory

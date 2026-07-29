@@ -1,11 +1,13 @@
 import SwiftUI
 
 /// Expanded exercise sheet (M4-08 / SPEC §8): longer description, per-exercise
-/// notes, cached media. Video toggle is hidden when `videoURL` is nil
-/// (SPEC §14 #11).
+/// notes, and the cached demo loop.
 struct WorkoutExerciseDetailSheet: View {
     var exercise: PlannedExercise
     var descriptionText: String
+
+    /// Resolved mirrored-video URL; `nil` until the mirror job has covered this
+    /// exercise, which shows the placeholder instead (SPEC §14 #79).
     var videoURL: URL?
     @Binding var notesDraft: String
     var errorMessage: String?
@@ -18,14 +20,12 @@ struct WorkoutExerciseDetailSheet: View {
                     .font(PluriFont.sectionHeader)
                     .foregroundStyle(PluriColor.textPrimary)
 
-                CachedExerciseMediaView(remoteURL: exercise.imageURL)
+                CachedExerciseMediaView(videoURL: resolvedVideoURL)
                     .frame(maxWidth: .infinity)
                     .frame(height: 200)
                     .clipShape(.rect(cornerRadius: PluriRadius.lg))
-                    .accessibilityLabel("\(exercise.name) demonstration")
-
-                // Image ↔ video toggle intentionally omitted while `videoURL`
-                // is nil (SPEC §14 #11). Parameter retained for a future source.
+                    .accessibilityElement()
+                    .accessibilityLabel(mediaAccessibilityLabel)
 
                 metaRow
 
@@ -70,8 +70,18 @@ struct WorkoutExerciseDetailSheet: View {
         .scrollIndicators(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(PluriColor.bgSurface)
-        // Video toggle stays hidden while `videoURL` is nil (§14 #11); id notes readiness.
-        .accessibilityIdentifier(videoURL == nil ? "exercise-sheet-image-only" : "exercise-sheet-has-video")
+        // Identifier names whether the demo loop is available (§14 #79).
+        .accessibilityIdentifier(resolvedVideoURL == nil ? "exercise-sheet-no-video" : "exercise-sheet-has-video")
+    }
+
+    private var resolvedVideoURL: URL? {
+        videoURL ?? exercise.videoURL
+    }
+
+    private var mediaAccessibilityLabel: String {
+        resolvedVideoURL == nil
+            ? "\(exercise.name) demonstration not available yet"
+            : "\(exercise.name) demonstration, looping video"
     }
 
     private var metaRow: some View {

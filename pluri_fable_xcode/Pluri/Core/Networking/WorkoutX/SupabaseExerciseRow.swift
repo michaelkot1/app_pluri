@@ -13,7 +13,14 @@ struct SupabaseExerciseRow: Decodable, Sendable {
     let target: String
     let secondaryMuscles: [String]
     let instructions: [String]
+
+    /// Original WorkoutX GIF URL. Needs an `X-WorkoutX-Key` header, so the app
+    /// can never fetch it — kept only as provenance (SPEC §14 #79).
     let gifUrl: String?
+
+    /// Public CDN URL of Pluri's mirrored MP4, `nil` until the mirror job has
+    /// run for this exercise (SPEC §14 #79).
+    let videoUrl: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -24,10 +31,11 @@ struct SupabaseExerciseRow: Decodable, Sendable {
         case secondaryMuscles = "secondary_muscles"
         case instructions
         case gifUrl = "gif_url"
+        case videoUrl = "video_url"
     }
 
     /// Columns to request from PostgREST, matching the decoded fields above.
-    static let selectedColumns = "id, name, body_part, equipment, target, secondary_muscles, instructions, gif_url"
+    static let selectedColumns = "id, name, body_part, equipment, target, secondary_muscles, instructions, gif_url, video_url"
 
     var asDomainExercise: Exercise {
         Exercise(
@@ -39,7 +47,7 @@ struct SupabaseExerciseRow: Decodable, Sendable {
             secondaryMuscles: secondaryMuscles,
             instructions: instructions,
             imageURL: gifUrl.flatMap(URL.init(string:)),
-            videoURL: nil
+            videoURL: videoUrl.flatMap(URL.init(string:))
         )
     }
 }

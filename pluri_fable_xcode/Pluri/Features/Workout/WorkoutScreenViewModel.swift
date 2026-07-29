@@ -198,13 +198,11 @@ final class WorkoutScreenViewModel {
         return joined
     }
 
-    func catalogExercise(for exercise: PlannedExercise) -> Exercise? {
-        catalogLookup(exercise.exerciseID)
-    }
-
-    /// Prefer the planned exercise's stored media URL; fall back to catalog.
-    func resolvedImageURL(for exercise: PlannedExercise) -> URL? {
-        exercise.imageURL ?? catalogLookup(exercise.exerciseID)?.imageURL
+    /// Prefer the planned exercise's stored mirrored-video URL; fall back to the
+    /// catalog, which picks up exercises mirrored after the plan was generated
+    /// (SPEC §14 #79).
+    func resolvedVideoURL(for exercise: PlannedExercise) -> URL? {
+        exercise.videoURL ?? catalogLookup(exercise.exerciseID)?.videoURL
     }
 
     func saveExerciseNotes(for exerciseID: UUID) {

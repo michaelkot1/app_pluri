@@ -323,6 +323,7 @@ nonisolated enum PlanEngine {
                     targetMuscle: exercise.targetMuscle,
                     secondaryMuscles: exercise.secondaryMuscles,
                     imageURL: exercise.imageURL,
+                    videoURL: exercise.videoURL,
                     order: order,
                     sets: target.sets,
                     reps: target.reps

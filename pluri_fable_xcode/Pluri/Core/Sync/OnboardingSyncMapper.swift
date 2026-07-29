@@ -216,7 +216,8 @@ nonisolated enum OnboardingSyncMapper {
                     equipment: exercise.equipment,
                     targetMuscle: exercise.targetMuscle,
                     secondaryMuscles: exercise.secondaryMuscles,
-                    imageURL: exercise.imageURL?.absoluteString
+                    imageURL: exercise.imageURL?.absoluteString,
+                    videoURL: exercise.videoURL?.absoluteString
                 ),
                 targetSets: exercise.sets,
                 targetReps: String(exercise.reps),
@@ -297,6 +298,7 @@ nonisolated enum OnboardingSyncMapper {
                             targetMuscle: row.cachedMetadata.targetMuscle,
                             secondaryMuscles: row.cachedMetadata.secondaryMuscles,
                             imageURL: row.cachedMetadata.imageURL.flatMap(URL.init(string:)),
+                            videoURL: row.cachedMetadata.videoURL.flatMap(URL.init(string:)),
                             order: row.orderIndex,
                             sets: row.targetSets ?? 3,
                             reps: Int(row.targetReps ?? "10") ?? 10

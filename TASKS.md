@@ -658,6 +658,26 @@ Community (PLAN M8): Runna-like hub (**Feed · Discover · Saved**) — feed (po
 
 ---
 
+## Exercise media mirror (cross-milestone, 2026-07-29)
+
+Exercise demos never rendered: `exercises.gif_url` requires an `X-WorkoutX-Key` header the app must never ship. Owner-approved fix per SPEC §14 #79 — mirror each GIF once, server-side, as a small looping MP4 on Pluri's own CDN and play video on the client. Supersedes the GIF-decoding half of M4-08 / §14 #54c and closes the hidden video toggle of §14 #11.
+
+- [x] **EM-01** Record the decision in SPEC §14 #79 (Storage shape, columns, ffmpeg settings, quota pacing, client playback, honest placeholder, ToS caveat) and open the two §15 follow-ups (provider terms, owner-run backfill).
+
+- [x] **EM-02** Migrations: `exercises_video_columns` adds `video_path` / `video_url` / `video_bytes` / `video_mirrored_at` (with column comments; `gif_url` keeps its name as provenance) and `exercise_media_storage` adds the public-read `exercise-media` bucket (`video/mp4`, ~5 MB, service-role write only, no `storage.objects` policies — mirrors the `post-images` no-listing reasoning). Existing table-level anon/authenticated SELECT policies already cover the new columns, so no RLS change. **Applied remotely.**
+
+- [x] **EM-03** Batch pipeline `Scripts/mirror_exercise_media.mjs` (Node, zero dependencies): resolves targets (`--hot-set` / `--ids=` / backfill by `popularity_rank`), skips already-mirrored rows unless `--force`, downloads each GIF once with `X-WorkoutX-Key`, transcodes via local ffmpeg (`fps=15`, ≤480px even dimensions, libx264 baseline, `crf 30`, `yuv420p`, `-an`, `+faststart`), uploads to `exercises/{id}.mp4`, and PATCHes the catalog row. Quota-safe by default (`--limit=25`, 1.5 s gap, concurrency 1, aborts on 401/429, logs remaining quota). Reads secrets from the gitignored `.env`, preferring `SUPABASE_SECRET_KEY` and rejecting anon-role keys. No Edge Function: Deno edge has no ffmpeg, so a lazy path could only store un-transcoded GIFs.
+
+- [x] **EM-04** iOS client plays video: `SupabaseExerciseRow` selects/decodes `video_url` into `Exercise.videoURL`; `PlannedExercise.videoURL` + `cached_metadata.video_url` carry it into offline plan rows (legacy rows without the key decode to `nil`); `WorkoutScreenViewModel.resolvedVideoURL` prefers the plan snapshot then the catalog. `CachedExerciseMediaView` caches the MP4 on disk and plays it through the new `LoopingVideoPlayerView` / `LoopingVideoContainerView` (muted, chromeless, aspect-fill, `AVPlayerLooper`); the `ImageIO` / `UIImageView.animationImages` GIF path is deleted. Placeholder stays for unmirrored exercises; VoiceOver labels name whether a demo exists. No WorkoutX key in any client media request.
+
+- [x] **EM-05** Tests: `ExerciseMediaMirrorMappingTests` (catalog row → `videoURL`, null-safe, `selectedColumns`, `cached_metadata` JSON round-trip, legacy metadata decode); `ExerciseMediaCacheTests` gains the file-URL download-once path; `WorkoutScreenViewModelTests` covers `resolvedVideoURL` plan-then-catalog precedence.
+
+- [ ] **EM-06** *(owner)* Run the backfill: `node Scripts/mirror_exercise_media.mjs --hot-set` in ~25-item batches until the hot set is covered, then drop `--hot-set` for the catalog tail. Needs `.env` + ffmpeg. 3 of 89 hot-set exercises are mirrored from smoke testing; WorkoutX quota was **221/500** remaining afterwards, so the full 1,327-row catalog needs several monthly windows (or a plan upgrade).
+
+> **Learned during EM-01..05 (2026-07-29):** the `SUPABASE_SERVICE_ROLE_KEY` slot in `.env` actually holds the **anon** JWT (the M0-11 gap in §15), which reads `exercises` fine but silently returns `[]` for RLS-protected tables like `workout_exercises` — the script now prefers `SUPABASE_SECRET_KEY` (`sb_secret_…`) and refuses anon-role keys loudly. Pipeline smoke-tested end to end on exercises `0031`, `0002`, `0058`: ~400 KB GIFs → 32–41 KB MP4s (e.g. 360×360, 3 s, h264/yuv420p), public unauthenticated GET returns 200 `video/mp4`, rows updated, pacing + quota logging + skip/force/paging all exercised. PostgREST's ~1,000-row cap means both the catalog and `workout_exercises` reads must page — they do. Hot set is 89 distinct exercises of 1,327. AVKit's `VideoPlayer` was rejected (mandatory chrome + letterboxing at thumbnail size) in favour of an `AVPlayerLayer` bridge. Six `FoodLoggingViewModelTests` failures in the full run are pre-existing wall-clock-debounce flakiness — they pass in isolation.
+
+---
+
 ## Backlog / surfaced items
 
 - Decide the fate of the legacy Supabase prototype tables (`workout_plans`, `plan_days`, `plan_day_exercises`, `user_equipment`, plus the 3 seeded profile rows). Dropping them is destructive → owner approval required (AGENTS §6). **Update (2026-07-13):** the seeded `exercises` catalog (1,327 rows) is no longer just a candidate fallback — it is now the app's **primary catalog source** (`SupabaseExerciseCatalogClient`, SPEC §14 #25), so `exercises` must be kept (and eventually kept in sync with WorkoutX server-side, e.g. from the M2+ `generate-plan` Edge Function). The other legacy tables are still pending an owner decision.
