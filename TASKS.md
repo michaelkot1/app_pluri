@@ -500,6 +500,8 @@ Ask Pluri (AI Coach) (PLAN M6): `ask-pluri` Edge Function with Gemini, context g
 > - **Swift Testing (M6-12):** Added ViewModel **unauthorized** + **throttled** coverage; `AskPluriPlanActionApplierTests` for `summaryLines` + multi-action stop-on-first-error. Prior client/VM/plan-mutation coverage retained.
 > - **UI QA (M6-13):** Busy preview forces `isSending` via `prepareBusyPreviewState()` (no 60s delay wait). Chat + confirm sheet use `PluriFont` / `PluriColor` / `PluriSpacing` / `PluriRadius` and 44pt min targets; VoiceOver labels/hints on Done, dismiss, composer, send, confirm/cancel.
 
+> **Learned during M6-13 follow-up (2026-07-27) — mid-workout Ask Pluri freeze:** the M6-13 "mid-workout chat stays snappy" check was signed off on previews, not on a real session with exercise GIFs, and it missed a real defect: asking a question mid-workout pegged the CPU and stranded the typed question in the composer. Root causes and fixes are recorded in **SPEC §14 #76** — restartable `PathMonitorReachability` (a cancelled `NWPathMonitor` froze `isOnline` and made the offline guard reject every later send), composer no longer `.disabled()` while sending, `isSending` reset from a single `defer`, one keyboard accessory instead of one per exercise card, lazy exercise list with off-main-actor GIF decode, no redundant `UIImageView.image` re-assignment, GIFs paused while a sheet covers the screen, and timer/HealthKit observation isolated in `WorkoutTimerMetricsView`. Covered by new `AskPluriViewModelTests` composer-state cases and `NetworkReachabilityTests`. **Still needs on-device confirmation** (Instruments Time Profiler during a real GIF-heavy session) — the simulator does not reproduce the original spike faithfully.
+
 > **M6-13 manual QA checklist:** (1) Pre-workout: open Ask Pluri from Workout Screen → ask a plan-aware question → dismiss. (2) Mid-workout: start session → open Ask Pluri sheet → log a set while sheet is open and again after dismiss — logging stays snappy, session not corrupted, timer/set state intact. (3) Coach proposes add → Confirm → Plan/calendar shows new workout; Cancel leaves plan untouched. (4) Coach proposes remove on a scheduled workout → Confirm → workout gone; completed/skipped never offered/applied. (5) Dynamic Type (largest), VoiceOver rotor walk-through (chat + confirm sheet), dark mode, 44pt Done/Send/Confirm/Cancel. (6) Airplane mode → offline banner kind “needs a connection” (no raw errors); restore network → busy/throttled path (if hit) shows coach-is-busy copy only.
 
 **Dependencies:** M6-01 → 02/03; 03 → 05 → 06/07; 01+03 → 09/10; everything → 12/13.
@@ -607,39 +609,41 @@ Community (PLAN M8): Runna-like hub (**Feed · Discover · Saved**) — feed (po
 
 ### Client networking & domain
 
-- [ ] **M8-04** Domain models + `CommunityClient` / repository (protocol + live Supabase + mocks for previews/tests) covering feed, create, like, comment, poll vote, search, save, moderation actions, author `display_name` + like/comment counts (PLAN §1.2 / §1.3, SPEC §14 #73).
+- [x] **M8-04** Domain models + `CommunityClient` / repository (protocol + live Supabase + mocks for previews/tests) covering feed, create, like, comment, poll vote, search, save, moderation actions, author `display_name` + like/comment counts (PLAN §1.2 / §1.3, SPEC §14 #73).
 
 ### Feature UI
 
-- [ ] **M8-05** Replace Community tab placeholder with hub shell: **Feed · Discover · Saved** chrome per SPEC §11 (Runna-like); top bar search + calendar; honest empty/offline/error states (no fake content). Clubs = omit or honest stub only (not live).
+- [x] **M8-05** Replace Community tab placeholder with hub shell: **Feed · Discover · Saved** chrome per SPEC §11 (Runna-like); top bar search + calendar; honest empty/offline/error states (no fake content). Clubs = omit or honest stub only (not live).
 
-- [ ] **M8-06** Feed: Instagram-style scrolling post cards with like, comment, and poll vote (SPEC §11); show **author `display_name`** + **like/comment counts** (with M8-16); Dynamic Type / VoiceOver / 44pt.
+- [x] **M8-06** Feed: Instagram-style scrolling post cards with like, comment, and poll vote (SPEC §11); show **author `display_name`** + **like/comment counts** (with M8-16); Dynamic Type / VoiceOver / 44pt.
 
-- [ ] **M8-07** Create Post flow: types General / Gear / Recipe / Share Workout; optional image + optional poll; **Post** enabled only with a title and ≥3 body words (SPEC §11); Share Workout payload per M8-01.
+- [x] **M8-07** Create Post flow: types General / Gear / Recipe / Share Workout; optional image + optional poll; **Post** enabled only with a title and ≥3 body words (SPEC §11); Share Workout payload per M8-01.
 
-- [ ] **M8-08** Search across post types (general, gear, workouts/runs/flexibility, recipe — SPEC §11).
+- [x] **M8-08** Search across post types (general, gear, workouts/runs/flexibility, recipe — SPEC §11).
 
-- [ ] **M8-09** Saved / bookmarked posts — Saved hub segment + list of user’s saved posts (SPEC §11).
+- [x] **M8-09** Saved / bookmarked posts — Saved hub segment + list of user’s saved posts (SPEC §11).
 
-- [ ] **M8-10** Explore Spaces directory under **Discover** — browse-only v1 for upcoming races / running groups nearby (SPEC §1.1 / §11 / #72f); join/manage = v2.
+- [x] **M8-10** Explore Spaces directory under **Discover** — browse-only v1 for upcoming races / running groups nearby (SPEC §1.1 / §11 / #72f); join/manage = v2.
 
-- [ ] **M8-15** Discover hub stub: wire Discover segment with Spaces (M8-10) + **Challenges coming-soon cards** only (no live Challenges — v2 / SPEC §15). Depends on M8-05 hub chrome (+ M8-10 for Spaces content).
+- [x] **M8-15** Discover hub stub: wire Discover segment with Spaces (M8-10) + **Challenges coming-soon cards** only (no live Challenges — v2 / SPEC §15). Depends on M8-05 hub chrome (+ M8-10 for Spaces content).
 
-- [ ] **M8-16** Author attribution on cards: resolve `display_name` via `community_author_profiles` / M8-02 RLS; surface like + comment counts on feed cards. Wire with M8-06; depends on M8-02.
+- [x] **M8-16** Author attribution on cards: resolve `display_name` via `community_author_profiles` / M8-02 RLS; surface like + comment counts on feed cards. Wire with M8-06; depends on M8-02.
 
-- [ ] **M8-11** Moderation UI + persistence (report / block / hide) per M8-01 — App Review blocker for UGC (SPEC §13 / §15, PLAN M8).
+- [x] **M8-11** Moderation UI + persistence (report / block / hide) per M8-01 — App Review blocker for UGC (SPEC §13 / §15, PLAN M8).
 
-- [ ] **M8-12** Notifications Community rows: replies to the user’s posts (SPEC §5.3); club/group messages stay v2 / M9 as decided in M8-01.
+- [x] **M8-12** Notifications Community rows: replies to the user’s posts (SPEC §5.3); club/group messages stay v2 / M9 as decided in M8-01.
 
 ### Tests & QA
 
-- [ ] **M8-13** Swift Testing: `CommunityClient` parsing/mocks; create / like / save flows; moderation actions; unauthorized/offline/error paths.
+- [x] **M8-13** Swift Testing: `CommunityClient` parsing/mocks; create / like / save flows; moderation actions; unauthorized/offline/error paths.
 
-- [ ] **M8-14** M8 UI QA: a11y (Dynamic Type / VoiceOver / 44pt / dark mode); empty/offline/error previews; create → appears in feed; search/save click-through; Discover Spaces + Challenges stub; moderation report/block/hide click-through.
+- [x] **M8-14** M8 UI QA: a11y (Dynamic Type / VoiceOver / 44pt / dark mode); empty/offline/error previews; create → appears in feed; search/save click-through; Discover Spaces + Challenges stub; moderation report/block/hide click-through.
+
+> **Learned during M8-13/14 (2026-07-27):** M8-13 gap-fill only — suites already covered DTO decode, mock feed/search/create/like/comment/save/vote, hide+transport offline, create 3-word gate, Share Workout gating, feed offline, like/save/hide/report/block VM, search filters, replies exclude self, WorkoutSnapshot builder. **Added client:** unauthorized typed throws on create/like/save/report/fetch; block removes author posts + report soft-hide; unlike/unsave round-trip; CommunityTextRules + ReportReason.persistenceValue; post-row `workout_snapshot` decode; comment→missing post `.notFound`. **Added VM:** feed/search `.unauthorized` → `.error` (sign-in copy) with empty posts; Saved `.empty` + `.offline`; `votePoll` local counts/viewer index. **M8-14 previews:** Hub populated; Feed empty/offline/error; Saved empty; Search empty/offline; Discover Spaces+Challenges; Create can/can't post; Report sheet; Post card poll + workout snapshot. **A11y fixes:** like/comment hit targets `minWidth/minHeight` 44 + `contentShape`; Create Post disabled-hint + title/body VO labels. **Manual click-through (code/VM audit — device still needed):** Create→dismiss→feed reload path wired (`onCreated` + sheet `onDismiss` reload) — **pass (logic)**; Search type chips + result — **pass (logic/tests)**; Save→Saved tab — **pass (logic/tests)**; Discover Spaces + Challenges coming-soon — **pass (UI present)**; Report/Hide/Block remove from feed + confirmation — **pass (VM tests + confirmationDialog/alert)**. Human on-device VoiceOver/Dynamic Type/dark-mode spot-check still recommended.
 
 **Dependencies:** M8-01 → 02/03/04; 02+03 → 04 → 05/06/07; 04 → 08/09/10/11; 05+10 → 15; 02+06 → 16; 01+06 → 12; everything → 13/14.
 
-**M8 exit check** (PLAN M8): users can post, interact, search, save; UGC moderation in place. Specifically: Community decisions recorded in SPEC §14/§15; community tables + RLS + moderation columns and post-image Storage in place; Community hub (Feed · Discover · Saved) replaces the placeholder; create-post enforces title + ≥3 body words; search and saved posts work; Discover shows Spaces + Challenges coming-soon; cards show author name + like/comment counts; report/block/hide ship for App Review; Community reply notification rows are honest (club messages deferred per M8-01); build + Swift Testing suite pass; Dynamic Type/VoiceOver/44pt targets and create→feed + moderation QA manually checked.
+**M8 exit check** (PLAN M8): users can post, interact, search, save; UGC moderation in place. Specifically: Community decisions recorded in SPEC §14/§15; community tables + RLS + moderation columns and post-image Storage in place; Community hub (Feed · Discover · Saved) replaces the placeholder; create-post enforces title + ≥3 body words; search and saved posts work; Discover shows Spaces + Challenges coming-soon; cards show author name + like/comment counts; report/block/hide ship for App Review; Community reply notification rows are honest (club messages deferred per M8-01); build + Swift Testing suite pass; Dynamic Type/VoiceOver/44pt targets and create→feed + moderation QA manually checked. ✅ M8-13/14 complete (device UI QA residual noted in Learned).
 
 **Deferred out of M8 (don't build ahead):** clubs/groups fully live (v2); live Challenges (v2); follow / full public profiles (v2); Explore Spaces join/manage (v2); races “fully live” (v2 — SPEC §1.1); anything M9 push-only if scoped out in M8-01; Recipes / nutrition UI (M7); Outdoor Run tracking (M9); Cardio / Flexibility / hybrid plans (v2).
 
