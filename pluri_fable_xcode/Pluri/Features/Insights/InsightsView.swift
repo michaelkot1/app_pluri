@@ -89,6 +89,10 @@ struct InsightsView: View {
                 refreshAll()
             }
         }
+        // A grant made from Profile / Connected Apps should light Insights up on return.
+        .onChange(of: healthKitService.authorizationStatus) { _, _ in
+            refreshAll()
+        }
         .onChange(of: router.insightsSection) { _, _ in
             if router.selectedTab == .insights {
                 landOnPerformanceForDeepLink()

@@ -33,6 +33,9 @@ nonisolated enum HealthInsightsEngine {
         var trend: Trend
         /// Kind, non-scolding sentence when a trend is available; otherwise `nil`.
         var guidance: String?
+        /// Today's own value, so the card can be read against Home's tile and the
+        /// Health app instead of looking like a contradicting number (SPEC §14 #78).
+        var todayValue: Double?
     }
 
     /// ±5% vs baseline (min absolute epsilon per metric) for up/down vs flat.
@@ -108,7 +111,8 @@ nonisolated enum HealthInsightsEngine {
                 recentAverage: recentAverage,
                 baselineAverage: baselineAverage,
                 trend: .insufficientData,
-                guidance: nil
+                guidance: nil,
+                todayValue: byDay[asOfDay]?[keyPath: keyPath]
             )
         }
 
@@ -119,7 +123,8 @@ nonisolated enum HealthInsightsEngine {
             recentAverage: recentAverage,
             baselineAverage: baselineAverage,
             trend: trend,
-            guidance: guidance(for: trend)
+            guidance: guidance(for: trend),
+            todayValue: byDay[asOfDay]?[keyPath: keyPath]
         )
     }
 

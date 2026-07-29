@@ -241,6 +241,12 @@ private struct InsightsHealthMetricCard: View {
                     .textCase(.uppercase)
                     .kerning(1)
 
+                if let todayText {
+                    Text(todayText)
+                        .font(PluriFont.body)
+                        .foregroundStyle(PluriColor.textSecondary)
+                }
+
                 if let baselineText {
                     Text(baselineText)
                         .font(PluriFont.body)
@@ -287,41 +293,43 @@ private struct InsightsHealthMetricCard: View {
 
     private var averageText: String {
         guard let recentAverage = insight.recentAverage else { return emptyCopy }
-        switch insight.metric {
-        case .steps:
-            return Int(recentAverage.rounded()).formatted(.number)
-        case .sleep:
-            let hours = recentAverage.formatted(.number.precision(.fractionLength(1)))
-            return "\(hours) hr"
-        case .calories:
-            let kcal = Int(recentAverage.rounded()).formatted(.number)
-            return "\(kcal) kcal"
-        case .activeHeartRate:
-            let bpm = Int(recentAverage.rounded()).formatted(.number)
-            return "\(bpm) BPM"
-        }
+        return formatted(recentAverage)
+    }
+
+    /// Same value Home's tile shows, so the two screens can't look like they disagree.
+    private var todayText: String? {
+        guard let todayValue = insight.todayValue else { return nil }
+        return "Today: \(detailed(todayValue))"
     }
 
     private var baselineText: String? {
         guard let baselineAverage = insight.baselineAverage else { return nil }
+        return "Your usual: \(detailed(baselineAverage))"
+    }
+
+    /// Supporting lines spell the step unit out; the hero numeral doesn't need it.
+    private func detailed(_ value: Double) -> String {
+        insight.metric == .steps ? "\(formatted(value)) steps" : formatted(value)
+    }
+
+    private func formatted(_ value: Double) -> String {
         switch insight.metric {
         case .steps:
-            let value = Int(baselineAverage.rounded()).formatted(.number)
-            return "Your usual: \(value) steps"
+            Int(value.rounded()).formatted(.number)
         case .sleep:
-            let hours = baselineAverage.formatted(.number.precision(.fractionLength(1)))
-            return "Your usual: \(hours) hr"
+            "\(value.formatted(.number.precision(.fractionLength(1)))) hr"
         case .calories:
-            let kcal = Int(baselineAverage.rounded()).formatted(.number)
-            return "Your usual: \(kcal) kcal"
+            "\(Int(value.rounded()).formatted(.number)) kcal"
         case .activeHeartRate:
-            let bpm = Int(baselineAverage.rounded()).formatted(.number)
-            return "Your usual: \(bpm) BPM"
+            "\(Int(value.rounded()).formatted(.number)) BPM"
         }
     }
 
     private var accessibilityLabel: String {
-        var parts = [title, averageText]
+        var parts = [title, "\(averageText) 7-day average"]
+        if let todayText {
+            parts.append(todayText)
+        }
         if let guidance = insight.guidance {
             parts.append(guidance)
         }
@@ -599,7 +607,8 @@ private enum InsightsPerformancePreviewData {
                         recentAverage: 8_432,
                         baselineAverage: 8_000,
                         trend: .up,
-                        guidance: "You’re ahead of your usual pace."
+                        guidance: "You’re ahead of your usual pace.",
+                        todayValue: 9_446
                     ),
                 ]
             }

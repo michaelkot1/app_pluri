@@ -154,6 +154,29 @@ struct HealthInsightsEngineTests {
         #expect(all.first(where: { $0.metric == .calories })?.trend == .flat)
     }
 
+    @Test("Today's own value rides along so Insights matches Home's tile")
+    func exposesTodayValue() {
+        let insight = HealthInsightsEngine.insight(
+            for: .steps,
+            history: history(baselineSteps: 8_000, recentSteps: 10_000),
+            asOf: asOf,
+            calendar: calendar
+        )
+        #expect(insight.recentAverage == 10_000)
+        #expect(insight.todayValue == 10_000)
+    }
+
+    @Test("Missing today leaves the today value empty rather than guessing")
+    func todayValueAbsent() {
+        let insight = HealthInsightsEngine.insight(
+            for: .steps,
+            history: [snapshot(offset: -1, steps: 9_000)],
+            asOf: asOf,
+            calendar: calendar
+        )
+        #expect(insight.todayValue == nil)
+    }
+
     @Test("Guidance copy matches trend cases")
     func guidanceCopy() {
         #expect(

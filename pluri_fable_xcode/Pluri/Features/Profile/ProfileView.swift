@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Profile screen per SPEC §5.2 (M2-16): plan info, connected apps, a link to
-/// the Notifications page (M3-15), language stub, theme, subscription
-/// management, terms, and account actions.
+/// Profile screen per SPEC §5.2 (M2-16): plan info, connected apps with the live
+/// Apple Health connect control (M5-03), a link to the Notifications page (M3-15),
+/// language stub, theme, subscription management, terms, and account actions.
 /// Receives the restored state from the caller — missing profile/plan renders
 /// honest empty states rather than invented data.
 struct ProfileView: View {
@@ -10,6 +10,7 @@ struct ProfileView: View {
 
     @State private var viewModel: ProfileViewModel
     @Environment(ThemeStore.self) private var themeStore
+    @Environment(LiveHealthKitService.self) private var healthKitService
     @State private var showsCustomerCenter = false
 
     init(restored: RestoredUserState?, viewModel: ProfileViewModel) {
@@ -25,13 +26,10 @@ struct ProfileView: View {
                 ProfilePlanRows(summary: ProfilePlanSummary.make(from: restored?.plan))
             }
 
-            Section {
-                LabeledContent("Apple Health", value: "Not connected")
-            } header: {
-                Text("Connected apps")
-            } footer: {
-                Text("Apple Health connects when Insights arrive.")
-            }
+            AppleHealthConnectionSection(
+                healthKit: healthKitService,
+                headerTitle: "Connected apps"
+            )
 
             Section {
                 NavigationLink("Notifications", value: HomeRoute.notifications)
@@ -94,4 +92,5 @@ struct ProfileView: View {
         )
     }
     .environment(ThemeStore())
+    .environment(LiveHealthKitService())
 }

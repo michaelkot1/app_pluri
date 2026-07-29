@@ -1,18 +1,17 @@
 import SwiftUI
 
-/// Connected Apps shell (M3-12 / SPEC §6): current Apple Health and device
-/// status, display-only until the M5 HealthKit integration — an honest shell
-/// with no pretend connect buttons, matching Profile's Apple Health row.
+/// Connected Apps page (M3-12 / M5-03 / SPEC §6): live Apple Health connection
+/// status with the real system prompt, and an honest Devices stub — no pretend
+/// Bluetooth. Shares its Apple Health section with Profile.
 struct ConnectedAppsView: View {
+    @Environment(LiveHealthKitService.self) private var healthKitService
+
     var body: some View {
         List {
-            Section {
-                LabeledContent("Apple Health", value: "Not connected")
-            } header: {
-                Text("Apps")
-            } footer: {
-                Text("Apple Health connects when Insights arrive in a future update.")
-            }
+            AppleHealthConnectionSection(
+                healthKit: healthKitService,
+                headerTitle: "Apps"
+            )
 
             Section {
                 Text("No devices connected")
@@ -35,4 +34,5 @@ struct ConnectedAppsView: View {
     NavigationStack {
         ConnectedAppsView()
     }
+    .environment(LiveHealthKitService())
 }

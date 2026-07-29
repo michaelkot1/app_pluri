@@ -96,8 +96,17 @@ struct HomeView: View {
             Task { await refreshHealthAndScore() }
             configureHealthObserver()
         }
+        // Connecting from Profile / Connected Apps happens without leaving the app,
+        // so re-read as soon as the grant lands instead of waiting for a relaunch.
         .onChange(of: healthKitService.authorizationStatus) { _, _ in
+            Task { await refreshHealthAndScore() }
             configureHealthObserver()
+        }
+        // Returning to the Home tab doesn't re-run `task(id:)`, which would otherwise
+        // leave today's step total frozen at whatever it was when Home last refreshed.
+        .onChange(of: router.selectedTab) { _, tab in
+            guard tab == .home else { return }
+            Task { await refreshHealthAndScore() }
         }
         .onDisappear {
             healthKitService.stopObservingHealthChanges()
