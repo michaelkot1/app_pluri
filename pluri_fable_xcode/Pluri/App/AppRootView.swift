@@ -122,6 +122,13 @@ struct AppRootView: View {
         )
         .environment(\.mealDBClient, LiveMealDBClient())
         .environment(\.nutritionClient, LiveNutritionClient())
+        // DEBUG uses mock fixtures so Feed · Discover · Saved are demonstrable without
+        // a seeded backend; Release uses the live Supabase client (SPEC §14 #72d).
+        #if DEBUG
+        .environment(\.communityClient, MockCommunityClient())
+        #else
+        .environment(\.communityClient, LiveCommunityClient(client: supabaseService.client))
+        #endif
         .onChange(of: router.phase) { _, newPhase in
             // The shared plan store (M3-04) tracks the Main phase: hydrate it
             // from the router's restored state on entry, blank it on reroute

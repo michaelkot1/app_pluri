@@ -1,10 +1,10 @@
 import SwiftData
 import SwiftUI
 
-/// Main TabView navigation skeleton (M3-06 / M5-07 / M7-08): Home · Plan ·
+/// Main TabView navigation skeleton (M3-06 / M5-07 / M7-08 / M8-05): Home · Plan ·
 /// Insights · Community · Recipe, one `NavigationStack` per tab, with a
 /// `MainRouter` driving programmatic tab selection and typed route paths
-/// (PLAN §1.2). Community stays an honest placeholder until M8.
+/// (PLAN §1.2).
 struct MainTabView: View {
     /// Launch-restored profile + plan, kept as the Profile fallback.
     var restored: RestoredUserState?
@@ -46,12 +46,11 @@ struct MainTabView: View {
                 }
             }
             Tab("Community", systemImage: "person.3.fill", value: MainTab.community) {
-                NavigationStack {
-                    MainTabPlaceholderView(
-                        title: "Community",
-                        systemImage: "person.3.fill",
-                        message: "Share wins and cheer others on — coming in a later update."
-                    )
+                NavigationStack(path: $router.communityPath) {
+                    CommunityView()
+                        .navigationDestination(for: CommunityRoute.self) { route in
+                            CommunityRouteDestinationView(route: route)
+                        }
                 }
             }
             Tab("Recipe", systemImage: "fork.knife", value: MainTab.recipe) {
@@ -92,5 +91,6 @@ struct MainTabView: View {
         .environment(SwiftDataWorkoutSessionRepository(modelContext: container.mainContext))
         .environment(\.mealDBClient, MockMealDBClient())
         .environment(\.nutritionClient, MockNutritionClient())
+        .environment(\.communityClient, MockCommunityClient())
         .modelContainer(container)
 }
