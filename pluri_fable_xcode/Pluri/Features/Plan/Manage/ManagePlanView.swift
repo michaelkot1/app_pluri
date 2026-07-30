@@ -310,6 +310,7 @@ private struct ManagePlanUnitsCard: View {
     }
 }
 
+#if DEBUG
 #Preview("Ready") {
     NavigationStack {
         ManagePlanView()
@@ -327,3 +328,4 @@ private struct ManagePlanUnitsCard: View {
     .environment(SupabaseAuthService(supabaseService: SupabaseService(), restoreOnLaunch: false))
     .modelContainer(for: [CachedExercise.self, ExerciseCatalogSyncState.self], inMemory: true)
 }
+#endif

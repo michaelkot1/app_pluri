@@ -17,12 +17,16 @@ struct PluriPaywallView: View {
     var onUnlocked: (() -> Void)?
 
     @State private var isRestoring = false
-    @State private var showFallback = false
-    @State private var fallbackMessage: String?
+    @State private var showFallback = !Purchases.isConfigured
+    @State private var fallbackMessage: String? = Purchases.isConfigured
+        ? nil
+        : PluriSubscriptionError.configurationMissing.userFacingMessage
 
     var body: some View {
         Group {
-            if showFallback {
+            // RevenueCatUI's PaywallView traps in Release when Purchases was never
+            // configured (e.g. Test Store key skipped at launch). Always fall back.
+            if showFallback || !Purchases.isConfigured {
                 fallbackContent
             } else {
                 PaywallView(displayCloseButton: isDismissable)
@@ -36,6 +40,11 @@ struct PluriPaywallView: View {
         }
         .background(PluriColor.bgCanvas)
         .task {
+            guard Purchases.isConfigured else {
+                showFallback = true
+                fallbackMessage = PluriSubscriptionError.configurationMissing.userFacingMessage
+                return
+            }
             await subscriptionService.refresh()
             if subscriptionService.offerings?.current == nil {
                 showFallback = true
@@ -71,6 +80,11 @@ struct PluriPaywallView: View {
 
             Button("Try again") {
                 Task {
+                    guard Purchases.isConfigured else {
+                        fallbackMessage = PluriSubscriptionError.configurationMissing.userFacingMessage
+                        showFallback = true
+                        return
+                    }
                     await subscriptionService.refresh()
                     if subscriptionService.offerings?.current == nil {
                         fallbackMessage = subscriptionService.lastError?.userFacingMessage
@@ -83,13 +97,13 @@ struct PluriPaywallView: View {
                 }
             }
             .buttonStyle(.pluriPrimary)
-            .disabled(subscriptionService.isLoading)
+            .disabled(subscriptionService.isLoading || !Purchases.isConfigured)
 
             Button("Restore purchases") {
                 Task { await restoreFromFallback() }
             }
             .buttonStyle(.pluriSecondary)
-            .disabled(isRestoring || subscriptionService.isLoading)
+            .disabled(isRestoring || subscriptionService.isLoading || !Purchases.isConfigured)
 
             if isDismissable {
                 Button("Close", action: { dismiss() })
@@ -129,7 +143,9 @@ struct PluriPaywallView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     PluriPaywallView()
         .environment(SubscriptionService(configurePurchases: false))
 }
+#endif

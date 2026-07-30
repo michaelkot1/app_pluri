@@ -67,6 +67,7 @@ struct MainTabView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     let container = try! ModelContainer(
         for: Schema([
@@ -94,3 +95,4 @@ struct MainTabView: View {
         .environment(\.communityClient, MockCommunityClient())
         .modelContainer(container)
 }
+#endif

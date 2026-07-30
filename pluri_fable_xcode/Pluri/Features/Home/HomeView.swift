@@ -240,6 +240,7 @@ private struct HomeLoadingIndicator: View {
     }
 }
 
+#if DEBUG
 #Preview("Ready") {
     NavigationStack {
         HomeView()
@@ -279,3 +280,4 @@ private struct HomeLoadingIndicator: View {
     .environment(LiveHealthKitService())
     .environment(SupabaseAuthService(supabaseService: SupabaseService(), restoreOnLaunch: false))
 }
+#endif

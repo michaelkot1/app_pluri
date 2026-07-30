@@ -220,9 +220,13 @@ final class LiveHealthKitService: HealthKitReading {
         for sampleType in types {
             let query = HKObserverQuery(sampleType: sampleType, predicate: nil) {
                 [weak self] _, completionHandler, error in
+                guard let self else {
+                    completionHandler()
+                    return
+                }
                 if let error {
                     Task { @MainActor in
-                        self?.logger.error(
+                        self.logger.error(
                             "HealthKit observer failed: \(error.localizedDescription, privacy: .public)"
                         )
                     }
@@ -230,7 +234,7 @@ final class LiveHealthKitService: HealthKitReading {
                     return
                 }
                 Task { @MainActor in
-                    self?.scheduleCoalescedObserverCallback()
+                    self.scheduleCoalescedObserverCallback()
                 }
                 completionHandler()
             }

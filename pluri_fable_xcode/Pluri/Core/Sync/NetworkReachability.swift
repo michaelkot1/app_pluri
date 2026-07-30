@@ -72,8 +72,8 @@ final class PathMonitorReachability: NetworkReachability {
         isOnline = true
         let monitor = NWPathMonitor()
         monitor.pathUpdateHandler = { [weak self] path in
+            guard let self else { return }
             Task { @MainActor in
-                guard let self else { return }
                 let online = path.status == .satisfied
                 let becameOnline = online && !self.isOnline
                 self.isOnline = online

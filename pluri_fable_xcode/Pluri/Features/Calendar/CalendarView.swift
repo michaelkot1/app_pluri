@@ -373,6 +373,7 @@ private struct CalendarLoadingIndicator: View {
     }
 }
 
+#if DEBUG
 #Preview("Ready") {
     NavigationStack {
         CalendarView(title: "Calendar")
@@ -400,3 +401,4 @@ private struct CalendarLoadingIndicator: View {
     }
     .environment(HomePreviewData.failedStore())
 }
+#endif

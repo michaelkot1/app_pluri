@@ -230,6 +230,33 @@ struct AppRouterResolveTests {
         #expect(router.restoredState == restore.result)
     }
 
+    @Test("Unavailable subscriptions skip the locked paywall instead of trapping the user")
+    @MainActor
+    func lapsedWithSubscriptionsDisabled() async {
+        let auth = MockSupabaseAuthService(isSignedIn: true, hasResolvedSession: true)
+        let userID = UUID(uuidString: auth.mockAppUserID)!
+        OnboardingCompletionHintStore.clear(userID: userID)
+        defer { OnboardingCompletionHintStore.clear(userID: userID) }
+
+        UserDefaults.standard.removeObject(forKey: PluriSubscription.debugBypassPaywallKey)
+        let subscriptions = MockSubscriptionService(
+            isPluriProActive: false,
+            hasResolvedCustomerInfo: true,
+            areSubscriptionsAvailable: false
+        )
+        let flush = MockOnboardingFlushService()
+        let restore = MockRemotePlanRestoreService()
+        restore.result = RestoredUserState(profile: makeProfile(completed: true), plan: nil)
+        let router = AppRouter()
+
+        await resolve(router, auth: auth, subscriptions: subscriptions, flush: flush, restore: restore)
+
+        #expect(router.phase == .main)
+        #expect(router.restoredState == restore.result)
+        // No RevenueCat alias attempt when the SDK isn't configured.
+        #expect(subscriptions.lastLoggedInAppUserID == nil)
+    }
+
     @Test("Checkpoint retry is invoked when signed in")
     @MainActor
     func checkpointRetryInvoked() async {

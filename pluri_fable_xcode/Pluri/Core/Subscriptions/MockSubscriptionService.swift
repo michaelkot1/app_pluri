@@ -15,6 +15,8 @@ final class MockSubscriptionService: SubscriptionServicing {
 
     private var entitled: Bool
 
+    private(set) var areSubscriptionsAvailable: Bool
+
     var isPluriProActive: Bool {
         #if DEBUG
         if UserDefaults.standard.bool(forKey: PluriSubscription.debugBypassPaywallKey) {
@@ -24,9 +26,14 @@ final class MockSubscriptionService: SubscriptionServicing {
         return entitled
     }
 
-    init(isPluriProActive: Bool = false, hasResolvedCustomerInfo: Bool = false) {
+    init(
+        isPluriProActive: Bool = false,
+        hasResolvedCustomerInfo: Bool = false,
+        areSubscriptionsAvailable: Bool = true
+    ) {
         self.entitled = isPluriProActive
         self.hasResolvedCustomerInfo = hasResolvedCustomerInfo
+        self.areSubscriptionsAvailable = areSubscriptionsAvailable
     }
 
     func refresh() async {

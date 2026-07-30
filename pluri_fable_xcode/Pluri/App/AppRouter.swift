@@ -87,10 +87,12 @@ final class AppRouter {
         }
 
         // Cold launch may not have run auth-path RevenueCat logIn yet.
-        do {
-            try await subscriptionService.logIn(appUserID: idString)
-        } catch {
-            logger.error("Launch RevenueCat logIn failed: \(error.localizedDescription)")
+        if subscriptionService.areSubscriptionsAvailable {
+            do {
+                try await subscriptionService.logIn(appUserID: idString)
+            } catch {
+                logger.error("Launch RevenueCat logIn failed: \(error.localizedDescription)")
+            }
         }
 
         do {
@@ -127,6 +129,12 @@ final class AppRouter {
         }
 
         if subscriptionService.isPluriProActive {
+            setResolvedLaunchPhase(.main, restored: restored)
+        } else if !subscriptionService.areSubscriptionsAvailable {
+            // Subscriptions intentionally disabled for this build: the locked paywall
+            // could never be dismissed (no purchase or restore can succeed), so let
+            // the user into the app instead of trapping them.
+            logger.warning("Subscriptions unavailable; skipping locked paywall gate")
             setResolvedLaunchPhase(.main, restored: restored)
         } else {
             // Lapsed: locked paywall, restored content preserved (SPEC §4).

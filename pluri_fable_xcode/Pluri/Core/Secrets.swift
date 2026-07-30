@@ -29,9 +29,19 @@ enum Secrets {
         value(for: "NUTRITION_API_KEY")
     }
 
-    /// RevenueCat public Apple SDK key (`appl_…`). Safe to ship in the client.
-    static var revenueCatAPIKey: String {
-        value(for: "REVENUECAT_API_KEY")
+    /// RevenueCat public Apple SDK key (`appl_…`), or `nil` when subscriptions are
+    /// intentionally disabled for this build. Optional by design — the app must stay
+    /// usable (and archivable) before monetization is wired up.
+    static var revenueCatAPIKey: String? {
+        optionalValue(for: "REVENUECAT_API_KEY")
+    }
+
+    private static func optionalValue(for key: String) -> String? {
+        guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String,
+              !value.isEmpty else {
+            return nil
+        }
+        return value
     }
 
     private static func value(for key: String) -> String {

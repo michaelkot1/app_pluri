@@ -81,6 +81,7 @@ private struct PlanLoadingIndicator: View {
     }
 }
 
+#if DEBUG
 #Preview("Ready") {
     NavigationStack {
         PlanView()
@@ -112,3 +113,4 @@ private struct PlanLoadingIndicator: View {
     .environment(HomePreviewData.failedStore())
     .environment(MainRouter())
 }
+#endif

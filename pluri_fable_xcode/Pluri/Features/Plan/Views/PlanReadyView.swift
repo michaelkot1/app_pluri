@@ -94,8 +94,14 @@ struct PlanReadyView: View {
     }
 
     private var unlockButton: some View {
-        Button("Unlock my plan") {
-            showsPaywall = true
+        // With subscriptions disabled there is no purchase to make, so the paywall
+        // would be a dead end — hand the plan over directly instead.
+        Button(subscriptionService.areSubscriptionsAvailable ? "Unlock my plan" : "Continue") {
+            if subscriptionService.areSubscriptionsAvailable {
+                showsPaywall = true
+            } else {
+                isUnlocked = true
+            }
         }
         .buttonStyle(.pluriPrimary)
         #if DEBUG

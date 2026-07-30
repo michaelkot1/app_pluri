@@ -84,13 +84,15 @@ final class LiveWorkoutHealthMetricsProvider: WorkoutHealthMetricsProviding {
             anchor: nil,
             limit: HKObjectQueryNoLimit
         ) { [weak self] _, samples, _, _, _ in
+            guard let self else { return }
             Task { @MainActor in
-                self?.applyHeartRateSamples(samples)
+                self.applyHeartRateSamples(samples)
             }
         }
         query.updateHandler = { [weak self] _, samples, _, _, _ in
+            guard let self else { return }
             Task { @MainActor in
-                self?.applyHeartRateSamples(samples)
+                self.applyHeartRateSamples(samples)
             }
         }
         heartRateQuery = query
@@ -110,16 +112,17 @@ final class LiveWorkoutHealthMetricsProvider: WorkoutHealthMetricsProviding {
             return
         }
         let query = HKObserverQuery(sampleType: activeEnergy, predicate: nil) { [weak self] _, _, error in
+            guard let self else { return }
             if let error {
                 Task { @MainActor in
-                    self?.logger.error(
+                    self.logger.error(
                         "Active energy observer error: \(error.localizedDescription, privacy: .public)"
                     )
                 }
                 return
             }
             Task { @MainActor in
-                await self?.refreshActiveEnergy()
+                await self.refreshActiveEnergy()
             }
         }
         energyQuery = query

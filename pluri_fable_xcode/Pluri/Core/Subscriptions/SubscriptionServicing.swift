@@ -38,6 +38,10 @@ enum PluriSubscriptionError: Error, Equatable, Sendable {
 @MainActor
 protocol SubscriptionServicing: AnyObject {
     var isPluriProActive: Bool { get }
+    /// `false` when RevenueCat is intentionally not configured for this build, so
+    /// purchases and restores can't succeed. Gating must let the user through
+    /// instead of parking them on a paywall with no way forward.
+    var areSubscriptionsAvailable: Bool { get }
     /// `true` after the first customer-info refresh/stream event so M2-18 can avoid a paywall flash.
     var hasResolvedCustomerInfo: Bool { get }
     var customerInfo: CustomerInfo? { get }

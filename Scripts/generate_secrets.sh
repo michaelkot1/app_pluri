@@ -36,6 +36,17 @@ env_value() {
     echo "$value"
 }
 
+# Same, but an empty/absent value is allowed and means "feature disabled".
+optional_env_value() {
+    local key="$1"
+    local line
+    line=$(grep -E "^${key}=" "$ENV_FILE" | tail -n 1 || true)
+    local value="${line#*=}"
+    value="${value%\"}"
+    value="${value#\"}"
+    echo "$value"
+}
+
 # xcconfig treats '//' as a comment even inside values; break it up with an
 # empty build-setting substitution ($() resolves to nothing) so URLs survive.
 escape_slashes() {
@@ -48,6 +59,11 @@ CLIENT_KEYS=(
     WORKOUTX_API_KEY
     WORKOUTX_ENDPOINT
     NUTRITION_API_KEY
+)
+
+# Optional: an empty REVENUECAT_API_KEY means subscriptions are intentionally
+# disabled for this build (no Purchases.configure, paywalls show unavailable).
+OPTIONAL_CLIENT_KEYS=(
     REVENUECAT_API_KEY
 )
 
@@ -58,6 +74,13 @@ mkdir -p "$(dirname "$OUT_FILE")"
     for key in "${CLIENT_KEYS[@]}"; do
         echo "PLURI_${key} = $(escape_slashes "$(env_value "$key")")"
     done
+    for key in "${OPTIONAL_CLIENT_KEYS[@]}"; do
+        echo "PLURI_${key} = $(escape_slashes "$(optional_env_value "$key")")"
+    done
 } > "$OUT_FILE"
 
 echo "Wrote $OUT_FILE"
+
+if [[ -z "$(optional_env_value REVENUECAT_API_KEY)" ]]; then
+    echo "note: REVENUECAT_API_KEY is empty — subscriptions will be disabled in this build."
+fi

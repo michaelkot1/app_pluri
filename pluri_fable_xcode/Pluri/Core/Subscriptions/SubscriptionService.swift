@@ -42,15 +42,31 @@ final class SubscriptionService: SubscriptionServicing {
         entitlementState.isInTrialPeriod
     }
 
+    /// `false` when RevenueCat is intentionally not configured for this build
+    /// (no key, or a Test Store key outside DEBUG). Callers must not trap the user
+    /// behind a paywall that can never complete a purchase.
+    var areSubscriptionsAvailable: Bool { Purchases.isConfigured }
+
     init(configurePurchases: Bool = true) {
         if configurePurchases {
-            Self.configureSharedPurchases()
-            startListeningToCustomerInfo()
-            Task { await refresh() }
+            if Self.configureSharedPurchases() {
+                startListeningToCustomerInfo()
+                Task { await refresh() }
+            } else {
+                // Don't leave launch routing waiting on customer info that will never arrive.
+                lastError = .configurationMissing
+                markCustomerInfoResolved()
+            }
         }
     }
 
     func refresh() async {
+        guard Purchases.isConfigured else {
+            lastError = .configurationMissing
+            markCustomerInfoResolved()
+            return
+        }
+
         isLoading = true
         lastError = nil
         defer {
@@ -71,6 +87,8 @@ final class SubscriptionService: SubscriptionServicing {
     }
 
     func restore() async throws {
+        try ensurePurchasesConfigured()
+
         isLoading = true
         lastError = nil
         defer { isLoading = false }
@@ -87,6 +105,8 @@ final class SubscriptionService: SubscriptionServicing {
     }
 
     func logIn(appUserID: String) async throws {
+        try ensurePurchasesConfigured()
+
         isLoading = true
         lastError = nil
         defer { isLoading = false }
@@ -105,6 +125,8 @@ final class SubscriptionService: SubscriptionServicing {
     }
 
     func logOut() async throws {
+        try ensurePurchasesConfigured()
+
         isLoading = true
         lastError = nil
         defer { isLoading = false }
@@ -121,6 +143,8 @@ final class SubscriptionService: SubscriptionServicing {
     }
 
     func purchase(_ package: Package) async throws {
+        try ensurePurchasesConfigured()
+
         isLoading = true
         lastError = nil
         defer { isLoading = false }
@@ -188,11 +212,50 @@ final class SubscriptionService: SubscriptionServicing {
         }
     }
 
-    private static func configureSharedPurchases() {
+    /// Configures RevenueCat once. Returns `false` when subscriptions are
+    /// intentionally disabled for this build (see `RevenueCatConfiguration`).
+    @discardableResult
+    private static func configureSharedPurchases() -> Bool {
+        // SwiftUI may re-evaluate `State(initialValue: SubscriptionService())` on
+        // view re-init; only attempt configure once per process.
+        if Purchases.isConfigured {
+            return true
+        }
+        if didAttemptConfigure {
+            return false
+        }
+        didAttemptConfigure = true
+
         #if DEBUG
-        Purchases.logLevel = .debug
+        let isDebugBuild = true
+        #else
+        let isDebugBuild = false
         #endif
-        Purchases.configure(withAPIKey: Secrets.revenueCatAPIKey)
+
+        switch RevenueCatConfiguration.resolve(apiKey: Secrets.revenueCatAPIKey, isDebugBuild: isDebugBuild) {
+        case .enabled(let apiKey):
+            #if DEBUG
+            Purchases.logLevel = .debug
+            #endif
+            Purchases.configure(withAPIKey: apiKey)
+            return true
+
+        case .disabled(let reason):
+            let configuration = RevenueCatConfiguration.disabled(reason)
+            Logger(subsystem: "com.codewithmikey.pluri", category: "SubscriptionService")
+                .warning("\(configuration.disabledLogMessage ?? "", privacy: .public)")
+            return false
+        }
+    }
+
+    private static var didAttemptConfigure = false
+
+    private func ensurePurchasesConfigured() throws {
+        guard Purchases.isConfigured else {
+            let missing = PluriSubscriptionError.configurationMissing
+            lastError = missing
+            throw missing
+        }
     }
 
     private func startListeningToCustomerInfo() {
