@@ -220,3 +220,32 @@ never hard borders or heavy drop shadows.
   modals, with shadow softness increasing up the stack.
 
 ---
+
+## 7. Live Workout exercise card patterns
+
+Cushioned `PluriCard` rows on the live Workout Screen (cream canvas, orange
+accents — not a novel palette). Visual DNA may borrow spacing calm from
+reference apps; content must come from real `PlannedExercise` / set-log data.
+
+- **Prescription:** Derive copy from `sets` + `reps` only —
+  `"{reps}–{reps+2} reps, repeat {sets} times"` (singular **time** when
+  `sets == 1`). Never show terse `"4 × 5"`. Do not invent rest timers, duration
+  prescriptions, supersets, or multi-part progress bars.
+- **Log drawer:** Resting card shows media, name, equipment, prescription, a
+  primary **Log** CTA (44pt), and a growing list of already-logged sets. Tapping
+  Log expands an animated inline drawer; after a successful log the drawer
+  collapses back to resting (no lingering weight/reps clutter).
+- **Weighted logging:** Large live numeric weight, snapping slider, −/+ nudges,
+  and reps −/+. Category min/max/step/default ladders live in
+  `ExerciseWeightRange` and follow `Research/Log Weight Slider Research.md`
+  (barbell / dumbbell / machine / kettlebell / added-load / fallback). Seed from
+  the last logged weight in the session when available; else the category
+  default. Persist kg; display per profile units.
+- **Bodyweight / no-load:** When classification is `noLoad` (e.g. catalog
+  `"Body Weight"`, bands), the drawer shows an in-card stopwatch and logs
+  `durationSeconds` — never a fabricated “20 secs” prescription. Sets/reps
+  prescription copy still shows when those ints exist.
+- **Floating controls:** Keep the existing Start → Pause/Stop → Resume /
+  Hold-to-Finish bar; do not invent secondary session “parts.”
+
+---

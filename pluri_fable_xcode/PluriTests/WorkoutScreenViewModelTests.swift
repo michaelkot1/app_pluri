@@ -291,6 +291,10 @@ struct WorkoutScreenViewModelTests {
             .value
         #expect(logs[0].weightKg == expectedKg)
         #expect(viewModel.loggedSetCountByExercise[exercise.id] == 2)
+        #expect(viewModel.loggedSets(for: exercise.id).count == 2)
+        #expect(viewModel.loggedSets(for: exercise.id)[0].reps == 8)
+        let lastDisplay = try #require(viewModel.lastLoggedWeightDisplay(for: exercise.id))
+        #expect(abs(lastDisplay - 230) < 0.05)
         #expect(sync.enqueueCalls.count == 2)
     }
 

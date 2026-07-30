@@ -18,14 +18,15 @@ struct WorkoutExerciseListView: View {
                 .kerning(1)
                 .foregroundStyle(PluriColor.textSecondary)
 
-            LazyVStack(alignment: .leading, spacing: PluriSpacing.sm) {
+            LazyVStack(alignment: .leading, spacing: PluriSpacing.md) {
                 ForEach(session.exercises) { exercise in
                     WorkoutExerciseCardView(
                         exercise: exercise,
                         videoURL: viewModel.resolvedVideoURL(for: exercise),
                         showsInlineLog: viewModel.showsLiveControls,
                         usesImperialUnits: usesImperialUnits,
-                        loggedSetCount: viewModel.loggedSetCountByExercise[exercise.id] ?? 0,
+                        loggedSets: viewModel.loggedSets(for: exercise.id),
+                        lastLoggedWeightDisplay: viewModel.lastLoggedWeightDisplay(for: exercise.id),
                         action: {
                             viewModel.selectExercise(exercise.id)
                         },

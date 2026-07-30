@@ -16,6 +16,8 @@ final class WorkoutScreenViewModel {
     private(set) var workoutSessionID: UUID?
     private(set) var exerciseNotesDraft: [UUID: String] = [:]
     private(set) var loggedSetCountByExercise: [UUID: Int] = [:]
+    /// Per-exercise logged sets for the live card history rows (newest last).
+    private(set) var loggedSetsByExercise: [UUID: [LoggedSetSummary]] = [:]
     /// Increments on successful log for sensory feedback.
     private(set) var logFeedbackTick = 0
     var errorMessage: String?
@@ -85,12 +87,13 @@ final class WorkoutScreenViewModel {
             isPaused = false
             displayedElapsedSeconds = 0
             loggedSetCountByExercise = [:]
+            loggedSetsByExercise = [:]
             stopTickLoop()
             healthMetrics.stopStreaming()
             return
         }
         applySession(session)
-        rebuildLoggedSetCounts(from: session)
+        rebuildLoggedSets(from: session)
         if isRunning {
             startTickLoop()
             startHealthStreamingIfNeeded()
@@ -278,7 +281,7 @@ final class WorkoutScreenViewModel {
                 displayValue: weightDisplay,
                 usesImperial: usesImperialUnits()
             )
-            _ = try repository.upsertSetLog(
+            let record = try repository.upsertSetLog(
                 sessionId: session.id,
                 id: nil,
                 workoutExerciseId: exercise.id,
@@ -289,11 +292,35 @@ final class WorkoutScreenViewModel {
                 durationSeconds: durationSeconds
             )
             loggedSetCountByExercise[exercise.id] = nextSet
+            var rows = loggedSetsByExercise[exercise.id] ?? []
+            rows.append(LoggedSetSummary(from: record))
+            loggedSetsByExercise[exercise.id] = rows
             logFeedbackTick += 1
             syncEngine?.enqueueSession(id: session.id)
         } catch {
             errorMessage = PlanChangeErrorMessage.message(for: error)
         }
+    }
+
+    /// Logged set rows for one planned exercise, ordered by set number.
+    func loggedSets(for exerciseID: UUID) -> [LoggedSetSummary] {
+        loggedSetsByExercise[exerciseID] ?? []
+    }
+
+    /// Last weight for this exercise in the current session, in profile display units.
+    func lastLoggedWeightDisplay(for exerciseID: UUID) -> Double? {
+        guard let lastWithWeight = loggedSetsByExercise[exerciseID]?
+            .last(where: { $0.weightKg != nil }),
+            let weightKg = lastWithWeight.weightKg
+        else {
+            return nil
+        }
+        if usesImperialUnits() {
+            return Measurement(value: weightKg, unit: UnitMass.kilograms)
+                .converted(to: .pounds)
+                .value
+        }
+        return weightKg
     }
 
     func tearDown() {
@@ -362,13 +389,20 @@ final class WorkoutScreenViewModel {
         exerciseNotesDraft = drafts
     }
 
-    private func rebuildLoggedSetCounts(from session: WorkoutSessionRecord) {
+    private func rebuildLoggedSets(from session: WorkoutSessionRecord) {
         var counts: [UUID: Int] = [:]
-        for log in session.setLogs {
+        var rows: [UUID: [LoggedSetSummary]] = [:]
+        let sorted = session.setLogs.sorted {
+            if $0.setNumber != $1.setNumber { return $0.setNumber < $1.setNumber }
+            return $0.createdAt < $1.createdAt
+        }
+        for log in sorted {
             guard let exerciseID = log.workoutExerciseId else { continue }
             counts[exerciseID] = max(counts[exerciseID] ?? 0, log.setNumber)
+            rows[exerciseID, default: []].append(LoggedSetSummary(from: log))
         }
         loggedSetCountByExercise = counts
+        loggedSetsByExercise = rows
     }
 
     private func startTickLoop() {
