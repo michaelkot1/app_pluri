@@ -39,7 +39,8 @@ Derived from [`SPEC.md`](SPEC.md). Ground rules in [`AGENTS.md`](AGENTS.md). Wor
 
 - **Auth:** Sign in with Apple + email/password (blocking UI after name entry; email signup may require **6-digit OTP** confirmation before session; answers flush after paywall unlock while signed in).
 - **Core tables** (all with RLS = owner-only unless noted):
-  - `profiles` — name, demographics, units, goal, maintenance calories, allergies, injuries (jsonb: area + pain level), equipment (text[]), schedule prefs.
+  - `profiles` — name, demographics, units, goal, maintenance calories, allergies, injuries (jsonb: area + pain level, plus the optional M10 superset — pain quality, provoking exercise ids, assessment date, schema version; `area`/`pain` never change shape, so legacy rows stay valid — SPEC §14 #84), equipment (text[]), schedule prefs.
+  - `injury_assessments` / `injury_assessment_findings` — dated pain observations behind the `profiles.injuries` snapshot (M10): area, pain quality, derived severity, source tier, trend answer, per-exercise findings. The snapshot is current state; these are history.
   - `plans` — goal, start/end dates, weeks, schedule type, status.
   - `plan_workouts` — plan_id, week #, scheduled date/day, name, type, color, duration, status (scheduled/completed/skipped).
   - `workout_exercises` — plan_workout_id, workoutx exercise id + cached metadata, sets/reps or duration targets, order.
@@ -61,7 +62,7 @@ Derived from [`SPEC.md`](SPEC.md). Ground rules in [`AGENTS.md`](AGENTS.md). Wor
 
 ### 1.4 Key algorithms (owned by `PlanEngine` / `ScoreEngine`)
 
-- **Plan generation (focus-first, SPEC §14 #46/#47):** derive a weekly **split** from days/week + experience/goal (2 days → Full Body A/B; 3 → Push/Pull/Legs or Upper/Lower/Full Body; 4 → PPL+Upper or a body-part split; 5–6 → PPL + accessories or classic body-part split) — each training day gets a **session focus** defining primary/secondary target muscles, its display title, and a design-token color. Filter the WorkoutX catalog by equipment, then select against each focus via `targetMuscle`/`secondaryMuscles` (majority primary movements + 1–2 secondary), fitting the chosen duration (est. time per set). Injuries apply **graded by pain level** (1–2 no-primary/light-secondary, 3 no-primary/load-capped-secondary, 4–5 hard exclusion) through a `BodyArea` → target-muscle mapping; "Full Body" is used only when earned (2-day plans or a too-small eligible pool). Distribute across chosen days for N weeks with simple progression (reps→weight ramp). Deterministic given a seed, so it's testable.
+- **Plan generation (focus-first, SPEC §14 #46/#47):** derive a weekly **split** from days/week + experience/goal (2 days → Full Body A/B; 3 → Push/Pull/Legs or Upper/Lower/Full Body; 4 → PPL+Upper or a body-part split; 5–6 → PPL + accessories or classic body-part split) — each training day gets a **session focus** defining primary/secondary target muscles, its display title, and a design-token color. Filter the WorkoutX catalog by equipment, then select against each focus via `targetMuscle`/`secondaryMuscles` (majority primary movements + 1–2 secondary), fitting the chosen duration (est. time per set). Injuries apply **graded by pain level** (1–2 no-primary/light-secondary, 3 no-primary/load-capped-secondary, 4–5 hard exclusion) through a `BodyArea` → target-muscle mapping; "Full Body" is used only when earned (2-day plans or a too-small eligible pool). From M10 the pain level itself is **derived** from a qualitative assessment (dull / sharp / aching × which primary exercises provoke pain — SPEC §14 #85) rather than a slider, the split takes injuries as an input so week *composition* adapts too, and injured users' day titles are overridden into specific descriptive names on `plan_workouts.name` while the `focus` code stays unchanged (SPEC §14 #86). The graded thresholds are untouched. Distribute across chosen days for N weeks with simple progression (reps→weight ramp). Deterministic given a seed, so it's testable.
 - **Pluri Score:** start simple — 70% consistency (completed ÷ scheduled over trailing 4 weeks, with streak bonus and gentle decay) + 30% health trend vs. the user's own 30-day baseline. Clamped daily delta (e.g., ±3) so it "moves slowly and kindly." Tune later; formula lives in one tested module.
 - **Maintenance calories:** Mifflin-St Jeor + activity multiplier from training frequency.
 
@@ -116,11 +117,16 @@ Runna-like hub (**Feed · Discover · Saved**): feed (posts, likes, comments, po
 Outdoor Run stub screen, notification settings & full notification types, localization pass, accessibility audit, performance pass (media caching, <100 ms logging), App Store assets, privacy nutrition labels, TestFlight beta → submission.
 **Exit:** App Store submission.
 
+### M10 — Injury-Aware Training
+Injury capture moves into the goal step (binary gate) with a nested triage sub-flow; the 1–5 pain slider is replaced by a qualitative assessment (three primary exercises per area × dull / sharp / aching) that **derives** the existing severity; adjacent muscle groups are probed with a hard cap; injured users' splits and day names adapt (no generic "Push / Pull / Legs"); "does this hurt?" is asked at three tiers (onboarding declared areas, onboarding adjacent areas, and just-in-time in-workout for secondary/undeclared groups); re-assessment runs at four layers (per-set, per-workout, weekly, full re-triage every 3 weeks) and can adapt the remaining plan with the user's confirmation. Pluri is **not** physical therapy — framing stays non-medical with an escalation path to professional care.
+**Exit:** an injured user is triaged qualitatively without lengthening onboarding for healthy users, trains a plan whose selection and day names reflect a derived severity, is asked how flagged movements felt at the point of contact, and is re-assessed on a cadence that can regenerate the remainder of the plan on confirmation.
+
 ### Dependency notes
 
 - M1 needs M0's design system and WorkoutX client. M2 needs M1's data to persist. M3–M4 need M2's auth.
 - M5 depends on M4 (sessions to analyze). ~~M6 depends on M3/M4~~ (M6 archived — #77). M7 and M8 are independent of each other and can be reordered or parallelized.
 - Pluri Score appears as UI in M3 but gets its real engine in M5 — deliberate, so Home ships early.
+- M10 depends on M1 (onboarding router), M3 (focus-first engine, graded pain rules, reminder infrastructure), and M4 (live logging + completion, where the just-in-time pain prompt lives). It is independent of M7/M8 and can be sequenced before or after M9.
 
 ---
 
