@@ -361,6 +361,58 @@ struct CommunityViewModelTests {
         #expect(updated.viewerOptionIndex == 0)
         #expect(updated.voteCounts[0] == beforeCounts[0] + 1)
     }
+
+    @Test("Author initial is safe for empty names and emoji titles")
+    func authorInitialHandlesEmptyAndEmoji() {
+        let empty = CommunityAuthor(id: UUID(), displayName: "   ")
+        #expect(empty.initial == "P")
+
+        let named = CommunityAuthor(id: UUID(), displayName: "ant")
+        #expect(named.initial == "A")
+
+        let emoji = CommunityAuthor(id: UUID(), displayName: "🌍")
+        #expect(emoji.initial == "🌍")
+    }
+
+    @Test("Create post view model can present as a sheet item")
+    func createPostViewModelIsIdentifiable() {
+        let first = CreateCommunityPostViewModel(client: MockCommunityClient(posts: []))
+        let second = CreateCommunityPostViewModel(client: MockCommunityClient(posts: []))
+        #expect(first.id != second.id)
+    }
+
+    @Test("Snapshot loader returns completed sessions and skips in-progress")
+    func snapshotLoaderUsesCompletedSessions() throws {
+        let container = try ModelContainer(
+            for: Schema([WorkoutSessionRecord.self, SetLogRecord.self]),
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let repo = SwiftDataWorkoutSessionRepository(modelContext: container.mainContext)
+        let userId = UUID()
+        let completed = WorkoutSessionRecord(
+            userId: userId,
+            planWorkoutId: nil,
+            activityType: "workout",
+            endedAt: .now,
+            durationSeconds: 600
+        )
+        container.mainContext.insert(completed)
+        let inProgress = WorkoutSessionRecord(
+            userId: userId,
+            planWorkoutId: nil,
+            activityType: "workout"
+        )
+        container.mainContext.insert(inProgress)
+        try container.mainContext.save()
+
+        let snapshots = CommunityWorkoutSnapshotLoader.recentSnapshots(
+            from: repo,
+            planStore: PlanStore(mutationService: MockPlanMutationService())
+        )
+        #expect(snapshots.count == 1)
+        #expect(snapshots.first?.sessionId == completed.id)
+        #expect(snapshots.first?.durationSeconds == 600)
+    }
 }
 
 @MainActor

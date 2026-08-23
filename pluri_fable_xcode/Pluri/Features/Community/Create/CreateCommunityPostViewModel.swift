@@ -7,7 +7,8 @@ import SwiftUI
 /// Share Workout requires a local `WorkoutSnapshot`.
 @MainActor
 @Observable
-final class CreateCommunityPostViewModel {
+final class CreateCommunityPostViewModel: Identifiable {
+    let id = UUID()
     var title = ""
     var body = ""
     var postType: CommunityPostType = .general

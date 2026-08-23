@@ -6,6 +6,13 @@ struct CommunityAuthor: Sendable, Equatable, Hashable, Identifiable {
     let id: UUID
     /// Display name, or the fallback label when the author row is missing.
     let displayName: String
+
+    /// Single-character avatar glyph. Safe for empty names and emoji (e.g. "🌍").
+    var initial: String {
+        let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let first = trimmed.first else { return "P" }
+        return String(first).localizedUppercase
+    }
 }
 
 /// Optional poll attached to a post (`post_polls` + aggregated `poll_votes`).

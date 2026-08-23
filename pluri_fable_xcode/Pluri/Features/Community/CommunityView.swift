@@ -3,25 +3,31 @@ import SwiftUI
 
 /// Community root shell (M8-05…M8-12): Feed · Discover · Saved hub chrome,
 /// search + calendar on the Community stack, create-post sheet.
+///
+/// Create-post SwiftData / PlanStore lookups live on the sheet only so opening
+/// the Community tab cannot crash the hub (BUG-001).
 struct CommunityView: View {
     @Environment(MainRouter.self) private var router
     @Environment(\.communityClient) private var communityClient
-    @Environment(PlanStore.self) private var planStore
-    @Environment(SwiftDataWorkoutSessionRepository.self) private var workoutSessionRepository
 
     @State private var selectedTab: CommunityHubTab = .feed
     @State private var feedViewModel: CommunityFeedViewModel?
     @State private var savedViewModel: CommunityFeedViewModel?
     @State private var createViewModel: CreateCommunityPostViewModel?
-    @State private var showsCreatePost = false
 
     var body: some View {
         Group {
             if let feedViewModel, let savedViewModel {
-                tabContent(feedViewModel: feedViewModel, savedViewModel: savedViewModel)
+                CommunityHubContent(
+                    selectedTab: $selectedTab,
+                    feedViewModel: feedViewModel,
+                    savedViewModel: savedViewModel,
+                    onCreatePost: presentCreatePost
+                )
             } else {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityLabel("Loading Community")
             }
         }
         .background(PluriColor.bgCanvas)
@@ -40,16 +46,13 @@ struct CommunityView: View {
                 .accessibilityHint("Open calendar from Community")
             }
         }
-        .sheet(isPresented: $showsCreatePost, onDismiss: {
-            createViewModel = nil
+        .sheet(item: $createViewModel, onDismiss: {
             feedViewModel?.reload()
             savedViewModel?.reload()
-        }) {
-            if let createViewModel {
-                CreateCommunityPostView(viewModel: createViewModel)
-            }
+        }) { viewModel in
+            CommunityCreatePostSheet(viewModel: viewModel)
         }
-        .onAppear {
+        .task {
             ensureViewModels()
         }
         .onChange(of: selectedTab) { _, newTab in
@@ -60,36 +63,6 @@ struct CommunityView: View {
                 savedViewModel?.reload()
             case .discover:
                 break
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func tabContent(
-        feedViewModel: CommunityFeedViewModel,
-        savedViewModel: CommunityFeedViewModel
-    ) -> some View {
-        VStack(spacing: 0) {
-            Text("Connect, share, and celebrate progress together.")
-                .font(PluriFont.body)
-                .foregroundStyle(PluriColor.textSecondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, PluriSpacing.lg)
-                .padding(.top, PluriSpacing.sm)
-
-            CommunityHubTabPicker(selectedTab: $selectedTab)
-                .padding(.horizontal, PluriSpacing.lg)
-                .padding(.vertical, PluriSpacing.md)
-
-            switch selectedTab {
-            case .feed:
-                CommunityFeedView(viewModel: feedViewModel) {
-                    presentCreatePost()
-                }
-            case .discover:
-                CommunityDiscoverView()
-            case .saved:
-                CommunitySavedView(viewModel: savedViewModel)
             }
         }
     }
@@ -106,41 +79,62 @@ struct CommunityView: View {
 
     private func presentCreatePost() {
         ensureViewModels()
-        let snapshots = recentWorkoutSnapshots()
-        createViewModel = CreateCommunityPostViewModel(
-            client: communityClient,
-            availableSnapshots: snapshots
-        ) { _ in
+        createViewModel = CreateCommunityPostViewModel(client: communityClient) { _ in
             feedViewModel?.reload()
         }
-        showsCreatePost = true
     }
+}
 
-    private func recentWorkoutSnapshots() -> [WorkoutSnapshot] {
-        let sessions: [WorkoutSessionRecord]
-        do {
-            sessions = try workoutSessionRepository.fetchAllCompletedSessions()
-        } catch {
-            return []
-        }
+// MARK: - Hub content
 
-        let titlesByPlanID: [UUID: String] = {
-            guard let plan = planStore.plan else { return [:] }
-            var map: [UUID: String] = [:]
-            for week in plan.weeks {
-                for session in week.sessions {
-                    map[session.id] = session.title
-                }
+private struct CommunityHubContent: View {
+    @Binding var selectedTab: CommunityHubTab
+    var feedViewModel: CommunityFeedViewModel
+    var savedViewModel: CommunityFeedViewModel
+    var onCreatePost: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text("Connect, share, and celebrate progress together.")
+                .font(PluriFont.body)
+                .foregroundStyle(PluriColor.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, PluriSpacing.lg)
+                .padding(.top, PluriSpacing.sm)
+
+            CommunityHubTabPicker(selectedTab: $selectedTab)
+                .padding(.horizontal, PluriSpacing.lg)
+                .padding(.vertical, PluriSpacing.md)
+
+            switch selectedTab {
+            case .feed:
+                CommunityFeedView(viewModel: feedViewModel, onCreatePost: onCreatePost)
+            case .discover:
+                CommunityDiscoverView()
+            case .saved:
+                CommunitySavedView(viewModel: savedViewModel)
             }
-            return map
-        }()
+        }
+    }
+}
 
-        return sessions
-            .sorted { ($0.endedAt ?? $0.startedAt) > ($1.endedAt ?? $1.startedAt) }
-            .prefix(12)
-            .map { session in
-                let title = session.planWorkoutId.flatMap { titlesByPlanID[$0] }
-                return WorkoutSnapshot.from(session: session, title: title)
+// MARK: - Create post sheet
+
+/// Loads Share Workout snapshots after the composer is on screen so a SwiftData
+/// fault cannot blank the Community tab (BUG-001).
+private struct CommunityCreatePostSheet: View {
+    @Environment(PlanStore.self) private var planStore
+    @Environment(SwiftDataWorkoutSessionRepository.self) private var workoutSessionRepository
+    @Bindable var viewModel: CreateCommunityPostViewModel
+
+    var body: some View {
+        CreateCommunityPostView(viewModel: viewModel)
+            .task {
+                guard viewModel.availableSnapshots.isEmpty else { return }
+                viewModel.availableSnapshots = CommunityWorkoutSnapshotLoader.recentSnapshots(
+                    from: workoutSessionRepository,
+                    planStore: planStore
+                )
             }
     }
 }

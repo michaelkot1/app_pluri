@@ -64,7 +64,7 @@ struct CommunityPostCardView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: PluriSpacing.sm) {
-            Text(String(post.author.displayName.prefix(1)).uppercased())
+            Text(post.author.initial)
                 .font(PluriFont.label)
                 .bold()
                 .foregroundStyle(PluriColor.brandOrangeDeep)

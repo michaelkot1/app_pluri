@@ -445,7 +445,7 @@ struct LiveCommunityClient: CommunityClient {
 
             guard !myPosts.isEmpty else { return [] }
 
-            let titlesById = Dictionary(uniqueKeysWithValues: myPosts.map { ($0.id, $0.title) })
+            let titlesById = Dictionary(myPosts.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
             let postIds = myPosts.map(\.id)
 
             let rows: [CommunityCommentRowDTO] = try await client
@@ -535,7 +535,7 @@ struct LiveCommunityClient: CommunityClient {
                 .in("id", values: unique)
                 .execute()
                 .value
-            return Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
+            return Dictionary(rows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         } catch {
             logger.error("community_author_profiles batch failed: \(error.localizedDescription)")
             throw mapTransport(error, context: "authors")
